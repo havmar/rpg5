@@ -8,6 +8,11 @@ outcomes, epithets, tournaments, expeditions, feuds, successions,
 breakthroughs with real failure states, voluntary exits, and generations
 via 8-year intakes.
 
+Plus the first course of the politics layer (Part VI, session 1): the nine
+lands on a 3x3 grid, a nested tree of places carrying prosperity, and
+recruitment reach measured in geography. Every agent is born in a real
+settlement; `map` shows the grid.
+
 Logging policy (the product):
   * Every consequential event is appended to the PRIVATE history of every
     agent involved. Nothing is lost.
@@ -85,15 +90,16 @@ TRAIT_ACTION = {
     "Broken":    {"seclude": 1.7, "adventure": 0.5},
 }
 
-# Names come from six fictional homelands, each borrowing a real-world
-# language so agents stay pronounceable and easy to tell apart. Every agent
-# rolls a homeland; each intake cohort skews toward one dominant land, and a
-# small fraction of agents carry a surname from a different land than their
-# given name (mixed parentage). The two southern lands are distant, so their
-# names are rare in the sects.
+# Names come from six language pools, each borrowing a real-world language so
+# agents stay pronounceable and easy to tell apart. A pool supplies one or
+# two of the nine lands (see GEOGRAPHY below); every agent rolls a home
+# settlement, and their descent is the name pool of that settlement's land.
+# Each intake cohort skews toward one dominant land, and a small fraction of
+# agents carry a surname from a different pool than their given name (mixed
+# parentage). Rarity is geographic now, not a static per-pool weight: distant
+# corner lands simply send fewer recruits.
 NAME_LANDS = {
     "Spice Isles": {                                # Indonesian
-        "weight": 5,
         "male": [
             "Adi", "Agus", "Anwar", "Arif", "Bagus", "Bambang", "Bayu",
             "Budi", "Cahya", "Dimas", "Eko", "Fajar", "Gede", "Gilang",
@@ -116,7 +122,6 @@ NAME_LANDS = {
         ],
     },
     "Sky Steppe": {                                 # Mongolian
-        "weight": 5,
         "male": [
             "Altan", "Baatar", "Batbayar", "Batu", "Bold", "Chuluun",
             "Delger", "Dorj", "Enkhbold", "Erdene", "Ganbaatar", "Ganbold",
@@ -137,7 +142,6 @@ NAME_LANDS = {
         ],
     },
     "Thousand Lakes": {                             # Finnish
-        "weight": 5,
         "male": [
             "Aarne", "Antero", "Antti", "Eero", "Eino", "Esa", "Hannu",
             "Heikki", "Ilmari", "Jaakko", "Jorma", "Juhani", "Jukka",
@@ -163,7 +167,6 @@ NAME_LANDS = {
         ],
     },
     "Glacier Coast": {                              # Icelandic
-        "weight": 5,
         # Surnames here are patronymic stems: a father's name that becomes
         # "<stem>sson" for men and "<stem>sdottir" for women.
         "patronymic": True,
@@ -188,8 +191,7 @@ NAME_LANDS = {
             "Thorvald", "Ulfar", "Vidar",
         ],
     },
-    "River Kingdoms": {                             # Sanskrit — distant, rare
-        "weight": 1,
+    "River Kingdoms": {                             # Sanskrit
         "male": [
             "Aditya", "Ananta", "Arjun", "Bhaskar", "Chandra", "Devadatta",
             "Dhruva", "Govinda", "Harsha", "Ishan", "Jayanta", "Kartik",
@@ -206,8 +208,7 @@ NAME_LANDS = {
             "Varma", "Vasishtha",
         ],
     },
-    "Sunset Plateau": {                             # Persian — distant, rare
-        "weight": 1,
+    "Sunset Plateau": {                             # Persian
         "male": [
             "Arash", "Ardeshir", "Babak", "Bahram", "Bijan", "Dariush",
             "Farhad", "Faridun", "Hormoz", "Jamshid", "Kaveh", "Khosrow",
@@ -227,7 +228,71 @@ NAME_LANDS = {
     },
 }
 DOMINANT_LAND_BOOST = 3.0   # each intake cohort skews toward one homeland
-MIXED_NAME_CHANCE = 0.06    # surname from a different land than the given name
+MIXED_NAME_CHANCE = 0.06    # surname from a different pool than the given name
+
+# --- GEOGRAPHY: the nine lands ---------------------------------------------
+# The world is a 3x3 grid of lands. The centre is the Middle Plain: the
+# largest population, the seat of all four sects, and culturally a melting
+# pot — it has NO name pool of its own, so its natives roll a descent from
+# the six pools evenly and carry mixed surnames twice as often. The eight
+# outer slots are filled from the six pools; at worldgen the rng picks two
+# pools to supply TWO lands each (sibling nations sharing a tongue), using
+# the fixed secondary land names below.
+MIDDLE_PLAIN = "Middle Plain"
+SECONDARY_LAND_NAMES = {
+    "Spice Isles":    "Coral Strand",
+    "Sky Steppe":     "Wolf Steppe",
+    "Thousand Lakes": "Birch Marches",
+    "Glacier Coast":  "Ashen Fjords",
+    "River Kingdoms": "Lotus Delta",
+    "Sunset Plateau": "Salt Wastes",
+}
+DOUBLED_POOLS = 2               # pools that supply two lands each
+SIBLING_ADJACENCY_RETRIES = 1   # reshuffles spent trying to seat siblings together
+MIDDLE_PLAIN_MIXED_MULT = 2.0   # the melting pot doubles MIXED_NAME_CHANCE
+
+# Recruitment reach is geographic: the sects sit in the Middle Plain, so the
+# centre sends the most students, edge lands fewer, far corners fewest.
+RECRUIT_WEIGHT_CENTER = 4.0
+RECRUIT_WEIGHT_EDGE = 2.0
+RECRUIT_WEIGHT_CORNER = 1.0
+# Relative populations when rolling which settlement of a land a recruit
+# grew up in.
+SETTLEMENT_POP_WEIGHT = {"city": 4.0, "town": 2.0, "village": 1.0}
+
+# Shape of the place tree. The Middle Plain is the biggest land: three
+# regions, a capital and the four sect seats; outer lands are smaller.
+MIDDLE_PLAIN_REGIONS = 3
+MIDDLE_PLAIN_REGION_SIZES = [3, 3, 4]   # settlements per region (rng.choice)
+OUTER_REGIONS = [2, 2, 2, 3]
+OUTER_REGION_SIZES = [2, 2, 2, 3]
+TOWN_CHANCE = 0.35                      # else a village
+PLACE_STEM_SURNAME_CHANCE = 0.6         # else the stem is a given name
+SETTLEMENT_KINDS = ("city", "town", "village")
+
+# Prosperity: a float 0-10 carried by settlements; regions and lands report
+# the mean of the settlements beneath them. Each land rolls a baseline (its
+# temper) and every settlement sits near it; left alone prosperity drifts
+# back toward baseline. It is ALWAYS shown as a word, never a number.
+PROSPERITY_BASELINE = (4.0, 6.0)
+PROSPERITY_JITTER = 0.5
+PROSPERITY_DRIFT = 0.2
+PROSPERITY_WORDS = [
+    (2.0, "starving"), (4.0, "desperate"), (6.0, "modest"),
+    (8.0, "comfortable"), (9.5, "prosperous"), (10.1, "golden"),
+]
+
+# Settlement names: a stem from the land's name pool plus a plain suffix.
+PLACE_SUFFIXES = {
+    "region":  ["Vale", "Marches", "Highlands", "Lowlands", "Downs", "Weald",
+                "Fen", "Reach", "Uplands", "Hinterland"],
+    "city":    ["Gate", "Market", "Hold", "Bastion", "Crossing", "Court",
+                "Span", "Keep"],
+    "town":    ["Ford", "Wells", "Bridge", "Mill", "Landing", "Bend",
+                "Quarry", "Wharf"],
+    "village": ["Rest", "Hollow", "Fields", "Croft", "Barrow", "Nook",
+                "Watch", "End", "Furrow", "Bough"],
+}
 
 MAIM_EPITHETS = ["One-Armed", "One-Eyed", "Scarred", "Iron-Boned",
                  "Ash-Handed", "Half-Lame"]
@@ -250,6 +315,69 @@ REL_DISPLAY = {
 
 
 # ---------------------------------------------------------------------------
+# Places — the nested world tree
+# ---------------------------------------------------------------------------
+
+def prosperity_word(value: float) -> str:
+    """Prosperity is reported in words, never numbers."""
+    for ceiling, word in PROSPERITY_WORDS:
+        if value < ceiling:
+            return word
+    return PROSPERITY_WORDS[-1][1]
+
+
+@dataclass(eq=False)
+class Place:
+    """A node of the world tree: land > region > settlement (or sect seat).
+
+    `prosperity` and `baseline` are only carried directly by settlements;
+    regions and lands report the mean of the settlements beneath them
+    (`wealth()`). Lands additionally carry their grid slot and name pool.
+    """
+    pid: int
+    name: str
+    kind: str                                   # land/region/city/town/village/sect
+    parent: Optional["Place"] = field(default=None, repr=False)
+    land: Optional["Place"] = field(default=None, repr=False)
+    children: list = field(default_factory=list, repr=False)
+    prosperity: float = 5.0
+    baseline: float = 5.0
+    grid: Optional[tuple] = None                # (row, col) — lands only
+    pool: Optional[str] = None                  # NAME_LANDS key; None = melting pot
+
+    def settlements(self) -> list:
+        """Every settlement at or beneath this place (sect seats excluded)."""
+        if self.kind in SETTLEMENT_KINDS:
+            return [self]
+        out = []
+        for c in self.children:
+            out.extend(c.settlements())
+        return out
+
+    def wealth(self) -> float:
+        """Prosperity of this place: the mean of the settlements under it."""
+        kids = self.settlements()
+        if not kids:
+            return self.prosperity
+        return sum(p.prosperity for p in kids) / len(kids)
+
+    def word(self) -> str:
+        return prosperity_word(self.wealth())
+
+    def is_center(self) -> bool:
+        return self.grid == (1, 1)
+
+    def reach(self) -> str:
+        """Where this land sits on the grid: center / edge / corner."""
+        if self.grid is None:
+            return ""
+        row, col = self.grid
+        if row == 1 and col == 1:
+            return "center"
+        return "edge" if (row == 1 or col == 1) else "corner"
+
+
+# ---------------------------------------------------------------------------
 # Agents
 # ---------------------------------------------------------------------------
 
@@ -268,7 +396,9 @@ class Agent:
     talent: int                       # 1-10, fixed at birth
     traits: list
     sex: str = "m"                    # "m"/"f"; only picks the given-name pool
-    homeland: str = ""                # key into NAME_LANDS
+    home: Optional[Place] = None      # the settlement they were born in
+    homeland: str = ""                # name of the land that home sits in
+    descent: str = ""                 # NAME_LANDS pool their names come from
     realm: int = 1
     qi: float = 0.0
     insight: float = 0.0
@@ -335,34 +465,176 @@ class World:
         self.next_expedition = 0
         self.feud_cooldown = 0
         self.pc: Optional[Agent] = None
+        # Geography (built first, in _setup).
+        self.places: dict[int, Place] = {}
+        self.lands: dict[str, Place] = {}          # land name -> land Place
+        self.grid: list = [[None] * 3 for _ in range(3)]   # grid[row][col]
+        self.sect_seats: dict[str, Place] = {}
+        self.sibling_lands: list = []              # [(land, land), ...]
+        self._next_pid = 1
+        self._place_names: set = set()
         self._setup()
+
+    # -- geography ----------------------------------------------------------
+
+    def _new_place(self, name, kind, parent=None, land=None) -> Place:
+        p = Place(pid=self._next_pid, name=name, kind=kind, parent=parent,
+                  land=land if land is not None else parent)
+        if p.kind != "land" and p.land is not None and p.land.kind != "land":
+            p.land = p.land.land
+        self._next_pid += 1
+        if parent is not None:
+            parent.children.append(p)
+        self.places[p.pid] = p
+        self._place_names.add(name)
+        return p
+
+    def _place_stem(self, land: Place) -> str:
+        """A name stem from the land's pool; the melting pot draws from any."""
+        pool = land.pool or self.rng.choice(list(NAME_LANDS))
+        spec = NAME_LANDS[pool]
+        if self.rng.random() < PLACE_STEM_SURNAME_CHANCE:
+            return self.rng.choice(spec["surnames"])
+        return self.rng.choice(spec["male"] + spec["female"])
+
+    def _place_name(self, land: Place, kind: str) -> str:
+        for _ in range(40):
+            name = f"{self._place_stem(land)} {self.rng.choice(PLACE_SUFFIXES[kind])}"
+            if name not in self._place_names:
+                return name
+        return name
+
+    def _build_geography(self):
+        """The nine lands: a 3x3 grid, then a nested tree inside each land."""
+        r = self.rng
+        pools = list(NAME_LANDS)
+        doubled = r.sample(pools, DOUBLED_POOLS)
+        # (land name, name pool) for the eight outer lands.
+        outer = []
+        for pool in pools:
+            outer.append((pool, pool))
+            if pool in doubled:
+                outer.append((SECONDARY_LAND_NAMES[pool], pool))
+        slots = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1), (2, 2)]
+
+        def siblings_together(order):
+            for pool in doubled:
+                at = [slots[i] for i, (_, p) in enumerate(order) if p == pool]
+                (r1, c1), (r2, c2) = at
+                if max(abs(r1 - r2), abs(c1 - c2)) > 1:
+                    return False
+            return True
+
+        # Sibling nations sit side by side when the shuffle allows; one retry
+        # pass, then the world takes whatever falls.
+        for _ in range(SIBLING_ADJACENCY_RETRIES + 1):
+            r.shuffle(outer)
+            if siblings_together(outer):
+                break
+
+        center = self._new_place(MIDDLE_PLAIN, "land")
+        center.land, center.grid, center.pool = center, (1, 1), None
+        self.grid[1][1] = center
+        self.lands[center.name] = center
+        for slot, (name, pool) in zip(slots, outer):
+            land = self._new_place(name, "land")
+            land.land, land.grid, land.pool = land, slot, pool
+            self.grid[slot[0]][slot[1]] = land
+            self.lands[name] = land
+
+        for pool in doubled:
+            pair = tuple(l for l in self.lands.values() if l.pool == pool)
+            if len(pair) == 2:
+                self.sibling_lands.append(pair)
+
+        for land in self.lands.values():
+            self._build_land_tree(land)
+
+    def _build_land_tree(self, land: Place):
+        r = self.rng
+        land.baseline = r.uniform(*PROSPERITY_BASELINE)
+        land.prosperity = land.baseline
+        if land.is_center():
+            n_regions, sizes = MIDDLE_PLAIN_REGIONS, MIDDLE_PLAIN_REGION_SIZES
+        else:
+            n_regions, sizes = r.choice(OUTER_REGIONS), OUTER_REGION_SIZES
+        self._new_settlement(land, "city", land)          # the capital
+        for _ in range(n_regions):
+            region = self._new_place(self._place_name(land, "region"),
+                                     "region", land)
+            region.baseline = land.baseline
+            region.prosperity = land.baseline
+            for _ in range(r.choice(sizes)):
+                kind = "town" if r.random() < TOWN_CHANCE else "village"
+                self._new_settlement(land, kind, region)
+
+    def _new_settlement(self, land: Place, kind: str, parent: Place) -> Place:
+        p = self._new_place(self._place_name(land, kind), kind, parent)
+        base = land.baseline + self.rng.uniform(-PROSPERITY_JITTER,
+                                                PROSPERITY_JITTER)
+        p.baseline = max(0.0, min(10.0, base))
+        p.prosperity = p.baseline
+        return p
+
+    def settlements(self) -> list:
+        return [p for p in self.places.values() if p.kind in SETTLEMENT_KINDS]
+
+    def neighbors(self, land: Place, strong=None) -> list:
+        """Lands touching this one. strong=True: shares an edge (war, trade,
+        refugees). strong=False: corner contact only (rumours, rare war)."""
+        row, col = land.grid
+        out = []
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                if dr == 0 and dc == 0:
+                    continue
+                nr, nc = row + dr, col + dc
+                if not (0 <= nr < 3 and 0 <= nc < 3):
+                    continue
+                is_strong = (dr == 0 or dc == 0)
+                if strong is None or is_strong == strong:
+                    out.append(self.grid[nr][nc])
+        return out
+
+    def _land_weight(self, land: Place) -> float:
+        return {"center": RECRUIT_WEIGHT_CENTER,
+                "edge": RECRUIT_WEIGHT_EDGE,
+                "corner": RECRUIT_WEIGHT_CORNER}[land.reach()]
 
     # -- construction -------------------------------------------------------
 
-    def _pick_land(self, dominant=None) -> str:
-        lands = list(NAME_LANDS)
-        weights = [NAME_LANDS[l]["weight"]
-                   * (DOMINANT_LAND_BOOST if l == dominant else 1.0)
+    def _pick_land(self, dominant=None) -> Place:
+        """Where a recruit comes from: reach by grid position, cohort skew."""
+        lands = list(self.lands.values())
+        weights = [self._land_weight(l)
+                   * (DOMINANT_LAND_BOOST if l is dominant else 1.0)
                    for l in lands]
         return self.rng.choices(lands, weights=weights)[0]
 
-    def _surname_from(self, land: str, sex: str) -> str:
-        spec = NAME_LANDS[land]
+    def _pick_home(self, land: Place) -> Place:
+        homes = land.settlements()
+        weights = [SETTLEMENT_POP_WEIGHT[p.kind] for p in homes]
+        return self.rng.choices(homes, weights=weights)[0]
+
+    def _surname_from(self, pool: str, sex: str) -> str:
+        spec = NAME_LANDS[pool]
         stem = self.rng.choice(spec["surnames"])
         if spec.get("patronymic"):
             return stem + ("sson" if sex == "m" else "sdottir")
         return stem
 
-    def _new_name(self, sex: str, land: str) -> str:
+    def _new_name(self, sex: str, pool: str, melting_pot=False) -> str:
         r = self.rng
-        spec = NAME_LANDS[land]
+        spec = NAME_LANDS[pool]
         given = r.choice(spec["male"] if sex == "m" else spec["female"])
-        surname_land = land
-        if r.random() < MIXED_NAME_CHANCE:
-            surname_land = self._pick_land()
-        name = f"{given} {self._surname_from(surname_land, sex)}"
+        surname_pool = pool
+        mixed = MIXED_NAME_CHANCE * (MIDDLE_PLAIN_MIXED_MULT
+                                     if melting_pot else 1.0)
+        if r.random() < mixed:
+            surname_pool = r.choice(list(NAME_LANDS))
+        name = f"{given} {self._surname_from(surname_pool, sex)}"
         if any(a.name == name for a in self.agents.values()):
-            return self._new_name(sex, land)
+            return self._new_name(sex, pool, melting_pot)
         return name
 
     def _roll_talent(self) -> int:
@@ -374,11 +646,17 @@ class World:
         r = self.rng
         sex = r.choice("mf")
         land = self._pick_land(dominant_land)
+        home = self._pick_home(land)
+        # Outer lands have one tongue; the Middle Plain's natives roll a
+        # descent from the six pools evenly.
+        descent = land.pool or r.choice(list(NAME_LANDS))
         a = Agent(
             aid=self._next_aid,
-            name=self._new_name(sex, land),
+            name=self._new_name(sex, descent, melting_pot=land.pool is None),
             sex=sex,
-            homeland=land,
+            home=home,
+            homeland=land.name,
+            descent=descent,
             sect=sect,
             age=age,
             talent=self._roll_talent(),
@@ -396,6 +674,12 @@ class World:
 
     def _setup(self):
         r = self.rng
+        self._build_geography()
+        # All four sects keep their seats in the Middle Plain.
+        for sect in self.sects:
+            self.sect_seats[sect] = self._new_place(
+                sect, "sect", self.grid[1][1])
+
         # Elders and seniors: stand-ins for previous simulated generations.
         for sect in self.sects:
             for _ in range(3):
@@ -437,7 +721,8 @@ class World:
             self._bind(a, b, kind, r.randint(1, 3))
         if announce:
             self.log(f"A new intake of {self.intake_size} students enters "
-                     f"the sects; most hail from the {dominant}.",
+                     f"the sects; most hail from the {dominant.name}, whose "
+                     f"villages are {dominant.word()}.",
                      [], world_event=True)
         return cohort
 
@@ -845,6 +1130,7 @@ class World:
     # -- resolution phase ---------------------------------------------------
 
     def _resolution_phase(self):
+        self._drift_prosperity()
         for a in list(self.living()):
             self._try_breakthrough(a)
         for a in list(self.living()):
@@ -854,6 +1140,15 @@ class World:
                              f"{a.realm_name} to the last")
                 continue
             self._maybe_voluntary_exit(a)
+
+    def _drift_prosperity(self):
+        """Left alone, a settlement returns to its land's temper. Nothing
+        pushes prosperity away from baseline yet — that is the rulers' job."""
+        for p in self.settlements():
+            if p.prosperity < p.baseline:
+                p.prosperity = min(p.baseline, p.prosperity + PROSPERITY_DRIFT)
+            elif p.prosperity > p.baseline:
+                p.prosperity = max(p.baseline, p.prosperity - PROSPERITY_DRIFT)
 
     def _try_breakthrough(self, a: Agent):
         r = self.rng
@@ -1047,13 +1342,24 @@ class World:
 
     # -- reports ------------------------------------------------------------
 
+    def origin_line(self, a: Agent) -> str:
+        """Where an agent is from: settlement, land, and (in the melting pot)
+        the descent their name came from."""
+        if a.home is None:
+            return f"the {a.homeland}"
+        land = a.home.land
+        text = f"{a.home.name} in the {land.name}"
+        if land.pool is None and a.descent:
+            text += f" ({a.descent} descent)"
+        return text
+
     def pc_intro(self) -> str:
         a = self.pc
         rels = self.describe_rels(a)
         lines = [
             "=" * 72,
             f"MAIN CHARACTER: {a.name} of {a.sect}, "
-            f"born in the {a.homeland}",
+            f"born in {self.origin_line(a)}",
             f"  age {a.age} | talent {a.talent}/10 | traits: "
             f"{', '.join(a.traits)}",
             f"  relationships: {rels if rels else '(none yet)'}",
@@ -1081,7 +1387,8 @@ class World:
                   f"dead Y{a.death_year}: {a.death_cause}"))
         return "\n".join([
             f"{a.display()} — {a.sect} [{alive}]",
-            f"  homeland: the {a.homeland}",
+            f"  home: {self.origin_line(a)}"
+            + (f", {a.home.word()}" if a.home is not None else ""),
             f"  age {a.age} | realm {a.realm} ({a.realm_name}) | "
             f"qi {a.qi:.0f}/100",
             f"  talent {a.talent}/10 | insight {a.insight:.0f} | "
@@ -1113,6 +1420,42 @@ class World:
             lines.append(f"  {a.display()}, {a.realm_name}, {a.sect}, "
                          f"age {a.age}{head}")
         return "\n".join(lines)
+
+    def map_view(self) -> str:
+        """The 3x3 grid of lands, each with its prosperity in words."""
+        w = 24
+        rule = "+" + "+".join(["-" * w] * 3) + "+"
+
+        def cell(text):
+            return " " + text[:w - 2].ljust(w - 1)
+
+        lines = [f"THE NINE LANDS — year {self.year}", rule]
+        for row in range(3):
+            band = [[], [], []]
+            for col in range(3):
+                land = self.grid[row][col]
+                title = land.name.upper() if land.is_center() else land.name
+                band[0].append(cell(title))
+                band[1].append(cell(land.word()))
+                band[2].append(cell(self._capital(land).name))
+            for parts in band:
+                lines.append("|" + "|".join(parts) + "|")
+            lines.append(rule)
+        lines.append("  Each land: its temper in a word, then its capital.")
+        for a, b in self.sibling_lands:
+            lines.append(f"  {a.name} and {b.name} are sibling nations, "
+                         f"one tongue between them.")
+        lines.append("  Lands sharing an edge are close neighbours; corner "
+                     "contact is distant.")
+        lines.append("  The Middle Plain touches all eight, holds the four "
+                     "sect seats, and sends the most recruits.")
+        return "\n".join(lines)
+
+    def _capital(self, land: Place) -> Place:
+        for c in land.children:
+            if c.kind == "city":
+                return c
+        return land
 
     def roster(self) -> str:
         lines = [f"ROSTER — year {self.year}, "
@@ -1171,6 +1514,7 @@ HELP = """Commands:
   sheet NAME     show any character's sheet (substring match)
   log NAME       show a character's full private history
   follow         run on until the main character's story ends
+  map            the nine lands on their 3x3 grid, with prosperity
   roster         show living cultivators by sect
   famous         list famous figures (Nascent Soul and above)
   obits          show all obituaries so far
@@ -1247,6 +1591,8 @@ def interactive(world: World):
             else:
                 run_until_pc_resolved(world, world.year + FOLLOW_CAP_YEARS)
                 print(world.life_report(hero))
+        elif cmd == "map":
+            print(world.map_view())
         elif cmd == "roster":
             print(world.roster())
         elif cmd == "famous":
