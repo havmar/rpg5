@@ -8,13 +8,21 @@ outcomes, epithets, tournaments, expeditions, feuds, successions,
 breakthroughs with real failure states, voluntary exits, and generations
 via 8-year intakes.
 
-Plus the first two courses of the politics layer (Part VI, sessions 1-2):
+Plus the first three courses of the politics layer (Part VI, sessions 1-3):
 the nine lands on a 3x3 grid, a nested tree of places carrying prosperity,
 recruitment reach measured in geography, and — above the places — polities
 with mortal rulers whose characters become policy. Rule style is scored
 from the leader's traits every year and pushes prosperity, unrest and the
 ruler's own purse; senseless edicts make a bad reign describable in one
 sentence. `map`, `land NAME` and `courts` show the political world.
+
+Session 3 is the contact surface: the common people never become agents,
+but their lives reach the sim at four points. A recruit's home village is
+already on their sheet (a misruled one hands out burden, banked adversity
+and a grudge against the man who did it; a rich one hands out silver); a
+family keeps sending silver, or news of a brother taken for the levies;
+every adventure now goes to a named land whose prosperity reshapes the risk
+table; and a starving settlement can petition a sect for a hero.
 
 Logging policy (the product):
   * Every consequential event is appended to the PRIVATE history of every
@@ -463,6 +471,222 @@ EDICT_UNREST = 1                # per active edict per year
 EDICT_REPEAL_CHANCE = 0.30      # a non-Stubborn ruler, after a good year
 MANDATE_CHANCE = 0.5            # a liege's edict reaching each vassal
 
+# --- THE CONTACT SURFACE: where the common people reach the sim (§§9-10) ---
+# Commoners never become agents. Their lives touch the simulation at exactly
+# four points: the recruitment gate, the family stipend, the road, and the
+# petition. Everything below is that contact surface.
+
+# 1. THE GATE. A recruit's childhood is already on their sheet: a hard home
+# hands them adversity pre-banked and a grudge; a rich one hands them silver.
+MISRULED_HOME_AT = 3.0          # prosperity at or under which a home is misruled
+PROSPEROUS_HOME_AT = 7.0        # ... and at or over which it is a good place
+MISRULED_RESOURCES = 2          # starting resources a hungry childhood costs
+MISRULED_BURDEN = 1
+MISRULED_INSIGHT = 2            # adversity, banked before year one
+MISRULED_GRUDGE = (1, 2)        # grudge intensity against the home's ruler
+PROSPEROUS_RESOURCES = (2, 4)   # a family that can outfit its child
+
+# 2. THE STIPEND. A prosperous home keeps sending silver while it can still
+# matter; a home under the levies sends bad news instead.
+STIPEND_REALM = 2               # realm at or below which a stipend still counts
+STIPEND = 1                     # resources per year
+CONSCRIPTION_GRUDGE_CHANCE = 0.25   # a brother taken for the muster
+
+# 3. THE ROAD. Every adventure goes SOMEWHERE. The centre draws hardest, the
+# lands touching it next, the far corners least; a cultivator also drifts
+# home. The destination's prosperity reshapes the risk table: hungry lands
+# yield bandits, refugees and the tyrant's men, rich ones auctions and
+# patrons.
+ADVENTURE_LAND_WEIGHTS = {"center": 4.0, "edge": 2.0, "corner": 1.0}
+ADVENTURE_HOME_BOOST = 1.5      # the roads a cultivator already knows
+ROAD_HARD_AT = 3.5              # destination prosperity: below this, misruled
+ROAD_RICH_AT = 7.0              # ... and at or above this, golden
+ADVENTURE_RISK_SHIFT = {"harsh": -0.06, "settled": 0.0, "rich": 0.05}
+ADVENTURE_RESCUE_KARMA = 1      # pulling people out of a bad land is a deed
+ADVENTURE_RESCUE_CHANCE = 0.5   # ... the rest of the time they only witness it
+ADVENTURE_PATRON_CHANCE = 0.4   # a rich land's spoils come with a name attached
+ADVENTURE_SCENES = {
+    "harsh": {
+        # A death cause, spliced into the obituary: "...; <cause>."
+        "death": [
+            "cut down by bandits on the road to {where} in the {land}",
+            "killed by the tyrant's men outside {where} in the {land}",
+            "lost in the burned-out country beyond {where} in the {land}",
+        ],
+        "near_death": [
+            "{who} was ambushed by bandits on the road to {where} in the "
+            "{land} and barely lived through it (+insight).",
+            "{who} fell into the hands of the tyrant's men outside {where} "
+            "and crawled away from it (+insight).",
+            "{who} was left for dead in a burned village of the {land} "
+            "(+insight).",
+        ],
+        "quiet": [
+            "Walked the hungry roads of the {land}: empty granaries, closed "
+            "doors, nothing to be had.",
+            "Found {where} in the {land} stripped bare — no work, no "
+            "masters, no fortune.",
+        ],
+        "spoils": [
+            "Took a bandit camp on the {land} road and kept what they had "
+            "stolen (+resources).",
+            "Hired out as an escort for the families fleeing {where}; they "
+            "paid in the last of their silver (+resources).",
+        ],
+        # In a misruled land the insight is sometimes bought by a deed (and
+        # that is logged), and the rest of the time only witnessed.
+        "insight": [
+            "Watched the tax collectors empty {where} in the {land} and "
+            "could do nothing about it (+insight).",
+            "Walked the {land} past the gallows the crown had left standing "
+            "along the road (+insight).",
+            "Slept in a refugee camp outside {where} and listened all night "
+            "(+insight).",
+        ],
+        "rescue": [
+            "{who} brought a column of refugees out of {where} in the {land} "
+            "and saw them across the border (+insight).",
+            "{who} stood between the tax collectors of the {land} and the "
+            "villagers of {where} (+insight).",
+        ],
+        "treasure": [
+            "{who} looted a warlord's cache in the ruins above {where} in "
+            "the {land}.",
+            "{who} took a dead magistrate's strongbox out of {where} and "
+            "nobody in the {land} asked after it.",
+        ],
+        "meeting": [
+            "{who} crossed paths with {other} on the refugee road out of the "
+            "{land}; they parted as {kind}s.",
+        ],
+    },
+    "settled": {
+        "death": [
+            "died on an adventure in the wilds of the {land}",
+            "vanished in the back country beyond {where} in the {land}",
+        ],
+        "near_death": [
+            "{who} barely survived a brush with death in the wilds of the "
+            "{land} (+insight).",
+            "{who} was mauled by something in the hills above {where} and "
+            "walked out of the {land} alone (+insight).",
+        ],
+        "quiet": [
+            "Walked the roads of the {land} for a year and came back with "
+            "nothing.",
+            "Sat out a wet season in {where} in the {land}; nothing found.",
+        ],
+        "spoils": [
+            "Cleared a beast's den near {where} in the {land} for the bounty "
+            "(+resources).",
+            "Ran a caravan road through the {land} for a merchant's fee "
+            "(+resources).",
+        ],
+        "insight": [
+            "An epiphany on the road through the {land} (+insight).",
+            "A month alone on the passes above {where} clarified something "
+            "(+insight).",
+        ],
+        "treasure": [
+            "{who} found a fortuitous treasure in a ruined cave in the "
+            "{land}.",
+            "{who} opened a sealed tomb under {where} in the {land} and came "
+            "out rich.",
+        ],
+        "meeting": [
+            "{who} crossed paths with {other} on the road through the "
+            "{land}; they parted as {kind}s.",
+        ],
+    },
+    "rich": {
+        "death": [
+            "killed over an auction lot in {where} in the {land}",
+            "died when a spirit-beast hunt out of {where} went wrong",
+        ],
+        "near_death": [
+            "{who} was ambushed for their purse leaving the auction at "
+            "{where} and barely lived (+insight).",
+            "{who} was beaten half to death by a patron's guards in {where} "
+            "in the {land} (+insight).",
+        ],
+        "quiet": [
+            "Spent the year at the fairs of {where} in the {land}; much "
+            "seen, nothing gained.",
+            "Priced out of every lot at the {where} auctions all season.",
+        ],
+        "spoils": [
+            "Sold beast cores at the market in {where} at a fair season's "
+            "price (+resources).",
+            "A patron of {where} in the {land} paid well for a season's "
+            "escort work (+resources).",
+        ],
+        "insight": [
+            "Sat a season with the scholars of {where} in the {land} "
+            "(+insight).",
+            "Read a borrowed jade slip through the long winter of the {land} "
+            "(+insight).",
+        ],
+        "treasure": [
+            "{who} outbid the merchants of {where} for a cracked jade slip "
+            "out of a dead man's estate.",
+            "{who} won a spirit herb at the {where} auction in the {land} "
+            "for a tenth of its worth.",
+        ],
+        "meeting": [
+            "{who} met {other} at the auction house of {where} in the "
+            "{land}; they parted as {kind}s.",
+        ],
+    },
+}
+
+# 4. THE PETITION. A settlement below PETITION_AT sends riders to a sect:
+# the one interface between the spiritual exemption and the secular world.
+# It is a mission hook, not a flood — at most one new plea a year.
+PETITION_AT = 3.0               # prosperity under which a village begs
+PETITION_CHANCE = 0.35          # yearly chance a new plea is sent at all
+PETITION_MAX_OPEN = 3           # pleas on the table at once
+PETITION_COOLDOWN = 12          # years before the same village begs again
+PETITION_LAPSE = 5              # years an unanswered plea stays on the table
+PETITION_MIN_REALM = 2          # a Qi Condensation disciple is not sent
+PETITION_ANSWER_CHANCE = 0.5    # per open plea per year, if anyone will go
+PETITION_TRAIT_WEIGHTS = {"Righteous": 4.0, "Proud": 2.0, "Charming": 1.5,
+                          "Greedy": 1.5, "Reckless": 1.5}
+PETITION_HOME_WEIGHT = 2.5      # a native answers their own land first
+PETITION_GRUDGE_WEIGHT = 2.0    # so does anyone who already hates that court
+PETITION_OPPOSITION = 18.0      # the magistrate's men
+PETITION_OPPOSITION_PER_REALM = 10.0    # ... and whoever sits above them
+PETITION_OPPOSITION_PER_ARMY = 0.4
+PETITION_ODDS = (0.15, 0.9)
+PETITION_GAIN = 1.5             # prosperity a rescued village recovers
+PETITION_REPRISAL = 0.5         # ... and what a failed rescue costs it
+PETITION_KARMA = 2              # §7: rescue or liberation
+PETITION_STANDING = 3
+PETITION_UNREST = 1
+PETITION_FAIL_INSIGHT = 4       # adversity, as ever
+PETITION_DEATH_CHANCE = 0.2     # a beaten champion does not always walk away
+# (what the village begs for, what the answer looks like, what the
+# cultivator went there for — the last is used when they fail)
+PETITION_MISSIONS = [
+    ("to drive the tax collectors out of {where}",
+     "drove the tax collectors out of {where} and burned their ledgers",
+     "the tax collectors"),
+    ("to answer for the magistrate of {where}",
+     "dragged the magistrate of {where} out of his hall before the whole "
+     "village",
+     "the magistrate"),
+    ("to kill the beast the crown had left to eat the herds of {where}",
+     "killed the beast that had been eating the herds of {where} while the "
+     "crown did nothing",
+     "the beast"),
+    ("to open the sealed granary of {where}",
+     "broke open the sealed granary of {where} and fed the village through "
+     "the winter",
+     "the sealed granary"),
+    ("to call the press-gangs of {where} to account",
+     "hanged the press-gang captain of {where} from his own gatepost",
+     "the press-gangs"),
+]
+
 MAIM_EPITHETS = ["One-Armed", "One-Eyed", "Scarred", "Iron-Boned",
                  "Ash-Handed", "Half-Lame"]
 
@@ -612,6 +836,22 @@ class Polity:
 
 
 # ---------------------------------------------------------------------------
+# Petitions — the one door between the villages and the sects
+# ---------------------------------------------------------------------------
+
+@dataclass(eq=False)
+class Petition:
+    """A starving settlement's plea to a sect, open until answered or lapsed."""
+    place: Place
+    sect: str
+    year: int
+    polity: Optional[int] = None    # pid of the polity that holds the place
+    plea: str = ""                  # "to open the sealed granary of {where}"
+    done: str = ""                  # what the answer looks like, in past tense
+    task: str = ""                  # "the sealed granary" — named on failure
+
+
+# ---------------------------------------------------------------------------
 # Agents
 # ---------------------------------------------------------------------------
 
@@ -646,6 +886,7 @@ class Agent:
     epithets: list = field(default_factory=list)
     history: list = field(default_factory=list)  # private log: (year, text)
     fortune: int = 0                  # streaky luck, clamped small
+    stipend_years: int = 0            # years the family at home has sent silver
     alive: bool = True
     exited: bool = False              # voluntary exit (not a death)
     death_year: Optional[int] = None
@@ -716,6 +957,9 @@ class World:
         # Politics (built in _setup, on top of the geography).
         self.polities: dict[int, Polity] = {}
         self._next_poid = 1
+        # The contact surface: open pleas, and when each village last begged.
+        self.petitions: list = []
+        self._petition_seen: dict[int, int] = {}   # place pid -> year
         self._setup()
 
     # -- geography ----------------------------------------------------------
@@ -1112,6 +1356,7 @@ class World:
             a.insight = 0
             a.resources = r.randint(0, 4)
             a.standing = 1
+            self._home_start(a)
             cohort.append(a)
         # Pre-seed a few relationships inside the intake.
         for _ in range(self.intake_size // 4):
@@ -1124,6 +1369,76 @@ class World:
                      f"villages are {dominant.word()}.",
                      [], world_event=True)
         return cohort
+
+    def _home_start(self, a: Agent):
+        """§10: the home a recruit walked out of is already on their sheet.
+
+        A misruled village sends its children out poor, burdened, hardened —
+        and sometimes already hating the man whose collectors emptied the
+        granary. A prosperous one sends silver and a full trunk. The
+        sheltered-genius / battered-underdog divergence starts here, before
+        year one.
+        """
+        r = self.rng
+        home = a.home
+        if home is None:
+            return
+        ruler = self.ruler_at(home)
+        if home.prosperity <= MISRULED_HOME_AT:
+            a.resources = max(0, a.resources - MISRULED_RESOURCES)
+            a.burden += MISRULED_BURDEN
+            a.insight += MISRULED_INSIGHT
+            text = (f"{a.display()} came to {a.sect} out of {home.name} in "
+                    f"the {home.land.name}, a {home.word()} {home.kind}")
+            if ruler is not None and ruler.alive:
+                self._add_grudge(a, ruler, r.randint(*MISRULED_GRUDGE))
+                text += (f", carrying a grudge against "
+                         f"{self.ruler_ref(ruler)}")
+            text += " (+insight, +burden, and nothing in their bundle)."
+            self.log(text, [a], place=home)
+        elif home.prosperity >= PROSPEROUS_HOME_AT:
+            a.resources += r.randint(*PROSPEROUS_RESOURCES)
+            a.insight = 0.0
+            self.log(f"{a.display()} was sent to {a.sect} out of {home.name} "
+                     f"in the {home.land.name}, a {home.word()} {home.kind}, "
+                     f"with silver and a full trunk.", [a], place=home)
+
+    def _stipends(self):
+        """§10: the family reaches into the sim once a year.
+
+        While a young cultivator's home village can spare it, silver comes up
+        the road. While the levies are out, bad news comes instead.
+        """
+        r = self.rng
+        for a in self.cultivators():
+            if (a.age < 14 or not a.sect or a.home is None
+                    or a.realm > STIPEND_REALM):
+                continue
+            polity = self.polity_at(a.home)
+            if polity is not None and "CONSCRIPTION" in polity.last_facets:
+                # The muster empties the same houses the stipend came from.
+                ruler = self.leader_of(polity)
+                rel = a.rels.get(ruler.aid) if ruler else None
+                if (ruler is not None and ruler.alive and ruler.aid != a.aid
+                        and (rel is None or rel.intensity < CRUEL_GRUDGE_MAX)
+                        and r.random() < CONSCRIPTION_GRUDGE_CHANCE):
+                    fresh = rel is None or rel.kind not in HOSTILE_KINDS
+                    self._add_grudge(a, ruler, 1)
+                    # The first press-gang is news; the tenth is a war.
+                    if fresh:
+                        self.log(f"{a.display()} learned a brother had been "
+                                 f"taken for the levies of {polity.domain}; "
+                                 f"they will not forget "
+                                 f"{self.ruler_ref(ruler)}.",
+                                 [a], place=a.home)
+                continue
+            if a.home.prosperity >= PROSPEROUS_HOME_AT:
+                a.resources += STIPEND
+                a.stipend_years += 1
+                if a.stipend_years == 1:
+                    self.log(f"{a.display()}'s family began sending silver "
+                             f"from {a.home.name}, whose fields are "
+                             f"{a.home.word()}.", [a])
 
     # -- relationship helpers -----------------------------------------------
 
@@ -1256,36 +1571,81 @@ class World:
             if self.rng.random() < 0.3:
                 rel.intensity = max(0, rel.intensity - 1)
 
+    def _adventure_destination(self, a: Agent) -> Place:
+        """Where the road goes. The centre draws hardest, then the lands that
+        touch it, then the far corners; a cultivator also drifts home."""
+        lands = list(self.lands.values())
+        home_land = a.home.land if a.home is not None else None
+        weights = [ADVENTURE_LAND_WEIGHTS[l.reach()]
+                   * (ADVENTURE_HOME_BOOST if l is home_land else 1.0)
+                   for l in lands]
+        land = self.rng.choices(lands, weights=weights)[0]
+        return self._pick_home(land)    # a settlement, by its population
+
+    @staticmethod
+    def road_condition(place: Place) -> str:
+        """What a destination's prosperity makes of the risk table."""
+        if place.prosperity < ROAD_HARD_AT:
+            return "harsh"
+        if place.prosperity >= ROAD_RICH_AT:
+            return "rich"
+        return "settled"
+
     def _act_adventure(self, a: Agent):
         r = self.rng
-        roll = r.random() - a.fortune * 0.02   # streaky luck bias
+        dest = self._adventure_destination(a)
+        land = dest.land
+        condition = self.road_condition(dest)
+        scenes = ADVENTURE_SCENES[condition]
+
+        def scene(key, **extra) -> str:
+            return r.choice(scenes[key]).format(
+                who=a.display(), where=dest.name, land=land.name, **extra)
+
+        # The [home] tag belongs to a land's POLITICS, not to every stranger
+        # who happened to pass through it: only a misruled destination — where
+        # the country itself is what happened to them — carries the place.
+        where = dest if condition == "harsh" else None
+        # Streaky luck, then the country itself: a misruled land is a more
+        # dangerous place to look for fortune, a golden one a kinder one.
+        roll = (r.random() - a.fortune * 0.02
+                + ADVENTURE_RISK_SHIFT[condition])
         if roll < 0.04 / a.realm:   # the wilds threaten the strong far less
-            self.kill(a, "died on an adventure in the wilds")
+            self.kill(a, scene("death"))
         elif roll < 0.12:
             a.insight += 4
             a.burden += 1
             a.fortune = max(-3, a.fortune - 1)
-            text = f"{a.display()} barely survived a brush with death in the wilds (+insight)."
+            text = scene("near_death")
             if r.random() < 0.4 and len(a.epithets) < 3:
                 ep = r.choice([e for e in MAIM_EPITHETS if e not in a.epithets])
                 a.epithets.append(ep)
                 text += f" [epithet: {ep}]"
-            self.log(text, [a], dramatic=True)
+            self.log(text, [a], dramatic=True, place=where)
             self._mutate(a, "near_death")
         elif roll < 0.42:
-            pass  # nothing found
+            a.history.append((self.year, scene("quiet")))   # nothing found
         elif roll < 0.67:
             a.resources += r.randint(2, 6)
             a.fortune = min(3, a.fortune + 1)
+            if condition == "rich" and r.random() < ADVENTURE_PATRON_CHANCE:
+                a.standing += 1     # patrons and fairs make names
+            a.history.append((self.year, scene("spoils")))
         elif roll < 0.82:
             a.insight += 3
-            a.history.append((self.year, "An epiphany on the road (+insight)."))
+            if condition == "harsh" and r.random() < ADVENTURE_RESCUE_CHANCE:
+                # In a misruled land the insight is sometimes bought by a
+                # deed, and a deed is worth writing down.
+                a.karma += ADVENTURE_RESCUE_KARMA
+                self.log(scene("rescue"), [a], place=where)
+            else:
+                a.history.append((self.year, scene("insight")))
         elif roll < 0.92:
             a.resources += 8
             a.insight += 2
             a.fortune = min(3, a.fortune + 2)
-            self.log(f"{a.display()} found a fortuitous treasure in a ruined "
-                     f"cave.", [a], dramatic=(a.realm >= 3))
+            self.log(scene("treasure"), [a], dramatic=(a.realm >= 3),
+                     place=where)
         else:
             others = [o for o in self.cultivators()
                       if o.aid != a.aid and abs(o.realm - a.realm) <= 1]
@@ -1293,8 +1653,8 @@ class World:
                 o = r.choice(others)
                 kind = "friend" if r.random() < 0.6 else "rival"
                 self._bind(a, o, kind, 2)
-                self.log(f"{a.display()} crossed paths with {o.display()} on "
-                         f"the road; they parted as {kind}s.", [a, o])
+                self.log(scene("meeting", other=o.display(), kind=kind),
+                         [a, o], place=where)
 
     def _act_socialize(self, a: Agent):
         r = self.rng
@@ -1408,6 +1768,7 @@ class World:
 
     def _event_phase(self):
         self._politics_phase()
+        self._petition_phase()
         if self.year % TOURNAMENT_PERIOD == 0:
             self._tournament()
         if self.year >= self.next_expedition:
@@ -1629,6 +1990,167 @@ class World:
         self.log(text, [heir], place=polity.seat,
                  world_event=polity.is_sovereign())
 
+    # -- petitions: the sect/polity interface (§9) ---------------------------
+
+    def _petition_phase(self):
+        """Starving villages beg the sects; the sects sometimes answer.
+
+        This is the only door between the spiritual exemption and the secular
+        world, so it is deliberately narrow: pleas lapse unheard, and at most
+        one new one is sent a year.
+        """
+        self._lapse_petitions()
+        for petition in list(self.petitions):
+            self._maybe_answer_petition(petition)
+        self._maybe_petition()
+
+    def _lapse_petitions(self):
+        for petition in list(self.petitions):
+            if self.year - petition.year < PETITION_LAPSE:
+                continue
+            self.petitions.remove(petition)
+            self.log(f"The plea of {petition.place.name} to "
+                     f"{petition.sect} went unanswered for "
+                     f"{self.years_phrase(self.year - petition.year)}; the "
+                     f"village stopped sending riders.", [],
+                     place=petition.place)
+
+    def _petition_sect(self, land: Place) -> str:
+        """Which sect a village begs: the one its own children went to."""
+        counts = {sect: 1.0 for sect in self.sects}
+        for a in self.cultivators():
+            if a.sect in counts and a.home is not None and a.home.land is land:
+                counts[a.sect] += 1.0
+        names = list(counts)
+        return self.rng.choices(names, [counts[s] for s in names])[0]
+
+    def _maybe_petition(self):
+        r = self.rng
+        if r.random() >= PETITION_CHANCE:
+            return
+        if len(self.petitions) >= PETITION_MAX_OPEN:
+            return
+        candidates = [p for p in self.settlements()
+                      if p.prosperity < PETITION_AT
+                      and self.year - self._petition_seen.get(p.pid, -9999)
+                      >= PETITION_COOLDOWN]
+        if not candidates:
+            return
+        place = r.choice(candidates)
+        polity = self.polity_at(place)
+        plea, done, task = r.choice(PETITION_MISSIONS)
+        sect = self._petition_sect(place.land)
+        self.petitions.append(Petition(
+            place=place, sect=sect, year=self.year,
+            polity=polity.pid if polity else None, plea=plea, done=done,
+            task=task))
+        self._petition_seen[place.pid] = self.year
+        ruler = self.leader_of(polity) if polity else None
+        under = (f" under {self.ruler_ref(ruler)}"
+                 if ruler is not None and ruler.alive else "")
+        self.log(f"The elders of {place.name} in the {place.land.name}, "
+                 f"{place.word()}{under}, sent riders to {sect} begging them "
+                 f"{plea.format(where=place.name)}.", [], place=place)
+
+    def _petition_candidates(self, petition: Petition,
+                             ruler: Optional[Agent]) -> tuple:
+        """Who would go: the Righteous, the standing-hungry, natives of that
+        land, and anyone who already hates that court."""
+        agents, weights = [], []
+        for a in self.cultivators():
+            if (a.sect != petition.sect or a.age < 14
+                    or a.realm < PETITION_MIN_REALM):
+                continue
+            w = sum(mult for t, mult in PETITION_TRAIT_WEIGHTS.items()
+                    if a.has_trait(t))
+            if a.home is not None and a.home.land is petition.place.land:
+                w += PETITION_HOME_WEIGHT
+            if ruler is not None:
+                rel = a.rels.get(ruler.aid)
+                if rel is not None and rel.kind in HOSTILE_KINDS:
+                    w += PETITION_GRUDGE_WEIGHT
+            if w <= 0:
+                continue
+            agents.append(a)
+            weights.append(w)
+        return agents, weights
+
+    def _maybe_answer_petition(self, petition: Petition):
+        r = self.rng
+        if r.random() >= PETITION_ANSWER_CHANCE:
+            return
+        polity = self.polities.get(petition.polity)
+        ruler = self.leader_of(polity) if polity else None
+        if ruler is not None and not ruler.alive:
+            ruler = None
+        agents, weights = self._petition_candidates(petition, ruler)
+        if not agents:
+            return
+        hero = r.choices(agents, weights)[0]
+        self.petitions.remove(petition)
+        place = petition.place
+        where = place.name
+
+        # A contest, under the ordinary rules: the magistrate's men, and
+        # whatever realm sits above them.
+        opposition = PETITION_OPPOSITION
+        if ruler is not None:
+            opposition += PETITION_OPPOSITION_PER_REALM * (ruler.realm - 1)
+        if polity is not None:
+            opposition += PETITION_OPPOSITION_PER_ARMY * polity.army
+        power = hero.power()
+        chance = max(PETITION_ODDS[0],
+                     min(PETITION_ODDS[1], power / (power + opposition)))
+        domain = polity.domain if polity is not None else place.land.name
+
+        if r.random() < chance:
+            was = place.word()
+            place.prosperity = min(10.0, place.prosperity + PETITION_GAIN)
+            hero.standing += PETITION_STANDING
+            hero.karma += PETITION_KARMA
+            recovery = (f"the village is {place.word()} now where it was "
+                        f"{was}" if place.word() != was else
+                        f"the village is still {place.word()}, but it eats")
+            text = (f"{hero.display()} answered the plea of {where} and "
+                    f"{petition.done.format(where=where)}; {recovery}.")
+            if ruler is not None:
+                self._add_grudge(ruler, hero, 2)
+                self._add_grudge(hero, ruler, 1)
+                if polity is not None:
+                    polity.unrest = min(UNREST_MAX,
+                                        polity.unrest + PETITION_UNREST)
+                text += (f" {self.ruler_ref(ruler)} named them an enemy of "
+                         f"{domain}.")
+            self.log(text, [hero] + ([ruler] if ruler is not None else []),
+                     dramatic=True, place=place)
+            return
+
+        # Failure is honest: the men of the court are many, and the village
+        # pays for having asked.
+        hero.insight += PETITION_FAIL_INSIGHT
+        hero.burden += 1
+        place.prosperity = max(0.0, place.prosperity - PETITION_REPRISAL)
+        if polity is not None:
+            polity.unrest = min(UNREST_MAX, polity.unrest + PETITION_UNREST)
+        if ruler is not None:
+            self._add_grudge(hero, ruler, 2)
+        lethal = r.random() < PETITION_DEATH_CHANCE
+        text = (f"{hero.display()} went to {where} for {petition.task} and "
+                f"was broken by the men of {domain}")
+        if lethal:
+            self.log(text + f"; they did not walk out, and {where} is left "
+                            f"worse than it was.",
+                     [hero] + ([ruler] if ruler is not None else []),
+                     dramatic=True, place=place)
+            self.kill(hero, f"killed by the men of {domain} answering the "
+                            f"plea of {where}")
+            return
+        self.log(text + f"; they walked out alive and hunted (+insight), and "
+                        f"{where} paid for the asking.",
+                 [hero] + ([ruler] if ruler is not None else []),
+                 dramatic=True, place=place)
+        self._mutate(hero, "humiliated")
+
     def _tournament(self):
         r = self.rng
         for realm in range(1, 5):
@@ -1767,6 +2289,7 @@ class World:
 
     def _resolution_phase(self):
         self._drift_prosperity()
+        self._stipends()
         for a in list(self.living()):
             self._try_breakthrough(a)
         for a in list(self.living()):
