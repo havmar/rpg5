@@ -85,21 +85,149 @@ TRAIT_ACTION = {
     "Broken":    {"seclude": 1.7, "adventure": 0.5},
 }
 
-SURNAMES = [
-    "Li", "Wang", "Zhang", "Liu", "Chen", "Yang", "Zhao", "Huang", "Zhou",
-    "Wu", "Xu", "Sun", "Hu", "Zhu", "Gao", "Lin", "He", "Guo", "Ma", "Luo",
-    "Han", "Wei", "Xie", "Song", "Tang", "Feng", "Yu", "Dong", "Xiao",
-    "Cheng", "Cao", "Yuan", "Deng", "Fu", "Shen", "Zeng", "Peng", "Lu",
-    "Su", "Jiang", "Ding", "Ye", "Yan", "Pan", "Du", "Dai", "Xia", "Zhong",
-    "Tian", "Ren", "Fang", "Shi", "Meng", "Qin", "Bai", "Jin", "Kang", "Mo",
-]
-GIVEN = [
-    "Yun", "Feng", "Mei", "Lan", "Jian", "Hao", "Xue", "Ying", "Long",
-    "Hua", "Ping", "Gan", "Ru", "Shan", "Tao", "Qing", "Zhen", "Bo",
-    "Ning", "Rou", "Kai", "Ming", "Jia", "Wen", "An", "Chao", "Yi", "Zhi",
-    "Heng", "Xin", "Shu", "Ling", "Rui", "Fei", "Guang", "Lei", "Miao",
-    "Nuo", "Qi", "Si", "Ting", "Wan", "Xiang", "Yao", "Zhuo", "Chun",
-]
+# Names come from six fictional homelands, each borrowing a real-world
+# language so agents stay pronounceable and easy to tell apart. Every agent
+# rolls a homeland; each intake cohort skews toward one dominant land, and a
+# small fraction of agents carry a surname from a different land than their
+# given name (mixed parentage). The two southern lands are distant, so their
+# names are rare in the sects.
+NAME_LANDS = {
+    "Spice Isles": {                                # Indonesian
+        "weight": 5,
+        "male": [
+            "Adi", "Agus", "Anwar", "Arif", "Bagus", "Bambang", "Bayu",
+            "Budi", "Cahya", "Dimas", "Eko", "Fajar", "Gede", "Gilang",
+            "Hendra", "Ilham", "Joko", "Ketut", "Made", "Panji", "Putu",
+            "Raden", "Rizki", "Slamet", "Surya", "Teguh", "Wahyu", "Wayan",
+            "Yoga", "Yusuf",
+        ],
+        "female": [
+            "Ayu", "Citra", "Dewi", "Dian", "Endah", "Fitri", "Indah",
+            "Intan", "Kartika", "Kirana", "Lestari", "Mega", "Melati",
+            "Nia", "Ningsih", "Putri", "Rani", "Ratna", "Rina", "Sari",
+            "Sinta", "Siti", "Sri", "Tari", "Wulan", "Yanti", "Yuli",
+        ],
+        "surnames": [
+            "Gunawan", "Halim", "Harahap", "Hartono", "Hutapea", "Kusuma",
+            "Lubis", "Manullang", "Nasution", "Panggabean", "Purnama",
+            "Santoso", "Saputra", "Sihombing", "Simanjuntak", "Sinaga",
+            "Siregar", "Sitorus", "Situmorang", "Tampubolon", "Tanjung",
+            "Wibowo", "Widodo", "Wijaya", "Winata",
+        ],
+    },
+    "Sky Steppe": {                                 # Mongolian
+        "weight": 5,
+        "male": [
+            "Altan", "Baatar", "Batbayar", "Batu", "Bold", "Chuluun",
+            "Delger", "Dorj", "Enkhbold", "Erdene", "Ganbaatar", "Ganbold",
+            "Gantulga", "Jargal", "Khasar", "Munkh", "Naran", "Nergui",
+            "Ochir", "Sukhbat", "Temur", "Tsend", "Zorig",
+        ],
+        "female": [
+            "Alimaa", "Altantuya", "Anu", "Bolor", "Bolormaa", "Chimeg",
+            "Dulmaa", "Enkhtuya", "Gerel", "Khongorzul", "Khulan",
+            "Mandakh", "Narantuya", "Nomin", "Odval", "Oyun", "Sarnai",
+            "Solongo", "Suvda", "Tsetseg", "Tuya", "Zaya",
+        ],
+        "surnames": [
+            "Barlas", "Bayad", "Besud", "Borjigin", "Jalair", "Kharchin",
+            "Khereid", "Khongirad", "Merkid", "Naiman", "Oirat",
+            "Olkhunut", "Onggud", "Sartuul", "Sunud", "Taichuud",
+            "Torguud", "Uriankhai", "Zakhchin",
+        ],
+    },
+    "Thousand Lakes": {                             # Finnish
+        "weight": 5,
+        "male": [
+            "Aarne", "Antero", "Antti", "Eero", "Eino", "Esa", "Hannu",
+            "Heikki", "Ilmari", "Jaakko", "Jorma", "Juhani", "Jukka",
+            "Kalevi", "Kari", "Lauri", "Matti", "Mikko", "Olavi", "Onni",
+            "Paavo", "Pekka", "Raimo", "Reino", "Risto", "Sampo", "Seppo",
+            "Tapio", "Teemu", "Timo", "Toivo", "Urho", "Veikko", "Vesa",
+        ],
+        "female": [
+            "Aino", "Anneli", "Eeva", "Elina", "Hanna", "Helmi", "Hilkka",
+            "Iida", "Inkeri", "Kaarina", "Kaisa", "Katri", "Kerttu",
+            "Kielo", "Liisa", "Maija", "Marja", "Marjatta", "Mielikki",
+            "Minna", "Pihla", "Ritva", "Saima", "Sanna", "Sirkka", "Suvi",
+            "Terhi", "Tuulikki", "Vappu", "Venla", "Vilma",
+        ],
+        "surnames": [
+            "Aalto", "Ahonen", "Halonen", "Heikkinen", "Heinonen",
+            "Hiltunen", "Immonen", "Kallio", "Karjalainen", "Kinnunen",
+            "Kivinen", "Korhonen", "Koskinen", "Laakso", "Lahtinen",
+            "Laine", "Laitinen", "Lehtinen", "Lehtonen", "Manninen",
+            "Mattila", "Nieminen", "Niskanen", "Rantanen", "Rautio",
+            "Saarinen", "Salminen", "Salo", "Salonen", "Toivonen",
+            "Tuominen", "Turunen", "Virtanen",
+        ],
+    },
+    "Glacier Coast": {                              # Icelandic
+        "weight": 5,
+        # Surnames here are patronymic stems: a father's name that becomes
+        # "<stem>sson" for men and "<stem>sdottir" for women.
+        "patronymic": True,
+        "male": [
+            "Ari", "Askur", "Baldur", "Birkir", "Bjarki", "Dagur", "Egill",
+            "Einar", "Eldur", "Fannar", "Gisli", "Grimur", "Gunnar",
+            "Hakon", "Haukur", "Hilmir", "Kjartan", "Leifur", "Loftur",
+            "Magnus", "Orri", "Ragnar", "Sindri", "Skuli", "Snorri",
+            "Sturla", "Teitur", "Ulfur", "Vidar",
+        ],
+        "female": [
+            "Alda", "Arna", "Asta", "Birta", "Dagny", "Edda", "Embla",
+            "Freyja", "Gudrun", "Halla", "Hekla", "Helga", "Hildur",
+            "Idunn", "Katla", "Lilja", "Nanna", "Ragnhild", "Runa",
+            "Salvor", "Sigrun", "Svala", "Thora", "Tinna", "Unnur",
+            "Vigdis", "Yrsa",
+        ],
+        "surnames": [
+            "Arnar", "Baldur", "Bergur", "Einar", "Eirik", "Finn", "Geir",
+            "Gunnar", "Halldor", "Haukur", "Hjalmar", "Hrafn", "Ingolf",
+            "Kjartan", "Leif", "Magnus", "Ragnar", "Sigmar", "Stefan",
+            "Thorvald", "Ulfar", "Vidar",
+        ],
+    },
+    "River Kingdoms": {                             # Sanskrit — distant, rare
+        "weight": 1,
+        "male": [
+            "Aditya", "Ananta", "Arjun", "Bhaskar", "Chandra", "Devadatta",
+            "Dhruva", "Govinda", "Harsha", "Ishan", "Jayanta", "Kartik",
+            "Mahendra", "Nakul", "Pranav", "Ravindra", "Rohan", "Vikram",
+        ],
+        "female": [
+            "Aruna", "Devika", "Gauri", "Ila", "Kamala", "Lalita",
+            "Madhavi", "Meera", "Nalini", "Padmini", "Radha", "Rukmini",
+            "Savitri", "Sudha", "Tara", "Uma", "Vasanti", "Vidya",
+        ],
+        "surnames": [
+            "Agastya", "Atreya", "Bharadwaj", "Gautama", "Kashyap",
+            "Kaushika", "Maitreya", "Mitra", "Sandilya", "Sharma",
+            "Varma", "Vasishtha",
+        ],
+    },
+    "Sunset Plateau": {                             # Persian — distant, rare
+        "weight": 1,
+        "male": [
+            "Arash", "Ardeshir", "Babak", "Bahram", "Bijan", "Dariush",
+            "Farhad", "Faridun", "Hormoz", "Jamshid", "Kaveh", "Khosrow",
+            "Kian", "Mehrdad", "Navid", "Omid", "Parviz", "Rostam",
+            "Shahin", "Sohrab", "Siyavash",
+        ],
+        "female": [
+            "Anahita", "Azar", "Banu", "Farah", "Golnar", "Laleh",
+            "Mahtab", "Mina", "Nasrin", "Parisa", "Roshan", "Roxana",
+            "Shirin", "Simin", "Soraya", "Taraneh", "Yasmin", "Ziba",
+        ],
+        "surnames": [
+            "Afshar", "Bakhtiar", "Dashti", "Farahani", "Farrokhzad",
+            "Golshani", "Kashani", "Kermani", "Rostami", "Sarabi",
+            "Shirazi", "Yazdani", "Zand",
+        ],
+    },
+}
+DOMINANT_LAND_BOOST = 3.0   # each intake cohort skews toward one homeland
+MIXED_NAME_CHANCE = 0.06    # surname from a different land than the given name
 
 MAIM_EPITHETS = ["One-Armed", "One-Eyed", "Scarred", "Iron-Boned",
                  "Ash-Handed", "Half-Lame"]
@@ -139,6 +267,8 @@ class Agent:
     age: int
     talent: int                       # 1-10, fixed at birth
     traits: list
+    sex: str = "m"                    # "m"/"f"; only picks the given-name pool
+    homeland: str = ""                # key into NAME_LANDS
     realm: int = 1
     qi: float = 0.0
     insight: float = 0.0
@@ -209,25 +339,46 @@ class World:
 
     # -- construction -------------------------------------------------------
 
-    def _new_name(self) -> str:
+    def _pick_land(self, dominant=None) -> str:
+        lands = list(NAME_LANDS)
+        weights = [NAME_LANDS[l]["weight"]
+                   * (DOMINANT_LAND_BOOST if l == dominant else 1.0)
+                   for l in lands]
+        return self.rng.choices(lands, weights=weights)[0]
+
+    def _surname_from(self, land: str, sex: str) -> str:
+        spec = NAME_LANDS[land]
+        stem = self.rng.choice(spec["surnames"])
+        if spec.get("patronymic"):
+            return stem + ("sson" if sex == "m" else "sdottir")
+        return stem
+
+    def _new_name(self, sex: str, land: str) -> str:
         r = self.rng
-        given = r.choice(GIVEN)
-        if r.random() < 0.35:
-            given += r.choice(GIVEN).lower()
-        name = f"{r.choice(SURNAMES)} {given}"
+        spec = NAME_LANDS[land]
+        given = r.choice(spec["male"] if sex == "m" else spec["female"])
+        surname_land = land
+        if r.random() < MIXED_NAME_CHANCE:
+            surname_land = self._pick_land()
+        name = f"{given} {self._surname_from(surname_land, sex)}"
         if any(a.name == name for a in self.agents.values()):
-            return self._new_name()
+            return self._new_name(sex, land)
         return name
 
     def _roll_talent(self) -> int:
         # Bell-ish 1-10, rare geniuses.
         return max(1, min(10, round(self.rng.gauss(5, 2))))
 
-    def _make_agent(self, sect, age, realm=1, intake_year=None) -> Agent:
+    def _make_agent(self, sect, age, realm=1, intake_year=None,
+                    dominant_land=None) -> Agent:
         r = self.rng
+        sex = r.choice("mf")
+        land = self._pick_land(dominant_land)
         a = Agent(
             aid=self._next_aid,
-            name=self._new_name(),
+            name=self._new_name(sex, land),
+            sex=sex,
+            homeland=land,
             sect=sect,
             age=age,
             talent=self._roll_talent(),
@@ -268,10 +419,12 @@ class World:
     def _recruit_intake(self, announce=True) -> list:
         r = self.rng
         sect_names = list(self.sects)
+        # Recruits come from every land, but each cohort skews toward one.
+        dominant = self._pick_land()
         cohort = []
         for i in range(self.intake_size):
             sect = sect_names[i % len(sect_names)]
-            a = self._make_agent(sect, 14, realm=1)
+            a = self._make_agent(sect, 14, realm=1, dominant_land=dominant)
             a.qi = r.uniform(0, 15)
             a.insight = 0
             a.resources = r.randint(0, 4)
@@ -284,7 +437,8 @@ class World:
             self._bind(a, b, kind, r.randint(1, 3))
         if announce:
             self.log(f"A new intake of {self.intake_size} students enters "
-                     f"the sects.", [], world_event=True)
+                     f"the sects; most hail from the {dominant}.",
+                     [], world_event=True)
         return cohort
 
     # -- relationship helpers -----------------------------------------------
@@ -898,7 +1052,8 @@ class World:
         rels = self.describe_rels(a)
         lines = [
             "=" * 72,
-            f"MAIN CHARACTER: {a.name} of {a.sect}",
+            f"MAIN CHARACTER: {a.name} of {a.sect}, "
+            f"born in the {a.homeland}",
             f"  age {a.age} | talent {a.talent}/10 | traits: "
             f"{', '.join(a.traits)}",
             f"  relationships: {rels if rels else '(none yet)'}",
@@ -926,6 +1081,7 @@ class World:
                   f"dead Y{a.death_year}: {a.death_cause}"))
         return "\n".join([
             f"{a.display()} — {a.sect} [{alive}]",
+            f"  homeland: the {a.homeland}",
             f"  age {a.age} | realm {a.realm} ({a.realm_name}) | "
             f"qi {a.qi:.0f}/100",
             f"  talent {a.talent}/10 | insight {a.insight:.0f} | "
