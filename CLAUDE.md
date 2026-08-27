@@ -108,6 +108,11 @@ The test for any change: does `log <agent>` still read like a life?
 
 ## Not yet implemented (build order from Part V of the design doc)
 
+- The politics layer — nine lands on a 3x3 grid, nested places with
+  prosperity, polities with vassalage, rulership as a cultivation exit,
+  rule styles and senseless edicts, vice traits and a karma economy.
+  Fully specified in Part VI of the design doc, staged into seven
+  implementation sessions (Part VI §14); build sessions in order.
 - Destiny hooks (per-agent event-bias tags rolled at creation); the rumor /
   witness layer (witness insight exists only crudely in expeditions);
   elder-tempo opportunity injection (dying elders seeking heirs, purges).

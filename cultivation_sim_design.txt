@@ -349,5 +349,381 @@ OPEN QUESTIONS (deliberately deferred)
   compressed into the burden counter).
 
 ================================================================================
+PART VI — THE POLITICS LAYER (moralistic politics: full spec)
+================================================================================
+
+What this layer adds: a world of polities — empires, kingdoms, khanates,
+city-states, tribes, villages — whose LEADERS' characters determine the
+quality of life of the common people and of low-level cultivators. Bad
+leaders are extractive and cruel; good leaders are lucky and poor. Taking a
+throne is a genuine exit from the cultivator's path. The commoners never
+become agents; they are a field (prosperity per place) that leaders push
+down and heroes push up, and the field reaches back into the sim at the
+recruitment gate and on the road.
+
+Design stance: the moral economy must be MECHANICAL, not scripted. Karma is
+a number fed by deeds and coupled to the existing luck system; virtue is
+the good-luck lane, vice is the fast lane for resources. No event ever
+checks "is this the villain". The single deliberate exception (the camera
+constraint, §8) is documented as such.
+
+This layer slots into the build order after the toy sim is proven; it does
+not depend on the AI DM or the player layer.
+
+
+1. GEOGRAPHY — THE NINE LANDS
+   The world is a 3x3 grid of lands. The center is THE MIDDLE PLAIN:
+   structurally the pseudo-China of the genre — a centralized bureaucratic
+   empire, the largest population, and the seat of all four sects — but
+   culturally a melting pot: it has NO name pool of its own. Its natives
+   roll a descent from the six existing homeland pools (weighted evenly),
+   and the mixed-surname chance is doubled there. No new language pools are
+   added anywhere, and no Chinese name pool exists; the pseudo-China is a
+   structure, not an ethnicity.
+
+   The 8 outer slots are filled from the six existing NAME_LANDS pools. At
+   world generation the rng picks TWO pools to supply two lands each —
+   sibling nations sharing a language. Each pool carries a fixed secondary
+   land name in the data tables, used only if that pool doubles:
+
+       Spice Isles     / Coral Strand    (Indonesian)
+       Sky Steppe      / Wolf Steppe     (Mongolian)
+       Thousand Lakes  / Birch Marches   (Finnish)
+       Glacier Coast   / Ashen Fjords    (Icelandic)
+       River Kingdoms  / Lotus Delta     (Sanskrit)
+       Sunset Plateau  / Salt Wastes     (Persian)
+
+   The 8 lands are shuffled onto the outer slots (seeded rng); sibling
+   lands are placed adjacent when the shuffle allows (one retry pass, then
+   accept whatever falls). Adjacency: edge-adjacent lands are strong
+   neighbors (war, trade, refugees); corner contact is weak (rumors, rare
+   war). The center touches everything.
+
+   The static per-pool "weight" is retired. Recruitment reach is now
+   geographic: recruits are drawn with weight 4 from the Middle Plain, 2
+   from edge lands, 1 from corner lands (tuning knobs). The per-cohort
+   DOMINANT_LAND_BOOST mechanic is unchanged. An agent's `homeland` becomes
+   a reference to a real place (their home settlement), not just a string.
+
+2. PLACES
+   Within a land, geography is a nested tree — this is where the politics
+   lives:
+
+       Place: name, kind (land / region / city / town / village / sect),
+              parent, children, land (root ref),
+              prosperity (float 0-10), baseline (4-6, the land's temper)
+
+   Counts stay small: the Middle Plain has 3 regions of 3-4 settlements
+   plus a capital city and the four sect seats; each outer land has 2-3
+   regions of 2-3 settlements plus a capital. Roughly 70-90 places total.
+   A land's prosperity is the mean of its settlements; regions likewise.
+   Left alone, prosperity drifts 0.2/year toward the land's baseline.
+
+   Settlement names are drawn from the land's own name pools (a surname or
+   given-name stem) plus a small kind-keyed English suffix table ("Ford",
+   "Wells", "Market", "Hold", "Rest"...). Middle Plain settlements draw
+   stems from any pool — the melting pot shows on the map.
+
+   Prosperity displays as words, never numbers, in the chronicle:
+   0-1 starving, 2-3 desperate, 4-5 modest, 6-7 comfortable,
+   8-9 prosperous, 10 golden.
+
+3. POLITIES AND VASSALAGE
+       Polity: pid, name, type (empire / kingdom / khanate / jarldom /
+               city / tribe / sect), seat (place), territory (places ruled
+               directly), leader (aid), liege (pid or None), vassals,
+               unrest (int, >= 0), army (int), edicts (list)
+
+   Type follows culture: Mongolian-pool lands produce khanates and tribes,
+   Icelandic-pool lands jarldoms, the center the empire, others kingdoms
+   and city-states. At worldgen: one sovereign per land; the Middle Plain
+   empire rules its regions directly and holds 1-2 vassal city-states;
+   each outer sovereign has 0-2 vassals. Roughly 15-25 polities.
+
+   DIRECT RULE: the leader's rule style (§5) applies to every place in the
+   territory. VASSALAGE: the vassal's own leader sets local policy and pays
+   a yearly tribute (leader resources flowing upward); each of the liege's
+   active edicts propagates to each vassal with 50% chance (mandates).
+   Villages and towns have no leader agent — they are ruled by whichever
+   polity holds their region. Sects are polities of type "sect", OUTSIDE
+   the vassalage tree (spiritual exemption; the empire does not tax them,
+   and knows better than to try). Their interface with the secular world is
+   the petition (§9).
+
+4. RULERS
+   Leaders are ordinary Agents — the uniform agent model holds. Worldgen
+   rulers are sect-less mortals: realm 1 (a capital sovereign is
+   occasionally realm 2 — a cultivator ancestor on the throne), adult
+   ages, traits rolled from the full pool with a court skew (raised odds
+   of Proud, Power-Hungry, Righteous). They age and die on the mortal
+   clock, which produces successions.
+
+   New agent fields: `ruling` (pid or None), `home` (place ref),
+   `karma` (int, §7).
+
+   RULING LOCKS CULTIVATION. A ruler's action phase is replaced by a
+   single RULE action: no cultivate, no seclude, no adventure, no teach.
+   Qi gain is zero; insight arrives only through governance adversity
+   (a revolt survived, a war lost, a betrayal by a vassal). Their realm
+   still counts fully in any contest — the tyranny of realms is exactly
+   what keeps a Core Formation king on his throne for a century.
+
+   Taking a throne is logged as a variant of the voluntary exit, but the
+   agent stays fully simulated. Paths onto thrones: succession, usurpation,
+   revolt championship, invitation (§9). Paths off: death, deposition, and
+   ABDICATION — an Ascetic or Broken ruler, or one grown old and weary,
+   may abdicate and resume cultivation with qi intact while the world has
+   moved on. The deposed king returning to the mountain is a life the sim
+   should produce for free.
+
+   POWER CORRUPTS: each ruling year there is a small chance the ruler
+   mutates one step down the ladder Greedy -> Power-Hungry -> Cruel,
+   suppressed by Righteous/Humble/Loyal and raised by years of extraction.
+   Routed through the ordinary _mutate machinery so the chronicle shows
+   the change.
+
+5. RULE STYLE — POLICY FROM PERSONALITY
+   There is no policy AI. Each year, each polity scores five facets from
+   its leader's traits plus situation, and the dominant facet(s) fire:
+
+   - BENEVOLENT (Righteous +2, Humble +1, Loyal +1, Scholarly +1):
+     prosperity +0.4, leader standing up, karma +1, no personal gain.
+     Good rulers die respected and poor.
+   - EXTRACTIVE (Greedy +2, Power-Hungry +2): prosperity -0.5, leader
+     resources +2..4, karma -1. Overtaxing, seized land, monopolies.
+   - CRUEL (Cruel +2, Bully +1, Bloodthirsty +1, Ruthless +1):
+     prosperity -0.4, unrest +2, karma -2, and seeds grudge(ruler) in
+     living cultivators whose home lies in the territory.
+   - NEGLECTFUL (Broken +2, Cold +1, Ascetic +1, or mortal ruler past
+     ~70): prosperity -0.2, unrest +1. Petitions unread, granaries
+     unrepaired.
+   - CONSCRIPTION (only at war, or Bloodthirsty): prosperity -0.3,
+     unrest +1, army +N for war resolution (§9).
+
+   Unrest decays by 1 in a benevolent or neutral year. Every fired facet
+   writes a concrete chronicle-ready line: "King Batu of the Wolf Steppe
+   tripled the herd-tax; the valleys go hungry."
+
+6. EDICTS — THE SENSELESS RULES
+   Separate from the facets, a yearly edict roll with chance proportional
+   to Proud + Cold + vice-trait count. An edict is drawn from a data table
+   of templates: total silence after dusk; all subjects must wear the
+   ruler's color; music banned; laughter taxed; mirrors smashed; commoners
+   may be addressed only by title, never by name; mandatory worship of a
+   god of a random OTHER land ("the Salt Mother of the Salt Wastes",
+   "the Sky Wolf of the Wolf Steppe") — the nine lands make "a foreign
+   god" concrete.
+
+   Each active edict: prosperity -0.2/year, unrest +1/year. At most 3
+   active per polity. Edicts persist until the ruler changes or a
+   non-Stubborn ruler repeals one in a good year; proclamation and repeal
+   are both logged. Edicts are the layer's main readability payoff — they
+   make a bad reign describable in one sentence.
+
+7. VIRTUE, VICE, AND KARMA
+   TRAIT_POOL gains four vice traits: Bully, Power-Hungry, Cruel,
+   Bloodthirsty. All get action weights, duel behavior, and mutation
+   paths:
+
+   - Bully picks fights only DOWNWARD (targets a realm below — the
+     tyranny of realms inverted), shakes down juniors for resources, and
+     hands every victim a grudge and a little insight. Crushed in public,
+     a Bully becomes Broken or Humble.
+   - Power-Hungry schemes (socialize-heavy), covets thrones and sect
+     headship; passed over in a succession, becomes Vengeful.
+   - Cruel maims defeated opponents (victim gains a maim epithet and
+     insight; the sim generates walking evidence).
+   - Bloodthirsty escalates duels to lethal and volunteers for wars;
+     surviving near-death turns them Cautious or Ascetic.
+
+   Moral sets: VIRTUE = {Righteous, Humble, Loyal};
+   VICE = {Cruel, Bully, Power-Hungry, Bloodthirsty}.
+   Greedy, Ruthless, Vengeful, Cold stay morally gray — no karma weight
+   (Greedy and Ruthless keep their existing resource edges; the gray
+   traits remain PC-legal).
+
+   KARMA is an integer on every agent, seeded 2*(virtue traits) -
+   2*(vice traits), then moved by DEEDS, which dominate over disposition
+   in a long life: killing the defenseless -2, cruel or extractive rule
+   per §5, sparing a beaten foe +1, rescue or liberation +2, dying in
+   defense of others +3 (posthumous; it flavors the obituary and the
+   grief of friends).
+
+   Couplings — the whole moral economy, all mechanical:
+   - LUCK: each year fortune drifts one step toward sign(karma), on top
+     of the existing streaky luck. Tribulation success gets +karma/4
+     percentage points, clamped to +/-5. The adventure table tilts: high
+     karma finds fateful encounters, low karma finds ambushes.
+   - RESOURCES: agents with vice traits take +1 resource from every
+     victorious contest and successful adventure (spoils to the bone),
+     and vice rulers extract per §5. Evil is the fast lane for wealth;
+     virtue is the luck lane. Idealists break through; tyrants get rich.
+   - GRUDGES: grudges accrue at 1.5x intensity against negative-karma
+     agents. The wronged remember.
+
+8. THE CAMERA CONSTRAINT (the one deliberate cheat)
+   The PC never rolls, and never mutates into, the four VICE traits;
+   neither does any agent currently bound to the PC as friend, sworn,
+   lover, master, or disciple. Blocked mutations reroute to Vengeful,
+   Cold, or Broken — the viewpoint cast can darken, but not become
+   monstrous.
+
+   This is a camera constraint, not plot armor — the same kind of
+   exception as PC selection itself. It protects the reader's seat, not
+   the characters: PC and friends still lose, stall, get maimed, and die
+   on schedule. Documented here as the layer's only breach of SIM FIRST.
+
+9. CONSEQUENCE EVENTS (event-phase additions)
+   - REVOLT: when a polity's unrest passes REVOLT_THRESHOLD, roll yearly.
+     The revolt seeks a CHAMPION: a living cultivator with a grudge
+     against the ruler, or a Righteous one whose home lies in the
+     territory; failing that, a leaderless uprising (weak). Resolution is
+     a contest under the tyranny of realms: a mortal tyrant falls to any
+     realm-2 champion; a cultivator-king turns revolt into massacre
+     (prosperity and ruler karma collapse, survivors gain insight and
+     grudges — adversity, as ever, is the insight engine). On success the
+     champion is offered the throne — accepting is the ruler exit;
+     declining installs a local notable — unrest resets, and the epithet
+     "Tyrant-Breaker" is stamped.
+   - ASSASSINATION: a ruler at karma <= -4 attracts attempts from
+     grudge-holders within one realm. Cautious defends; a success is a
+     succession with a corpse.
+   - WAR: between edge-adjacent sovereigns (rarely corner). Triggered by
+     Bloodthirsty or Power-Hungry rulers with an army, or by contested
+     successions. An abstract 1-3 year campaign: prosperity falls on both
+     sides, conscripts die (chronicle color, not agents), cultivators may
+     join (action-phase nudge for Bloodthirsty, Greedy, and Loyal
+     natives; battlefield deaths, insight, and spoils). Outcomes: tribute,
+     vassalization, or a region changes hands.
+   - PETITION: a settlement below prosperity 3 petitions a sect. This is
+     the sect/polity interface: a mission hook answered by Righteous or
+     standing-hungry members — an adventure variant in that land (drive
+     off the tax collectors, confront the magistrate, kill the beast the
+     ruler ignored). Success lifts prosperity and karma and standing, and
+     makes an enemy of the polity.
+   - ADVENTURE DESTINATIONS: every adventure now rolls a destination land
+     (weighted toward the Middle Plain and its edge neighbors). The
+     destination's prosperity reshapes the risk table: misruled lands
+     yield bandits, refugees to rescue, and the tyrant's men; golden
+     lands yield auctions, fairs, and patrons.
+   - SECULAR SUCCESSION: on a ruler's death, the seat goes to a courtier
+     (a generated mortal notable) unless an ambitious cultivator claims
+     it — stalled, aging, Power-Hungry, or Greedy agents weigh in;
+     Righteous ones only when the land is visibly suffering (the idealist
+     takeover). Contested successions can escalate to coups and wars.
+
+10. INTAKES AND THE COMMON PEOPLE
+   Commoners never become agents; their lives reach the sim at the
+   recruitment gate. Each recruit rolls a home settlement in their
+   homeland. From a misruled home (prosperity <= 3): fewer starting
+   resources, +1 burden, +2 insight — adversity arrives pre-banked — and
+   a seeded grudge(home ruler) at intensity 1-2. From a prosperous home:
+   more starting resources and zero insight. The sheltered-genius /
+   battered-underdog divergence now begins before year one, and some
+   careers carry a political grudge from birth.
+
+   Family stipend: agents at realm <= 2 draw +1 resource/year while their
+   home settlement sits at prosperity >= 7. A home under conscription may
+   instead seed a fresh grudge (a brother taken for the levies).
+
+11. SECTS UNDER THE POLITICS LAYER
+   Sect heads keep cultivating — headship is rulership-lite, not an exit.
+   The head's virtue/vice tilts the sect's richness multiplier a few
+   points either way and drifts junior disciples' standing; under a
+   vice-heavy head, Righteous or Humble disciples may DEFECT to another
+   sect (a new voluntary-exit flavor that seeds cross-sect relationships
+   and future feud fuel). Everything else goes through petitions (§9).
+
+12. LOGGING, TAGS, COMMANDS
+   World.log gains an optional `place=` argument. Tag priority becomes:
+   [PC] > relationship tags > [home] (the event's place lies in the PC's
+   home region or land) > [world] > [famous]. The [home] tag is what
+   keeps the PC's homeland politics on screen without flooding the
+   chronicle: the reader watches one land's fortunes because it is THEIR
+   land.
+
+   World-event lines are restricted to sovereign-level politics:
+   coronations, depositions, wars, revolts, land-scale edicts. Village
+   texture stays in the private histories of those it touches. All
+   political lines follow the house style: past tense, concrete,
+   self-contained.
+
+   New commands: `map` (the 3x3 grid with prosperity words per land),
+   `land NAME` (one land's tree: polities, rulers, active edicts,
+   prosperity), `courts` (every ruler: polity, type, style word, unrest).
+   `sheet` shows home and karma. Obituaries mention reigns and thrones
+   refused. The final report adds "The State of the Nine Lands".
+
+13. TUNING TARGETS (additions to Part III's)
+   - At any moment, 2-4 of the nine lands are under visibly bad rule and
+     at least one is prosperous-to-golden. Misery is common, not
+     universal.
+   - 2-5% of each cohort ends its story on a throne; most rulers remain
+     mortal notables. Rulership is a real exit, not a common one.
+   - A revolt or war somewhere every 8-15 years; assassinations rarer.
+   - KARMA CHECK: sort the dead by karma. High-karma agents should show
+     slightly better final realms and kinder deaths; low-karma agents
+     more wealth and more violent ends. Neither monotone — a saint must
+     sometimes die young and a tyrant sometimes die old and rich, or the
+     karma system has become dramaturgy.
+   - CHRONICLE BALANCE: political lines at most ~30% of the chronicle.
+   - The old targets still hold: the funnel, talent-vs-luck, and
+     distinguishability — now including `log <ruler>` reading like a
+     reign, and the log of a recruit from a misruled land showing the
+     land in the life.
+
+14. IMPLEMENTATION SESSIONS
+   Seven sessions; each leaves the sim runnable, seeded-reproducible, and
+   is validated by reading logs before the next begins. Guardrails
+   throughout: single file, stdlib only, all randomness via world.rng,
+   every event through World.log with honest flags, every constant in the
+   data tables at the top.
+
+   SESSION 1 — GEOGRAPHY. Place dataclass and world tree; nine lands on
+   the grid; the two doubled pools and secondary land names; Middle Plain
+   as melting pot; homeland -> home settlement; recruitment weights by
+   grid position (retire the static pool weights); settlement naming;
+   `map` command. Prosperity exists but sits at baseline. No behavior
+   change — validate that a seeded run is unchanged in spirit and names
+   still read well.
+
+   SESSION 2 — POLITIES AND MORTAL RULE. Polity dataclass and worldgen;
+   mortal ruler agents (court-skewed traits, `ruling`, `karma` as a
+   tracked-but-uncoupled field); the rule-style engine (§5); edicts (§6);
+   prosperity and unrest dynamics; tribute and mandate propagation;
+   mortal successions; `courts` and `land` commands; [home] tag and
+   `place=` logging. Validate by reading 50 years of political chronicle:
+   2-4 bad lands, edicts legible, no flooding.
+
+   SESSION 3 — CONTACT SURFACE. Recruit home settlements and intake
+   effects (§10); family stipends; adventure destinations with
+   prosperity-shaped risk tables; petitions to sects. Validate: the log
+   of a recruit from a misruled land shows the land in the life.
+
+   SESSION 4 — RULERSHIP AS EXIT. The RULE action and cultivation lock;
+   cultivator claims in successions; usurpation; invitation and refusal;
+   abdication; power-corrupts mutation; follow-pc and PC camera extended
+   to reigns (the camera keeps rolling on a PC throne). Validate: 2-5% of
+   a cohort ends enthroned; `log <ruler>` reads like a reign.
+
+   SESSION 5 — KARMA AND VICE. The four vice traits everywhere (pool,
+   action weights, duel behavior, mutations); VIRTUE/VICE sets; karma
+   deeds and couplings (luck drift, tribulation modifier, adventure
+   tilt, vice resource bonus, grudge multiplier); the camera constraint
+   (§8). Validate: karma check and talent-vs-luck target both hold.
+
+   SESSION 6 — CONSEQUENCES. Revolts with champions; assassinations;
+   wars along grid edges with territory and vassalage changes; sect-head
+   tilt and defections. Validate: a revolt or war every 8-15 years;
+   funnel intact.
+
+   SESSION 7 — TUNING AND POLISH. Full 200-year runs against every
+   target in §13 and Part III; final report's "State of the Nine Lands";
+   obituary and epithet polish; update CLAUDE.md. Validate: pick five
+   agents including one ruler and one revolt champion — every life
+   describable in one sentence.
+
+
+================================================================================
 END OF DOCUMENT
 ================================================================================
