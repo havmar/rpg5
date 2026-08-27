@@ -20,10 +20,12 @@ python3 cultivation_sim.py                 # interactive: Enter = advance 1 year
 python3 cultivation_sim.py --years 200     # batch run + final report
 python3 cultivation_sim.py --seed 7        # reproducible world
 python3 cultivation_sim.py --intake 32     # smaller recruitment cycles
+python3 cultivation_sim.py --follow-pc     # run until the PC peaks, dies or quits
 ```
 
 Interactive commands: Enter (step a year), `run N`, `pc`, `sheet NAME`,
-`log NAME`, `roster`, `famous`, `obits`, `help`, `quit`. Name lookup is
+`log NAME`, `follow` (run on until the PC's story ends), `roster`,
+`famous`, `obits`, `help`, `quit`. Name lookup is
 case-insensitive substring match.
 
 ## Architecture (all in cultivation_sim.py)

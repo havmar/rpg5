@@ -21,6 +21,7 @@ Run it:
     python3 cultivation_sim.py                # interactive, step year by year
     python3 cultivation_sim.py --years 200    # batch run
     python3 cultivation_sim.py --seed 7       # reproducible world
+    python3 cultivation_sim.py --follow-pc    # follow one PC to the end
 
 Stdlib only. Python 3.9+.
 """
@@ -57,6 +58,7 @@ INTAKE_PERIOD = 8        # years between intakes
 FEUD_THRESHOLD = 14      # summed cross-sect grudge intensity that ignites a feud
 FEUD_COOLDOWN = 12
 TOURNAMENT_PERIOD = 4
+FOLLOW_CAP_YEARS = 500   # safety cap when following one life to its end
 
 TRAIT_POOL = [
     "Proud", "Cautious", "Reckless", "Ruthless", "Loyal", "Vengeful",
@@ -973,6 +975,26 @@ class World:
                 lines.append(f"  ... and {len(members) - 12} more")
         return "\n".join(lines)
 
+    def life_report(self, a: Agent) -> str:
+        """One character's whole life: how it ended, their sheet, their log."""
+        if a.realm >= MAX_REALM:
+            outcome = f"REACHED THE PEAK — {REALM_NAMES[MAX_REALM]}"
+        elif a.exited:
+            outcome = "LEFT THE PATH"
+        elif not a.alive:
+            outcome = "DIED"
+        else:
+            outcome = "STILL CULTIVATING"
+        lines = ["", "=" * 72,
+                 f"THE LIFE OF {a.display()} — {outcome} (year {self.year})",
+                 "=" * 72, self.sheet(a)]
+        if a.realm < MAX_REALM and a.stalled():
+            lines.append(f"  stalled at the door: qi {a.qi:.0f}/100, insight "
+                         f"{a.insight:.0f}/{INSIGHT_REQ[a.realm]} for "
+                         f"{REALM_NAMES[a.realm + 1]}.")
+        lines += ["", self.personal_log(a)]
+        return "\n".join(lines)
+
     def final_report(self) -> str:
         lines = ["", "=" * 72, f"FINAL REPORT — YEAR {self.year}", "=" * 72,
                  self.famous_list(), "", self.roster(), ""]
@@ -992,6 +1014,7 @@ HELP = """Commands:
   pc             show the main character's sheet
   sheet NAME     show any character's sheet (substring match)
   log NAME       show a character's full private history
+  follow         run on until the main character's story ends
   roster         show living cultivators by sect
   famous         list famous figures (Nascent Soul and above)
   obits          show all obituaries so far
@@ -1014,6 +1037,22 @@ def run_years(world: World, n: int, echo=True):
         for line in world.step():
             if echo:
                 print(line)
+
+
+def run_until_pc_resolved(world: World, cap_year: int, echo=True):
+    """Step until the current protagonist reaches the peak, dies or quits.
+
+    Returns the agent that was followed (the world may pick a successor PC
+    on their death; this is the one whose story just ended).
+    """
+    hero = world.pc
+    if hero is None:
+        return None
+    while hero.alive and hero.realm < MAX_REALM and world.year < cap_year:
+        for line in world.step():
+            if echo:
+                print(line)
+    return hero
 
 
 def interactive(world: World):
@@ -1045,6 +1084,13 @@ def interactive(world: World):
         elif cmd.startswith("log "):
             a = find_agent(world, cmd[4:])
             print(world.personal_log(a) if a else "No such character.")
+        elif cmd == "follow":
+            hero = world.pc
+            if hero is None:
+                print("There is no main character to follow.")
+            else:
+                run_until_pc_resolved(world, world.year + FOLLOW_CAP_YEARS)
+                print(world.life_report(hero))
         elif cmd == "roster":
             print(world.roster())
         elif cmd == "famous":
@@ -1069,11 +1115,25 @@ def main():
                    help="RNG seed for a reproducible world")
     p.add_argument("--intake", type=int, default=INTAKE_SIZE,
                    help="students per intake cycle (default %(default)s)")
+    p.add_argument("--follow-pc", action="store_true",
+                   help="run until the main character reaches the peak, dies "
+                        "or leaves the path, then print their whole life "
+                        "(--years, if given, caps the run)")
     args = p.parse_args()
 
     world = World(seed=args.seed, intake_size=args.intake)
 
-    if args.years is not None:
+    if args.follow_pc:
+        print(world.pc_intro())
+        cap = args.years if args.years is not None else FOLLOW_CAP_YEARS
+        hero = run_until_pc_resolved(world, cap)
+        if hero is None:
+            print("This world has no main character.")
+        else:
+            print(world.life_report(hero))
+            print()
+            print(world.famous_list())
+    elif args.years is not None:
         print(world.pc_intro())
         run_years(world, args.years)
         print(world.final_report())
