@@ -1,0 +1,353 @@
+================================================================================
+CULTIVATION WORLD SIMULATOR — DESIGN DOCUMENT
+A wuxia/xianxia career simulation with an AI DM as narrative renderer
+================================================================================
+
+CORE PREMISE
+------------
+The game is a simulation kernel with a narrative lens on top. The world runs as
+a mechanical process (Python scripts); the AI DM's job is to read the logs and
+tell you what they meant. Design order: SIM FIRST, CHEAT LATER. No narrative
+gravity, no plot armor, no dramaturgy in version one. If the raw event logs of
+individual agents already read like lives, the kernel is right, and any later
+AI narration is a renderer over honest data rather than fiction papering over
+noise.
+
+The base deliverable is not a game but a world generator: take a starting
+class of ~64 students across several sects and simulate their careers over
+centuries until a few reach the top. The generations above (elders) and below
+(future intakes) are simulated by the same rules. A player character is added
+later as "agent 65" — same rules, same funnel — with a richer, game-like
+resource layer unfolded only for them.
+
+An elegant loop follows from this: run the simulation for 200 years first,
+and the survivors ARE the elders, rivals, and legends of the world the player
+is born into. Every campaign world is the fossil record of a previous
+simulation.
+
+
+================================================================================
+PART I — THE GENRE FRAME (what the mechanics must reproduce)
+================================================================================
+
+1. TWO AXES INSTEAD OF ONE POWER STAT
+   - REALM: the visible power tier (Qi Condensation -> Foundation
+     Establishment -> Core Formation -> Nascent Soul -> ...). Defines what a
+     character can do.
+   - DAO HEART / INSIGHT: self-mastery, conviction, understanding of one's
+     personal path. Determines whether a character CAN advance and survive
+     advancing. Realm is loud; insight is the actual engine of careers.
+
+2. TIERED POWER, EMBRACED RATHER THAN BALANCED
+   Cultivation fiction is explicitly unbalanced, and the design encodes it:
+   - Same realm: genuine contest.
+   - One realm apart: the weaker side can only survive, flee, delay — unless
+     they bring narrative assets (treasures, formations, ambush, allies,
+     sacrifice, a hidden trump card).
+   - Two realms apart: not a fight at all.
+   This "tyranny of realms" makes power gaps feel real and makes acquiring
+   trump cards and allies a central strategic activity — exactly how the
+   genre's protagonists operate.
+
+3. BREAKTHROUGH AS EVENT, NOT ACCUMULATION
+   Advancement requires three distinct things:
+   - QI: grindable (time, spirit stones, pills, good environments).
+   - INSIGHT: non-grindable; earned only through lived adversity — defeats,
+     near-death, betrayal, loss, epiphany, acts true to one's dao.
+   - FOUNDATION QUALITY: how cleanly previous stages were built; shortcuts
+     (pill-stacking) give power now and poison the ceiling later.
+   The breakthrough itself is a dramatic set-piece (tribulation) with real
+   failure states: qi deviation, heart demons taking root, crippled
+   cultivation, death.
+
+4. THE DAO AND ITS SHADOW
+   Each character has a personal dao — a principle, not just an element
+   ("the sword that never lies", "the dao of endurance"). Acting in accord
+   with it generates insight; betraying it plants HEART DEMONS that stay
+   dormant and ambush the character at the next tribulation. Personality
+   flaws are literally the progression bottleneck.
+
+5. TIME AND LIFESPAN AS THE DEEP ECONOMY
+   Careers span 50–300 years. Each realm extends lifespan, creating a slow
+   clock: stall too long and you die of old age before the next breakthrough.
+   The constant tension: seclusion (qi, safety, but time burns and the world
+   moves on) versus the world (insight, resources, grudges, danger).
+   Time-skips are first-class; rivals also cultivate offscreen.
+
+6. THE SOCIAL LEDGER
+   Face, favors, karma, sect standing, oaths, sworn brotherhood, life-debts.
+   Grudges are tracked as living entities: humiliate a young master today
+   and his Nascent Soul grandfather is a problem in twenty years. Killing
+   solves problems but generates karma; sparing enemies generates future
+   threats. Often more consequential than combat.
+
+7. SUPPORTING SUBSYSTEMS (later, mostly player-facing)
+   - Techniques as collectible, comprehension-leveled knowledge; incomplete
+     or flawed manuals as risk/reward traps.
+   - Pills with toxicity buildup and diminishing returns.
+   - "Fortuitous encounters" as a luck currency the game spends on agents.
+   - Scale zoom per realm tier: village stakes -> sect politics -> empires
+     -> the heavens.
+
+   The unifying idea: the system simulates not "getting stronger" but THE
+   PRICE of getting stronger — time, attachments, integrity, and the people
+   left behind or made into enemies.
+
+
+================================================================================
+PART II — SIMULATION ARCHITECTURE
+================================================================================
+
+1. UNIFORM AGENT MODEL (the chosen approach)
+   Everyone — elders, the focal cohort, juniors — runs identical rules at
+   full(ish) fidelity. Generations emerge from recruitment and death, not
+   from special code. Only the eventual PLAYER gets a deluxe layer (real
+   inventory, techniques, scene-level play); NPCs compress all of that into
+   a single resource score. Population equilibrium of ~150–300 agents at one
+   action and a handful of events per agent-year is computationally trivial.
+
+   (A three-band fidelity system — full sim for the cohort, institutional
+   sim for elders, statistical pools below — was considered and set aside;
+   it becomes relevant only if the world scales far beyond a few hundred
+   agents. Keep the idea in reserve: promotion/demotion between bands, where
+   an irrelevant agent degrades to coarse simulation and an exceptional
+   statistical youngster gets instantiated as a full agent.)
+
+2. TICK STRUCTURE
+   Base clock: one year (careers span centuries; finer ticks drown in
+   noise). Run 200–300 years per world. Discrete EVENTS layered over the
+   ticks (tournaments, expeditions, feuds, successions) are where
+   trajectories diverge; the years between are accumulation and drift.
+
+3. THE CAREER ENGINE
+   Careers emerge from the interaction of fixed endowment (talent), evolving
+   personality (traits), relationships, and streaky luck. Because insight
+   comes only from adversity actually experienced, the sim naturally
+   reproduces the genre's core irony with no scripting: the sheltered genius
+   who plateaus at their first real tribulation; the battered underdog who
+   breaks through.
+
+4. ATTRITION AS THE SHAPE OF THE STORY
+   Target funnel per intake of 64, over a century-plus:
+     ~35–45 reach realm 2, ~15 reach realm 3, ~4–6 reach realm 4,
+     0–2 ever touch the top.
+   Deaths need textured causes: tribulations, expeditions, feuds, qi
+   deviation, war, old age. Crucially, include VOLUNTARY EXITS — students
+   who marry out, take administrative posts, lose conviction. A funnel that
+   only kills feels like a meat grinder; one where people also choose
+   ordinary lives feels like a world.
+
+5. THE LAYER ABOVE AS WEATHER
+   Elders generate the environment the cohort climbs through: which sect is
+   ascendant, which resources are contested, wars, power vacuums. They are
+   also the opportunity-injection engine: a dying elder seeks an heir, war
+   creates battlefield promotions, a purge orphans talented students. The
+   top of the world needs TEMPO — shifts every 10–30 years — so the cohort
+   never climbs a static ladder.
+
+6. RANDOMNESS WITH MEMORY (post-toy refinements)
+   Pure dice produce noise-shaped careers. Two correctives:
+   - DESTINY HOOKS: each agent rolls a small number at creation (hidden
+     bloodline, doomed love, an old family enemy); the event system
+     preferentially fires on them. Arc-shaped lives without predetermined
+     outcomes.
+   - STREAKY LUCK: fortune compounds in this genre (treasures attract
+     treasures, attention attracts danger); let recent outcomes bias event
+     selection slightly.
+
+7. EVENT LOGGING AS THE NARRATIVE SUBSTRATE
+   Every consequential outcome writes a structured entry: year, actors,
+   event, outcome, relationship deltas, WITNESSES. Log rumors as well as
+   facts — cultivation drama runs on who knows what, and a rumor layer lets
+   the DM generate misunderstandings, hidden identities, and reveals
+   honestly from the data. The simulation says:
+     "Y3 autumn: Student 17 defeated Student 41 in the tournament final;
+      41's backer lost face; 41 gained grudge(17); 17 gained reputation +2
+      and the attention of Elder Wu."
+   The AI DM turns that into the scene.
+
+
+================================================================================
+PART III — THE TOY VERSION (first buildable artifact, ~300–500 lines)
+================================================================================
+
+One uniform agent model, one loop, three generations alive at once.
+
+1. AGENT SHEET (~a dozen fields)
+   - age
+   - realm (1–6) and qi progress within realm (0–100)
+   - talent (1–10, fixed at birth): multiplier on qi gain, soft cap on realm
+   - insight (banked from lived events; required to break through)
+   - burden (one counter standing in for heart demons / unresolved baggage)
+   - resources (ONE number for wealth/pills/treasures; the player version
+     later explodes this into real inventory — NPCs never need it)
+   - sect, and standing within it
+   - traits: 2–3 from a small pool
+   - relationships: sparse list (rival, friend, master, lover, grudge),
+     each with an intensity
+   - epithets: list of strings, starts empty
+
+2. TRAITS — THE PERSONALITY ENGINE (three jobs)
+   Pool of 12–16: Proud, Cautious, Reckless, Ruthless, Loyal, Vengeful,
+   Scholarly, Charming, Stubborn, Ascetic, Greedy, Humble, Righteous, Cold.
+   - JOB 1 — weight the yearly action choice (Reckless favors adventure,
+     Ascetic favors seclusion, Charming favors socializing).
+   - JOB 2 — modify event outcomes (Proud cannot decline a duel; Cautious
+     gets a flee bonus; Ruthless kills defeated rivals instead of
+     humiliating them — which changes whether the sim generates corpses or
+     grudges).
+   - JOB 3 — MUTATE UNDER PRESSURE (the single best tool for making
+     characters legible over time): a Proud agent crushed in public may
+     become Broken or Humble; a Loyal agent betrayed becomes Vengeful;
+     surviving a near-death breakthrough can turn anyone Ascetic. The log
+     then shows people CHANGING, not just numbers moving.
+
+3. EPITHETS — THE CHEAP MEMORABILITY TRICK
+   Any sufficiently dramatic event stamps a descriptive tag: One-Armed,
+   Tribulation-Scarred, Oathbreaker, Slayer-of-Wei, Twice-Failed. Zero
+   mechanical weight in the toy; enormous readability value. "Han Yu the
+   One-Armed reached Core Formation" compresses fifteen simulated years
+   into a name, at the cost of a string append.
+
+4. THE YEAR LOOP (three phases; run 200–300 years)
+
+   ACTION PHASE — every agent picks one action, via softmax over trait
+   weights plus situational nudges (low qi + rich sect -> cultivate; active
+   grudge + Vengeful -> seek the enemy):
+   - Cultivate: qi gain x talent; safe.
+   - Seclude: more qi, but socially absent — relationships decay, the world
+     moves on.
+   - Adventure: roll a risk table: death / injury / nothing / resources /
+     insight / fateful encounter.
+   - Socialize/Scheme: shift standing and relationships; plant or resolve
+     grudges.
+   - Teach: elders by inclination (not rule); creates master–disciple
+     edges, boosts the junior's qi gain.
+
+   EVENT PHASE — collective events:
+   - Tournament every 4 years: brackets within realm bands; results move
+     standing, forge rivalries, and grant insight to LOSERS WHO SURVIVE.
+   - Secret-realm expedition on a random timer: high death, high reward;
+     volunteers skew Reckless/Greedy.
+   - Sect feud: ignites when accumulated cross-sect grudge intensity passes
+     a threshold.
+   - Succession crisis: when a sect head dies.
+
+   RESOLUTION PHASE — breakthrough attempts, aging, lifespan checks.
+
+5. CONTESTS — ONE FORMULA
+   power = realm x 10 + qi/10 + talent (+ small trait modifiers)
+   Keep the tyranny of realms even in the toy: a full realm of difference
+   means the lower side can only flee or die. It is what makes the funnel
+   and the fear real.
+
+   INSIGHT is granted by adversity, not victory: surviving a loss, a
+   near-death, a betrayal, witnessing a higher-realm battle, losing someone
+   loved. This single rule reproduces sheltered-genius-plateaus /
+   battered-underdog-ascends with no scripting.
+
+6. BREAKTHROUGH AND DEATH
+   - At qi 100, attempt breakthrough if insight meets the realm threshold;
+     otherwise STALL. Stalling agents increasingly choose Adventure (hunger
+     for insight) — a natural feedback loop.
+   - Success chance = base + talent + surplus insight - burden.
+   - Failure costs qi; from realm 3 up it risks injury or death.
+   - Lifespan realm-keyed: mortal ~80 years, each realm adds ~40–60.
+   - Death arrives via tribulation, adventure, feud, war, or the quiet
+     clock — and the clock matters: a talent-3 Stubborn agent grinding at
+     the realm-2 wall until age 130 is exactly the tragic side character
+     the sim should produce for free.
+
+7. GENERATIONS FOR FREE
+   Every 8 years each sect recruits an intake of fresh agents, age ~14,
+   with rolled talent and traits and a couple of pre-seeded relationships
+   (siblings, childhood friends, a hometown grudge). The "starting class of
+   64" is simply the intake you choose to watch; elders are previous
+   intakes that survived; the coming generation arrives on schedule.
+
+8. OUTPUT IS THE PRODUCT
+   Every consequential resolution appends a structured log line: year,
+   actors, event, outcome, deltas, witnesses. The test: does a raw grep of
+   one agent's lines read like a life?
+
+     Y12  Ping Mei (Proud, Reckless, T7) defeats Han Yu in tournament
+          final; Han Yu gains grudge(Ping Mei)
+     Y15  Secret realm: Ping Mei maimed [epithet: One-Eyed], +12 insight;
+          trait Reckless -> Cautious
+     Y19  Ping Mei breaks through to Foundation (age 33)
+     Y31  Feud, Wei ambush: Ping Mei flees (Cautious); sworn brother
+          Luo Gan dies; gains grudge(Wei), +8 insight
+     Y44  Ping Mei fails Core tribulation (burden 6); crippled, retires
+          to teach
+     Y52  Ping Mei's disciple Xie Lan reaches Foundation at 19
+
+   Two derived views:
+   - OBITUARY at each death: name, epithets, cause, realm reached, who
+     grieved, who celebrated.
+   - FINAL ROSTER at year 250.
+
+9. TUNING TARGETS FOR FIRST RUNS
+   - FUNNEL SHAPE: per intake of 64, roughly 35–45 to realm 2, a handful
+     to realm 4, zero-to-two touching the top over a century. Tune death
+     rates and the insight economy until this holds.
+   - TALENT VS LUCK: sort final realm by starting talent. Monotone ranking
+     = luck too weak, every run predetermined. Uncorrelated = talent is
+     decoration. Target: visible correlation with famous exceptions.
+   - DISTINGUISHABILITY: pick five random agents, read their logs, check
+     each can be described in one sentence. If two lives blur, the fix is
+     almost always more trait mutation and more relationship-driven
+     events — not more stats.
+
+
+================================================================================
+PART IV — THE PLAYER LAYER (later)
+================================================================================
+
+The player character is agent 65: same rules, same funnel, no plot armor.
+What changes is resolution, not physics:
+- The single NPC resource number unfolds into real inventory, spirit
+  stones, pills (with toxicity), treasures, techniques (collectible,
+  comprehension-leveled, flawed-manual traps).
+- The yearly action unfolds into scene-level play run by the AI DM, which
+  shifts from historian to narrator around the player.
+- The dao becomes explicit: the player states a principle; play in accord
+  generates insight, betrayal plants heart demons that surface at
+  tribulations.
+- Tribulations become set-piece scenes with real failure states.
+- The social ledger becomes visible and interactive: face, oaths, favors,
+  karma, sworn brotherhood, grudges with due dates.
+
+Everything around the player keeps running the toy rules — which, by then,
+will have been proven able to carry a world on their own.
+
+
+================================================================================
+PART V — BUILD ORDER AND OPEN QUESTIONS
+================================================================================
+
+BUILD ORDER
+1. Toy sim (Part III). Validate against the three tuning targets by
+   reading raw logs. No AI involved.
+2. Add refinements: destiny hooks, streaky luck, rumor/witness layer,
+   voluntary exits, elder tempo.
+3. AI DM as renderer: chronicle generation, obituaries, "state of the
+   world" digests from logs.
+4. World-generation mode: run 200 years, freeze, use survivors as the
+   living setting.
+5. Player layer on top of a generated world.
+
+OPEN QUESTIONS (deliberately deferred)
+- Narrative gravity: pure simulation will sometimes kill every interesting
+  agent and elevate a boring one. Later, does the event system get to
+  quietly thumb the scales toward drama (protecting rivalries until they
+  resolve, timing reveals), or is the appeal precisely that the world is
+  indifferent? Decision: SIM FIRST, CHEAT LATER — revisit only after the
+  honest kernel is proven.
+- When (if ever) the uniform agent model needs fidelity bands as the world
+  scales.
+- How much of the dao/heart-demon system NPCs eventually get (currently
+  compressed into the burden counter).
+
+================================================================================
+END OF DOCUMENT
+================================================================================
