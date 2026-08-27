@@ -31,7 +31,14 @@ case-insensitive substring match.
 ## Architecture (all in cultivation_sim.py)
 
 - **Data tables / tuning knobs** at the top: realms, `INSIGHT_REQ`, lifespans,
-  intake size/period, feud threshold, trait pool, `TRAIT_ACTION` weights.
+  intake size/period, feud threshold, trait pool, `TRAIT_ACTION` weights, and
+  `NAME_LANDS` — six fictional homelands with male/female given-name and
+  surname pools borrowed from real-world languages (Indonesian, Mongolian,
+  Finnish, Icelandic; Sanskrit and Persian are rare). Each agent rolls a sex
+  and homeland; every intake cohort skews toward one dominant land
+  (`DOMINANT_LAND_BOOST`), and `MIXED_NAME_CHANCE` gives a surname from a
+  different land. Glacier Coast surnames are patronymic
+  (`-sson`/`-sdottir`).
 - **`Agent`** — the uniform agent sheet from the design doc: age, realm, qi,
   talent, insight, burden, resources, standing, traits, relationships
   (`rels: {aid: Rel(kind, intensity)}`), epithets, private `history`, and a
