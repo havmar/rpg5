@@ -8,10 +8,13 @@ outcomes, epithets, tournaments, expeditions, feuds, successions,
 breakthroughs with real failure states, voluntary exits, and generations
 via 8-year intakes.
 
-Plus the first course of the politics layer (Part VI, session 1): the nine
-lands on a 3x3 grid, a nested tree of places carrying prosperity, and
-recruitment reach measured in geography. Every agent is born in a real
-settlement; `map` shows the grid.
+Plus the first two courses of the politics layer (Part VI, sessions 1-2):
+the nine lands on a 3x3 grid, a nested tree of places carrying prosperity,
+recruitment reach measured in geography, and — above the places — polities
+with mortal rulers whose characters become policy. Rule style is scored
+from the leader's traits every year and pushes prosperity, unrest and the
+ruler's own purse; senseless edicts make a bad reign describable in one
+sentence. `map`, `land NAME` and `courts` show the political world.
 
 Logging policy (the product):
   * Every consequential event is appended to the PRIVATE history of every
@@ -294,6 +297,172 @@ PLACE_SUFFIXES = {
                 "Watch", "End", "Furrow", "Bough"],
 }
 
+# --- POLITICS: polities, mortal rulers, rule styles, edicts ----------------
+# Above the places sit the polities. Type follows culture: the Mongolian-pool
+# lands raise khanates over tribes, the Icelandic-pool lands jarldoms, the
+# centre the empire, everyone else kingdoms over city-states. Keyed by the
+# land's NAME_LANDS pool; the Middle Plain (pool None) takes the centre pair.
+POLITY_KINDS_BY_POOL = {
+    "Sky Steppe":    ("khanate", "tribe"),
+    "Glacier Coast": ("jarldom", "jarldom"),
+}
+POLITY_KINDS_CENTER = ("empire", "city")
+POLITY_KINDS_DEFAULT = ("kingdom", "city")
+POLITY_WORDS = {"empire": "Empire", "kingdom": "Kingdom", "khanate": "Khanate",
+                "jarldom": "Jarldom", "city": "City", "tribe": "Tribe",
+                "sect": "Sect"}
+POLITY_TITLES = {                       # (male, female) form of address
+    "empire":  ("Emperor", "Empress"),
+    "kingdom": ("King", "Queen"),
+    "khanate": ("Khan", "Khatun"),
+    "jarldom": ("Jarl", "Jarl"),
+    "city":    ("Lord", "Lady"),
+    "tribe":   ("Chief", "Chief"),
+    "sect":    ("Sect Head", "Sect Head"),
+}
+EMPIRE_VASSAL_COUNT = (1, 2)    # the centre rules its regions, holds city-states
+OUTER_VASSAL_COUNT = (0, 2)     # each outer sovereign's vassals
+TRIBUTE = 2                     # resources a vassal leader sends up each year
+RULER_INCOME = 1                # the crown's ordinary revenue, per year
+RULER_INCOME_RICH = 1           # again as much out of a comfortable country
+RULER_INCOME_RICH_AT = 6.0      # prosperity at which a country pays it
+
+# Worldgen rulers are ordinary Agents: sect-less mortals on the mortal clock.
+RULER_AGE = (28, 62)            # age of a ruler installed at worldgen
+HEIR_AGE = (20, 48)             # age of a courtier raised to a vacant seat
+RULER_REALM2_CHANCE = 0.15      # a sovereign with a cultivator ancestor
+RULER_RESOURCES = (6, 14)       # the treasury they sit on
+RULER_STANDING = (5, 9)
+# Court skew: thrones are not filled at random from the trait pool.
+# (Session 5 adds the vice traits and raises them here: Power-Hungry 3.0,
+# Cruel 2.0, Bully 1.5, Bloodthirsty 1.5.)
+COURT_TRAIT_WEIGHTS = {"Proud": 2.5, "Righteous": 2.5, "Charming": 1.6,
+                       "Greedy": 1.5, "Cold": 1.5, "Humble": 1.5,
+                       "Loyal": 1.5, "Ruthless": 1.3}
+
+# Moral sets (§7). Karma is seeded from traits and tracked from here on;
+# NOTHING is coupled to it yet — the couplings land in session 5, along with
+# the four vice traits that fill VICE_TRAITS (Bully, Power-Hungry, Cruel,
+# Bloodthirsty).
+VIRTUE_TRAITS = ("Righteous", "Humble", "Loyal")
+VICE_TRAITS = ()
+KARMA_PER_MORAL_TRAIT = 2
+
+# Rule style: five facets scored from the leader's traits plus situation.
+# Traits that do not exist yet simply never score — the table is the seam.
+RULE_FACETS = ["BENEVOLENT", "EXTRACTIVE", "CRUEL", "NEGLECTFUL",
+               "CONSCRIPTION"]
+RULE_FACET_TRAITS = {
+    "BENEVOLENT":   {"Righteous": 2, "Humble": 1, "Loyal": 1, "Scholarly": 1},
+    "EXTRACTIVE":   {"Greedy": 2, "Power-Hungry": 2},
+    "CRUEL":        {"Cruel": 2, "Bully": 1, "Bloodthirsty": 1, "Ruthless": 1},
+    "NEGLECTFUL":   {"Broken": 2, "Cold": 1, "Ascetic": 1},
+    "CONSCRIPTION": {"Bloodthirsty": 1},
+}
+RULE_FACET_EFFECTS = {
+    # prosperity per settlement, unrest, ruler karma, ruler standing,
+    # ruler resources (a range), army (a range)
+    "BENEVOLENT":   {"prosperity": 0.4,  "unrest": 0, "karma": 1,
+                     "standing": 1},
+    "EXTRACTIVE":   {"prosperity": -0.5, "unrest": 0, "karma": -1,
+                     "resources": (2, 4)},
+    "CRUEL":        {"prosperity": -0.4, "unrest": 2, "karma": -2},
+    "NEGLECTFUL":   {"prosperity": -0.2, "unrest": 1, "karma": 0},
+    "CONSCRIPTION": {"prosperity": -0.3, "unrest": 1, "karma": 0,
+                     "army": (2, 5)},
+}
+STYLE_WORDS = {"BENEVOLENT": "benevolent", "EXTRACTIVE": "extractive",
+               "CRUEL": "cruel", "NEGLECTFUL": "neglectful",
+               "CONSCRIPTION": "conscripting"}
+STYLE_QUIET = "quiet"
+MAX_FACETS_PER_YEAR = 2         # a reign has at most two moods at once
+NEGLECT_AGE = 70                # a ruler past this age governs by absence
+NEGLECT_AGE_SCORE = 2
+CRACKDOWN_UNREST = 5            # a frightened throne reaches for the headsman,
+CRACKDOWN_SCORE = 1             # but only one already willing to use it
+POOR_TREASURY = 2               # an empty treasury tempts the tax collector
+POOR_TREASURY_SCORE = 1
+CONSCRIPTION_BASE = 2           # only at war, or under a Bloodthirsty ruler
+UNREST_MAX = 12                 # session 6's revolts will spend this down
+UNREST_DECAY = 1                # a benevolent or quiet year settles the land
+SUCCESSION_UNREST_RELIEF = 2    # a new face on the seat buys a little peace
+CRUEL_GRUDGE_MAX = 5            # cap on a subject's grudge against their ruler
+# A ruler doing the same thing for thirty years is not news every year: a
+# facet writes a line when it is newly dominant, and only sometimes after.
+RULE_LINE_REPEAT_CHANCE = 0.2
+RULE_LINES = {
+    "BENEVOLENT": [
+        "{ruler} opened the granaries of {domain} through a hard winter.",
+        "{ruler} cut the levies on {domain} and paid for the dikes out of "
+        "the treasury.",
+        "{ruler} heard petitions in person all year; the assessors of "
+        "{domain} were whipped for false measures.",
+        "{ruler} rebuilt the roads of {domain} and fed the work gangs at "
+        "the crown's expense.",
+    ],
+    "EXTRACTIVE": [
+        "{ruler} tripled the tax on herds and hearths; the villages of "
+        "{domain} go hungry.",
+        "{ruler} seized the salt trade of {domain} for the treasury.",
+        "{ruler} sold the harvest of {domain} abroad and kept the silver.",
+        "{ruler} set a new toll on every bridge and ford in {domain}.",
+    ],
+    "CRUEL": [
+        "{ruler} answered the complaints of {domain} with the headsman.",
+        "{ruler} burned a village of {domain} for a rumour of sedition.",
+        "{ruler} hung the tax-defaulters of {domain} along the roads.",
+        "{ruler} took hostages from every house of note in {domain}.",
+    ],
+    "NEGLECTFUL": [
+        "{ruler} let the granaries of {domain} stand unrepaired another year.",
+        "{ruler} read no petition out of {domain} all year.",
+        "{ruler} kept to the inner court while the roads of {domain} washed "
+        "out.",
+    ],
+    "CONSCRIPTION": [
+        "{ruler} called up the levies of {domain}; the fields went unsown.",
+        "{ruler} took one man in five from the villages of {domain} for the "
+        "muster.",
+    ],
+}
+
+# Edicts — the senseless rules. Each land has a god, so "a foreign god" is
+# concrete: the template draws one from a DIFFERENT land.
+LAND_GODS = {
+    "Middle Plain":   "the Nine-Gated Sovereign",
+    "Spice Isles":    "the Clove Mother",
+    "Coral Strand":   "the Reef Serpent",
+    "Sky Steppe":     "the Eternal Blue",
+    "Wolf Steppe":    "the Sky Wolf",
+    "Thousand Lakes": "the Lake Smith",
+    "Birch Marches":  "the Birch Maiden",
+    "Glacier Coast":  "the Ice Widow",
+    "Ashen Fjords":   "the Ash Father",
+    "River Kingdoms": "the River Mother",
+    "Lotus Delta":    "the Lotus Sleeper",
+    "Sunset Plateau": "the Sun Behind the Mountain",
+    "Salt Wastes":    "the Salt Mother",
+}
+EDICT_TEMPLATES = [
+    ("the dusk silence", "that no voice be raised after dusk"),
+    ("the colour law", "that every subject wear the ruler's colour"),
+    ("the ban on music", "that no music be played in any house"),
+    ("the laughter tax", "that laughter in public be taxed"),
+    ("the mirror-breaking", "that every mirror be broken"),
+    ("the law of titles",
+     "that commoners be addressed only by title, never by name"),
+    ("the ban on beards", "that no man wear a beard longer than his thumb"),
+    ("the night curfew", "that no door stand open between dusk and dawn"),
+    ("the foreign rite",
+     "that every household burn incense to {god} of the {land}"),
+]
+EDICT_CHANCE_PER_POINT = 0.04   # points = Proud + Cold + vice traits
+EDICT_MAX_ACTIVE = 3
+EDICT_PROSPERITY = -0.2         # per active edict per year
+EDICT_UNREST = 1                # per active edict per year
+EDICT_REPEAL_CHANCE = 0.30      # a non-Stubborn ruler, after a good year
+MANDATE_CHANCE = 0.5            # a liege's edict reaching each vassal
+
 MAIM_EPITHETS = ["One-Armed", "One-Eyed", "Scarred", "Iron-Boned",
                  "Ash-Handed", "Half-Lame"]
 
@@ -344,6 +513,7 @@ class Place:
     baseline: float = 5.0
     grid: Optional[tuple] = None                # (row, col) — lands only
     pool: Optional[str] = None                  # NAME_LANDS key; None = melting pot
+    polity: Optional[int] = None                # set on the roots of a territory
 
     def settlements(self) -> list:
         """Every settlement at or beneath this place (sect seats excluded)."""
@@ -378,6 +548,70 @@ class Place:
 
 
 # ---------------------------------------------------------------------------
+# Polities — who rules the places
+# ---------------------------------------------------------------------------
+
+@dataclass(eq=False)
+class Edict:
+    """A senseless rule standing over a polity until the ruler changes."""
+    label: str                  # "the mirror-breaking" — for repeal lines
+    clause: str                 # "that every mirror be broken"
+    year: int
+    mandate_from: Optional[int] = None   # pid of the liege that imposed it
+
+
+@dataclass(eq=False)
+class Polity:
+    """An empire, kingdom, khanate, jarldom, city-state, tribe or sect.
+
+    `territory` holds the places ruled DIRECTLY (a capital plus regions);
+    everything beneath them obeys the same ruler. A vassal's region is cut
+    out of its liege's territory. Sects are polities too, but stand outside
+    the vassalage tree entirely (the spiritual exemption) and take no part
+    in the rule-style engine.
+    """
+    pid: int
+    name: str                        # "Khanate of the Wolf Steppe"
+    kind: str                        # empire/kingdom/khanate/jarldom/city/tribe/sect
+    seat: Optional[Place] = None
+    domain: str = ""                 # "the Wolf Steppe" / "Sartuul Ford"
+    land: Optional[Place] = None
+    territory: list = field(default_factory=list)
+    leader: Optional[int] = None     # aid
+    liege: Optional[int] = None      # pid
+    vassals: list = field(default_factory=list)   # pids
+    unrest: int = 0
+    army: int = 0
+    edicts: list = field(default_factory=list)
+    style: str = STYLE_QUIET         # last year's dominant facet, in a word
+    last_facets: tuple = ()
+    last_line: str = ""              # so a reign does not repeat itself twice
+    at_war: bool = False             # session 6 lights this up
+
+    def is_sovereign(self) -> bool:
+        return self.liege is None and self.kind != "sect"
+
+    def settlements(self) -> list:
+        out = []
+        for p in self.territory:
+            out.extend(p.settlements())
+        return out
+
+    def title(self, sex: str) -> str:
+        pair = POLITY_TITLES.get(self.kind, ("Lord", "Lady"))
+        return pair[0] if sex == "m" else pair[1]
+
+    def wealth(self) -> float:
+        kids = self.settlements()
+        if not kids:
+            return 5.0
+        return sum(p.prosperity for p in kids) / len(kids)
+
+    def word(self) -> str:
+        return prosperity_word(self.wealth())
+
+
+# ---------------------------------------------------------------------------
 # Agents
 # ---------------------------------------------------------------------------
 
@@ -405,6 +639,9 @@ class Agent:
     burden: int = 0                   # heart demons / unresolved baggage
     resources: int = 3
     standing: int = 1
+    ruling: Optional[int] = None      # pid of the polity they rule, or None
+    reign_start: Optional[int] = None
+    karma: int = 0                    # §7: tracked from session 2, coupled in 5
     rels: dict = field(default_factory=dict)     # aid -> Rel
     epithets: list = field(default_factory=list)
     history: list = field(default_factory=list)  # private log: (year, text)
@@ -441,6 +678,9 @@ class Agent:
     def has_trait(self, t: str) -> bool:
         return t in self.traits
 
+    def is_ruler(self) -> bool:
+        return self.ruling is not None
+
     def stalled(self) -> bool:
         return (self.qi >= 100 and self.realm < MAX_REALM
                 and self.insight < INSIGHT_REQ[self.realm])
@@ -473,6 +713,9 @@ class World:
         self.sibling_lands: list = []              # [(land, land), ...]
         self._next_pid = 1
         self._place_names: set = set()
+        # Politics (built in _setup, on top of the geography).
+        self.polities: dict[int, Polity] = {}
+        self._next_poid = 1
         self._setup()
 
     # -- geography ----------------------------------------------------------
@@ -601,6 +844,160 @@ class World:
                 "edge": RECRUIT_WEIGHT_EDGE,
                 "corner": RECRUIT_WEIGHT_CORNER}[land.reach()]
 
+    # -- polities -----------------------------------------------------------
+
+    def _new_polity(self, name, kind, seat, domain, territory, land) -> Polity:
+        p = Polity(pid=self._next_poid, name=name, kind=kind, seat=seat,
+                   domain=domain, land=land, territory=list(territory))
+        self._next_poid += 1
+        self.polities[p.pid] = p
+        for place in p.territory:
+            place.polity = p.pid
+        p.army = len(p.settlements())
+        return p
+
+    def _polity_kinds(self, land: Place) -> tuple:
+        """(sovereign kind, vassal kind) for a land, by culture."""
+        if land.is_center():
+            return POLITY_KINDS_CENTER
+        return POLITY_KINDS_BY_POOL.get(land.pool, POLITY_KINDS_DEFAULT)
+
+    def _build_polities(self):
+        """One sovereign per land, a few vassals beneath it, and the four
+        sects as polities standing outside the vassalage tree."""
+        r = self.rng
+        for land in self.lands.values():
+            sov_kind, vassal_kind = self._polity_kinds(land)
+            capital = self._capital(land)
+            regions = [c for c in land.children if c.kind == "region"]
+            r.shuffle(regions)
+            span = EMPIRE_VASSAL_COUNT if land.is_center() else OUTER_VASSAL_COUNT
+            n_vassals = min(r.randint(*span), max(0, len(regions) - 1))
+            sov = self._new_polity(
+                f"{POLITY_WORDS[sov_kind]} of the {land.name}", sov_kind,
+                capital, f"the {land.name}",
+                [capital] + regions[n_vassals:], land)
+            self._install_ruler(sov, age=r.randint(*RULER_AGE), founding=True)
+            for region in regions[:n_vassals]:
+                seat = self._vassal_seat(region)
+                vassal = self._new_polity(
+                    f"{POLITY_WORDS[vassal_kind]} of {seat.name}", vassal_kind,
+                    seat, f"the {region.name}", [region], land)
+                vassal.liege = sov.pid
+                sov.vassals.append(vassal.pid)
+                self._install_ruler(vassal, age=r.randint(*RULER_AGE),
+                                    founding=True)
+        for sect, seat in self.sect_seats.items():
+            polity = self._new_polity(sect, "sect", seat, sect, [seat],
+                                      self.grid[1][1])
+            seat.polity = polity.pid
+
+    def _vassal_seat(self, region: Place) -> Place:
+        towns = [p for p in region.settlements() if p.kind == "town"]
+        return self.rng.choice(towns or region.settlements())
+
+    def polity_at(self, place: Optional[Place]) -> Optional[Polity]:
+        """Which polity rules a place: walk up until a territory root."""
+        node = place
+        while node is not None:
+            if node.polity is not None:
+                return self.polities.get(node.polity)
+            node = node.parent
+        return None
+
+    def ruler_at(self, place: Optional[Place]) -> Optional[Agent]:
+        polity = self.polity_at(place)
+        return self.leader_of(polity) if polity else None
+
+    def leader_of(self, polity: Optional[Polity]) -> Optional[Agent]:
+        if polity is None or polity.leader is None:
+            return None
+        return self.agents.get(polity.leader)
+
+    def ruler_ref(self, a: Agent) -> str:
+        """How a ruler is named in the chronicle: 'Khan Batu of the Steppe'."""
+        polity = self.polities.get(a.ruling) if a.ruling is not None else None
+        if polity is None:
+            return a.display()
+        return f"{polity.title(a.sex)} {a.display()} of {polity.domain}"
+
+    def _court_traits(self) -> list:
+        """Traits for a ruler: the full pool, skewed toward the court."""
+        r = self.rng
+        pool = list(TRAIT_POOL)
+        weights = [COURT_TRAIT_WEIGHTS.get(t, 1.0) for t in pool]
+        traits = []
+        for _ in range(r.choice([2, 2, 3])):
+            t = r.choices(pool, weights)[0]
+            i = pool.index(t)
+            pool.pop(i)
+            weights.pop(i)
+            traits.append(t)
+        return traits
+
+    def _seed_karma(self, a: Agent):
+        """Karma starts as disposition; deeds will dominate it (session 5)."""
+        virtue = sum(1 for t in a.traits if t in VIRTUE_TRAITS)
+        vice = sum(1 for t in a.traits if t in VICE_TRAITS)
+        a.karma = KARMA_PER_MORAL_TRAIT * (virtue - vice)
+
+    def _install_ruler(self, polity: Polity, age: int,
+                       founding=False) -> Agent:
+        """Generate a mortal notable and seat them. Session 4 lets ambitious
+        cultivators claim seats here instead."""
+        r = self.rng
+        land = polity.land
+        sex = r.choice("mf")
+        descent = land.pool or r.choice(list(NAME_LANDS))
+        realm = 2 if (polity.is_sovereign()
+                      and r.random() < RULER_REALM2_CHANCE) else 1
+        a = Agent(
+            aid=self._next_aid,
+            name=self._new_name(sex, descent, melting_pot=land.pool is None),
+            sex=sex,
+            home=polity.seat,
+            homeland=land.name,
+            descent=descent,
+            sect="",                        # rulers are sect-less mortals
+            age=age,
+            talent=self._roll_talent(),
+            traits=self._court_traits(),
+            realm=realm,
+            qi=0.0,
+            insight=0.0,
+            resources=r.randint(*RULER_RESOURCES),
+            standing=r.randint(*RULER_STANDING),
+            intake_year=self.year,
+            ruling=polity.pid,
+            reign_start=self.year,
+        )
+        self._seed_karma(a)
+        self._next_aid += 1
+        self.agents[a.aid] = a
+        polity.leader = a.aid
+        if founding:
+            # A successor's coronation is logged by _polity_succession.
+            a.history.append((self.year, f"Held the seat of the "
+                                         f"{polity.name} when the chronicle "
+                                         f"opened."))
+        return a
+
+    def _sync_sect_polities(self):
+        """Sect polities take the current sect head as their leader."""
+        for polity in self.polities.values():
+            if polity.kind == "sect":
+                polity.leader = self.sect_heads.get(polity.name)
+
+    def sovereigns(self) -> list:
+        return [p for p in self.polities.values() if p.is_sovereign()]
+
+    def ruling_polities(self) -> list:
+        """Secular polities, lieges before their vassals (mandates flow down
+        within the same year)."""
+        out = [p for p in self.polities.values() if p.kind != "sect"]
+        out.sort(key=lambda p: (p.liege is not None, p.pid))
+        return out
+
     # -- construction -------------------------------------------------------
 
     def _pick_land(self, dominant=None) -> Place:
@@ -668,6 +1065,7 @@ class World:
             standing=realm + r.randint(0, 2),
             intake_year=intake_year if intake_year is not None else self.year,
         )
+        self._seed_karma(a)
         self._next_aid += 1
         self.agents[a.aid] = a
         return a
@@ -679,6 +1077,7 @@ class World:
         for sect in self.sects:
             self.sect_seats[sect] = self._new_place(
                 sect, "sect", self.grid[1][1])
+        self._build_polities()
 
         # Elders and seniors: stand-ins for previous simulated generations.
         for sect in self.sects:
@@ -750,15 +1149,24 @@ class World:
 
     # -- logging ------------------------------------------------------------
 
-    def log(self, text, actors, dramatic=False, world_event=False):
-        """Record an event. Always private to actors; printed selectively."""
+    def _pc_homeland(self, place: Optional[Place]) -> bool:
+        """Does this place lie in the PC's own land? (The [home] tag.)"""
+        pc = self.pc
+        if pc is None or pc.home is None or place is None:
+            return False
+        return place.land is pc.home.land
+
+    def log(self, text, actors, dramatic=False, world_event=False,
+            place=None):
+        """Record an event. Always private to actors; printed selectively.
+
+        Tag priority: [PC] > relationship > [home] > [world] > [famous].
+        """
         for a in actors:
             a.history.append((self.year, text))
 
         tag = None
         pc = self.pc
-        if world_event:
-            tag = "world"
         if pc is not None:
             if any(a.aid == pc.aid for a in actors):
                 tag = "PC"
@@ -768,6 +1176,10 @@ class World:
                     if rel is not None:
                         tag = REL_DISPLAY.get(rel.kind, rel.kind)
                         break
+        if tag is None and self._pc_homeland(place):
+            tag = "home"
+        if tag is None and world_event:
+            tag = "world"
         if tag is None and dramatic:
             if any(a.realm >= FAME_REALM or a.standing >= 10 for a in actors):
                 tag = "famous"
@@ -798,6 +1210,10 @@ class World:
     def living(self):
         return [a for a in self.agents.values() if a.alive]
 
+    def cultivators(self):
+        """The living who walk the path: rulers are on a different clock."""
+        return [a for a in self.agents.values() if a.alive and not a.is_ruler()]
+
     # -- action phase -------------------------------------------------------
 
     def _pick_action(self, a: Agent) -> str:
@@ -820,6 +1236,11 @@ class World:
     def _action_phase(self):
         for a in list(self.living()):
             if a.age < 14 or not a.alive:
+                continue
+            if a.is_ruler():
+                # Ruling replaces the action phase; the throne's year is
+                # resolved by the rule-style engine. (Session 4 turns this
+                # into a real RULE action with a cultivation lock.)
                 continue
             act = self._pick_action(a)
             getattr(self, f"_act_{act}")(a)
@@ -866,7 +1287,7 @@ class World:
             self.log(f"{a.display()} found a fortuitous treasure in a ruined "
                      f"cave.", [a], dramatic=(a.realm >= 3))
         else:
-            others = [o for o in self.living()
+            others = [o for o in self.cultivators()
                       if o.aid != a.aid and abs(o.realm - a.realm) <= 1]
             if others:
                 o = r.choice(others)
@@ -877,10 +1298,12 @@ class World:
 
     def _act_socialize(self, a: Agent):
         r = self.rng
-        # A vengeful agent with a ripe grudge seeks the enemy.
+        # A vengeful agent with a ripe grudge seeks the enemy. A grudge
+        # against a RULER is not settled with a duel — that is a revolt or
+        # an assassination, and both belong to session 6.
         targets = [self.agents[i] for i, rel in a.rels.items()
                    if rel.kind in HOSTILE_KINDS and rel.intensity >= 3
-                   and self.agents[i].alive]
+                   and self.agents[i].alive and not self.agents[i].is_ruler()]
         if targets and (a.has_trait("Vengeful") or a.has_trait("Ruthless")):
             t = max(targets, key=lambda x: a.rels[x.aid].intensity)
             if a.power() >= t.power() - 3:
@@ -896,7 +1319,7 @@ class World:
         # Default: mingle.
         a.standing += 1 if r.random() < 0.5 else 0
         if r.random() < 0.3:
-            peers = [o for o in self.living()
+            peers = [o for o in self.cultivators()
                      if o.aid != a.aid and abs(o.age - a.age) < 20
                      and abs(o.realm - a.realm) <= 1]
             if peers:
@@ -914,7 +1337,7 @@ class World:
         disciples = [self.agents[i] for i, rel in a.rels.items()
                      if rel.kind == "disciple" and self.agents[i].alive]
         if not disciples:
-            juniors = [o for o in self.living() if o.sect == a.sect
+            juniors = [o for o in self.cultivators() if o.sect == a.sect
                        and o.realm <= a.realm - 2 and o.age < a.age - 15]
             if not juniors:
                 return
@@ -984,6 +1407,7 @@ class World:
     # -- event phase --------------------------------------------------------
 
     def _event_phase(self):
+        self._politics_phase()
         if self.year % TOURNAMENT_PERIOD == 0:
             self._tournament()
         if self.year >= self.next_expedition:
@@ -994,10 +1418,221 @@ class World:
         else:
             self._maybe_feud()
 
+    # -- politics: rule style, edicts, tribute, succession ------------------
+
+    def _politics_phase(self):
+        """Every secular polity has a year: its leader's character becomes
+        policy, standing edicts grind, and vassals pay their tribute."""
+        for polity in self.ruling_polities():
+            leader = self.leader_of(polity)
+            if leader is None or not leader.alive:
+                continue
+            self._rule_year(polity, leader)
+        self._tribute()
+
+    def _facet_scores(self, polity: Polity, leader: Agent) -> dict:
+        scores = {}
+        for facet in RULE_FACETS:
+            table = RULE_FACET_TRAITS[facet]
+            scores[facet] = sum(w for t, w in table.items()
+                                if leader.has_trait(t))
+        if leader.age >= NEGLECT_AGE:
+            scores["NEGLECTFUL"] += NEGLECT_AGE_SCORE
+        # An angry country hardens a ruler who was already hard; a decent one
+        # answers it with bread, not the headsman. (Until session 6's revolts
+        # spend it, unrest is a pressure gauge that only a succession eases.)
+        if polity.unrest >= CRACKDOWN_UNREST and scores["CRUEL"] > 0:
+            scores["CRUEL"] += CRACKDOWN_SCORE
+        if leader.resources <= POOR_TREASURY:
+            scores["EXTRACTIVE"] += POOR_TREASURY_SCORE
+        # Levies are raised at war, or by a ruler who likes the sound of it.
+        if polity.at_war or leader.has_trait("Bloodthirsty"):
+            scores["CONSCRIPTION"] += CONSCRIPTION_BASE
+        else:
+            scores["CONSCRIPTION"] = 0
+        return scores
+
+    def _shift_prosperity(self, polity: Polity, delta: float):
+        for p in polity.settlements():
+            p.prosperity = max(0.0, min(10.0, p.prosperity + delta))
+
+    def _rule_year(self, polity: Polity, leader: Agent):
+        r = self.rng
+        # Ordinary revenue: the seat is worth holding, and a rich country is
+        # worth more. (This is what tribute is paid out of.)
+        leader.resources += RULER_INCOME
+        if polity.wealth() >= RULER_INCOME_RICH_AT:
+            leader.resources += RULER_INCOME_RICH
+        scores = self._facet_scores(polity, leader)
+        best = max(scores.values())
+        fired = [f for f in RULE_FACETS if scores[f] == best and best > 0]
+        fired = fired[:MAX_FACETS_PER_YEAR]
+
+        for facet in fired:
+            eff = RULE_FACET_EFFECTS[facet]
+            self._shift_prosperity(polity, eff["prosperity"])
+            polity.unrest = min(UNREST_MAX, polity.unrest + eff["unrest"])
+            leader.karma += eff["karma"]
+            leader.standing += eff.get("standing", 0)
+            if "resources" in eff:
+                leader.resources += r.randint(*eff["resources"])
+            if "army" in eff:
+                polity.army += r.randint(*eff["army"])
+            if facet == "CRUEL":
+                self._cruel_grudges(polity, leader)
+            # News is a change of course, not a repetition of it.
+            if (facet not in polity.last_facets
+                    or r.random() < RULE_LINE_REPEAT_CHANCE):
+                choices = [t for t in RULE_LINES[facet]
+                           if t != polity.last_line] or RULE_LINES[facet]
+                template = r.choice(choices)
+                polity.last_line = template
+                self.log(template.format(ruler=self.ruler_ref(leader),
+                                         domain=polity.domain),
+                         [leader], place=polity.seat)
+
+        if not fired or "BENEVOLENT" in fired:
+            polity.unrest = max(0, polity.unrest - UNREST_DECAY)
+        polity.last_facets = tuple(fired)
+        # A reign can hold two moods at once: "benevolent/extractive" is the
+        # king who builds the dikes and sells the harvest to pay for them.
+        polity.style = "/".join(STYLE_WORDS[f] for f in fired) or STYLE_QUIET
+
+        good_year = "BENEVOLENT" in fired or (not fired and polity.unrest == 0)
+        self._edict_year(polity, leader, good_year)
+
+    def _cruel_grudges(self, polity: Polity, leader: Agent):
+        """Cruelty is remembered by the cultivators born under it."""
+        for a in self.cultivators():
+            if a.home is None or a.aid == leader.aid:
+                continue
+            if self.polity_at(a.home) is not polity:
+                continue
+            rel = a.rels.get(leader.aid)
+            if rel is not None and rel.intensity >= CRUEL_GRUDGE_MAX:
+                continue
+            self._add_grudge(a, leader, 1)
+
+    # -- edicts -------------------------------------------------------------
+
+    def _draw_edict(self, polity: Polity) -> Optional[Edict]:
+        r = self.rng
+        held = {e.label for e in polity.edicts}
+        choices = [t for t in EDICT_TEMPLATES if t[0] not in held]
+        if not choices:
+            return None
+        label, clause = r.choice(choices)
+        if "{god}" in clause:
+            others = [l for l in self.lands.values()
+                      if l is not polity.land and l.name in LAND_GODS]
+            foreign = r.choice(others)
+            clause = clause.format(god=LAND_GODS[foreign.name],
+                                   land=foreign.name)
+        return Edict(label=label, clause=clause, year=self.year)
+
+    def _edict_year(self, polity: Polity, leader: Agent, good_year: bool):
+        r = self.rng
+        # Standing edicts grind on the country every year they stand.
+        if polity.edicts:
+            self._shift_prosperity(polity, EDICT_PROSPERITY * len(polity.edicts))
+            polity.unrest = min(UNREST_MAX,
+                                polity.unrest + EDICT_UNREST * len(polity.edicts))
+
+        points = sum(1 for t in ("Proud", "Cold") if leader.has_trait(t))
+        points += sum(1 for t in leader.traits if t in VICE_TRAITS)
+        if points and len(polity.edicts) < EDICT_MAX_ACTIVE \
+                and r.random() < EDICT_CHANCE_PER_POINT * points:
+            edict = self._draw_edict(polity)
+            if edict is not None:
+                polity.edicts.append(edict)
+                self.log(f"{self.ruler_ref(leader)} decreed {edict.clause}; "
+                         f"heralds carried the order into every village of "
+                         f"{polity.domain}.", [leader],
+                         place=polity.seat, world_event=polity.is_sovereign())
+                self._propagate_mandate(polity, edict)
+
+        # A ruler who is not Stubborn can be talked out of an OLD rule; this
+        # year's proclamation is still fresh enough to be worth enforcing.
+        old = [e for e in polity.edicts if e.year < self.year]
+        if (old and good_year and not leader.has_trait("Stubborn")
+                and r.random() < EDICT_REPEAL_CHANCE):
+            edict = r.choice(old)
+            polity.edicts.remove(edict)
+            self.log(f"{self.ruler_ref(leader)} let {edict.label} lapse after "
+                     f"{self.years_phrase(self.year - edict.year)}.", [leader],
+                     place=polity.seat, world_event=polity.is_sovereign())
+
+    def _propagate_mandate(self, liege: Polity, edict: Edict):
+        """A liege's edict reaches each vassal court on a coin-flip."""
+        r = self.rng
+        for pid in liege.vassals:
+            vassal = self.polities.get(pid)
+            if vassal is None or len(vassal.edicts) >= EDICT_MAX_ACTIVE:
+                continue
+            if any(e.label == edict.label for e in vassal.edicts):
+                continue
+            if r.random() >= MANDATE_CHANCE:
+                continue
+            vassal.edicts.append(Edict(label=edict.label, clause=edict.clause,
+                                       year=self.year, mandate_from=liege.pid))
+            vleader = self.leader_of(vassal)
+            if vleader is None or not vleader.alive:
+                continue
+            self.log(f"{self.ruler_ref(vleader)} enforced {edict.label} at "
+                     f"the order of the {liege.name}.",
+                     [vleader], place=vassal.seat)
+
+    # -- tribute and succession ---------------------------------------------
+
+    def _tribute(self):
+        for polity in self.polities.values():
+            if polity.liege is None or polity.kind == "sect":
+                continue
+            liege = self.polities.get(polity.liege)
+            vassal_lord = self.leader_of(polity)
+            liege_lord = self.leader_of(liege)
+            if not (vassal_lord and liege_lord
+                    and vassal_lord.alive and liege_lord.alive):
+                continue
+            paid = min(TRIBUTE, vassal_lord.resources)
+            vassal_lord.resources -= paid
+            liege_lord.resources += paid
+
+    def reign_length(self, a: Agent) -> int:
+        start = a.reign_start if a.reign_start is not None else self.year
+        return max(0, (a.death_year if a.death_year is not None
+                       else self.year) - start)
+
+    @staticmethod
+    def years_phrase(n: int) -> str:
+        return "a single year" if n == 1 else f"{n} years"
+
+    def _polity_succession(self, polity: Polity, dead: Agent):
+        """A seat falls vacant and a courtier takes it. (Session 4: ambitious
+        cultivators press their claims here.)"""
+        reign = self.reign_length(dead)
+        lapsed = len(polity.edicts)
+        polity.edicts = []
+        # A new face on the seat buys a honeymoon; the country remembers the
+        # rest. (Until session 6, this and a benevolent year are the only
+        # things that spend unrest.)
+        polity.unrest = max(0, polity.unrest // 2 - SUCCESSION_UNREST_RELIEF)
+        polity.last_facets = ()
+        heir = self._install_ruler(polity, age=self.rng.randint(*HEIR_AGE))
+        text = (f"{self.ruler_ref(heir)} took the seat of the {polity.name} "
+                f"after the death of {self.ruler_ref(dead)}, who ruled "
+                f"{self.years_phrase(reign)}.")
+        if lapsed:
+            text += (f" The {lapsed} standing edict"
+                     f"{'s' if lapsed > 1 else ''} of the old court lapsed "
+                     f"unenforced.")
+        self.log(text, [heir], place=polity.seat,
+                 world_event=polity.is_sovereign())
+
     def _tournament(self):
         r = self.rng
         for realm in range(1, 5):
-            band = [a for a in self.living()
+            band = [a for a in self.cultivators()
                     if a.realm == realm and a.age >= 14]
             if len(band) < 4:
                 continue
@@ -1028,7 +1663,7 @@ class World:
 
     def _expedition(self):
         r = self.rng
-        pool = [a for a in self.living() if 14 <= a.age and a.realm <= 4]
+        pool = [a for a in self.cultivators() if 14 <= a.age and a.realm <= 4]
         weights = []
         for a in pool:
             w = 1.0
@@ -1086,10 +1721,11 @@ class World:
     def _maybe_feud(self):
         r = self.rng
         totals: dict[tuple, int] = {}
-        for a in self.living():
+        for a in self.cultivators():
             for i, rel in a.rels.items():
                 o = self.agents.get(i)
-                if (o and rel.kind in HOSTILE_KINDS and o.sect != a.sect):
+                if (o and o.sect and rel.kind in HOSTILE_KINDS
+                        and o.sect != a.sect):
                     key = tuple(sorted((a.sect, o.sect)))
                     totals[key] = totals.get(key, 0) + rel.intensity
         for (s1, s2), total in totals.items():
@@ -1142,8 +1778,8 @@ class World:
             self._maybe_voluntary_exit(a)
 
     def _drift_prosperity(self):
-        """Left alone, a settlement returns to its land's temper. Nothing
-        pushes prosperity away from baseline yet — that is the rulers' job."""
+        """Left alone, a settlement returns to its land's temper. What drags
+        it away from baseline is the rule style of whoever holds it."""
         for p in self.settlements():
             if p.prosperity < p.baseline:
                 p.prosperity = min(p.baseline, p.prosperity + PROSPERITY_DRIFT)
@@ -1198,6 +1834,8 @@ class World:
 
     def _maybe_voluntary_exit(self, a: Agent):
         r = self.rng
+        if a.is_ruler():
+            return          # abdication is session 4's exit
         chance = 0.0
         if a.realm == 1 and a.age > 30 and a.talent <= 4:
             chance = 0.04
@@ -1245,12 +1883,20 @@ class World:
         violent = killer is not None or "old age" not in cause
         obit = self._obituary(a)
         self.obituaries.append(obit)
-        self.log(obit, [a], dramatic=violent or a.realm >= FAME_REALM)
+        # A ruler's death is news in their own land; the coronation line that
+        # follows carries it to the wider world.
+        self.log(obit, [a], dramatic=violent or a.realm >= FAME_REALM,
+                 place=a.home if a.is_ruler() else None)
 
         if was_head:
             self._succession(a.sect, a)
         else:
             self._update_sect_heads()
+
+        if a.is_ruler():
+            polity = self.polities.get(a.ruling)
+            if polity is not None and polity.leader == a.aid:
+                self._polity_succession(polity, a)
 
     def _obituary(self, a: Agent) -> str:
         grievers = [self.agents[i].display() for i, rel in a.rels.items()
@@ -1259,8 +1905,14 @@ class World:
         celebrants = [o.display() for o in self.living()
                       if o.rels.get(a.aid)
                       and o.rels[a.aid].kind in HOSTILE_KINDS][:3]
-        parts = [f"OBITUARY: {a.display()} of {a.sect}, dead at {a.age} "
-                 f"({a.realm_name}); {a.death_cause}."]
+        if a.is_ruler():
+            reign = self.reign_length(a)
+            parts = [f"OBITUARY: {self.ruler_ref(a)}, dead at {a.age} after "
+                     f"{self.years_phrase(reign)} on the seat; "
+                     f"{a.death_cause}."]
+        else:
+            parts = [f"OBITUARY: {a.display()} of {a.sect}, dead at {a.age} "
+                     f"({a.realm_name}); {a.death_cause}."]
         if grievers:
             parts.append(f"Grieved by {', '.join(grievers)}.")
         if celebrants:
@@ -1275,6 +1927,7 @@ class World:
             if members:
                 head = max(members, key=lambda x: (x.realm, x.standing))
                 self.sect_heads[sect] = head.aid
+        self._sync_sect_polities()
 
     def _succession(self, sect: str, dead_head: Agent):
         r = self.rng
@@ -1325,9 +1978,9 @@ class World:
     def _succeed_pc(self):
         old = self.pc
         # Dump the fallen protagonist's full life into the chronicle record.
-        candidates = [a for a in self.living() if a.age <= 30]
+        candidates = [a for a in self.cultivators() if a.age <= 30]
         if not candidates:
-            candidates = self.living()
+            candidates = self.cultivators()
         if not candidates:
             self.pc = None
             return
@@ -1385,22 +2038,29 @@ class World:
         alive = ("alive" if a.alive else
                  ("left the path" if a.exited else
                   f"dead Y{a.death_year}: {a.death_cause}"))
-        return "\n".join([
-            f"{a.display()} — {a.sect} [{alive}]",
+        if a.is_ruler():
+            polity = self.polities.get(a.ruling)
+            affil = f"{polity.title(a.sex)} of the {polity.name}" \
+                if polity else "a throne"
+        else:
+            affil = a.sect
+        lines = [
+            f"{a.display()} — {affil} [{alive}]",
             f"  home: {self.origin_line(a)}"
             + (f", {a.home.word()}" if a.home is not None else ""),
             f"  age {a.age} | realm {a.realm} ({a.realm_name}) | "
             f"qi {a.qi:.0f}/100",
             f"  talent {a.talent}/10 | insight {a.insight:.0f} | "
             f"burden {a.burden} | resources {a.resources} | "
-            f"standing {a.standing}",
+            f"standing {a.standing} | karma {a.karma:+d}",
             f"  traits: {', '.join(a.traits)}",
             f"  epithets: {', '.join(a.epithets) if a.epithets else '-'}",
             f"  relationships: {self.describe_rels(a) or '-'}",
-        ])
+        ]
+        return "\n".join(lines)
 
     def personal_log(self, a: Agent) -> str:
-        lines = [f"PRIVATE HISTORY of {a.display()} ({a.sect}):"]
+        lines = [f"PRIVATE HISTORY of {a.display()} ({a.sect or 'no sect'}):"]
         for y, text in a.history:
             lines.append(f"  Y{y:>4}  {text}")
         if len(lines) == 1:
@@ -1456,6 +2116,79 @@ class World:
             if c.kind == "city":
                 return c
         return land
+
+    def _court_line(self, polity: Polity, indent="  ") -> str:
+        leader = self.leader_of(polity)
+        if leader is None or not leader.alive:
+            who = "(the seat stands empty)"
+        else:
+            who = (f"{polity.title(leader.sex)} {leader.display()}, "
+                   f"age {leader.age}")
+        return (f"{indent}{polity.name:<34} {polity.kind:<8} {who:<44} "
+                f"{polity.style:<24} unrest {polity.unrest:<3} "
+                f"{polity.word()}")
+
+    def courts(self) -> str:
+        """Every ruler: their polity, its type, this year's style, unrest."""
+        lines = [f"THE COURTS — year {self.year}"]
+        for sov in sorted(self.sovereigns(),
+                          key=lambda p: (not p.land.is_center(), p.land.name)):
+            lines.append(self._court_line(sov))
+            for pid in sov.vassals:
+                vassal = self.polities.get(pid)
+                if vassal is not None:
+                    lines.append(self._court_line(vassal, indent="      "))
+        seats = []
+        for polity in self.polities.values():
+            if polity.kind != "sect":
+                continue
+            head = self.leader_of(polity)
+            seats.append(f"{polity.name} ({head.display() if head else '-'})")
+        lines.append("  Outside the vassalage tree (the spiritual exemption): "
+                     + "; ".join(seats))
+        return "\n".join(lines)
+
+    def find_land(self, query: str) -> Optional[Place]:
+        q = query.strip().lower()
+        for land in self.lands.values():
+            if q in land.name.lower():
+                return land
+        return None
+
+    def land_view(self, land: Place) -> str:
+        """One land's tree: its polities, rulers, edicts and prosperity."""
+        tongue = f"{land.pool} tongue" if land.pool else "a melting pot"
+        lines = [f"THE {land.name.upper()} — {land.reach()} land, {tongue} — "
+                 f"{land.word()} (year {self.year})"]
+        polities = [p for p in self.polities.values()
+                    if p.land is land and p.kind != "sect"]
+        polities.sort(key=lambda p: (p.liege is not None, p.pid))
+        for polity in polities:
+            leader = self.leader_of(polity)
+            mark = "" if polity.is_sovereign() else " (vassal)"
+            lines.append(f"  {polity.name}{mark} — {polity.word()}, "
+                         f"unrest {polity.unrest}, style {polity.style}")
+            if leader is not None and leader.alive:
+                lines.append(f"    {polity.title(leader.sex)} "
+                             f"{leader.display()}, age {leader.age}, "
+                             f"{'/'.join(leader.traits)}, karma "
+                             f"{leader.karma:+d}, seated Y{leader.reign_start}")
+            else:
+                lines.append("    (the seat stands empty)")
+            for edict in polity.edicts:
+                mandate = " [mandate]" if edict.mandate_from else ""
+                lines.append(f"    edict Y{edict.year}: {edict.label} — "
+                             f"{edict.clause}{mandate}")
+            for place in polity.territory:
+                kids = ", ".join(f"{c.name} ({c.word()})"
+                                 for c in place.settlements())
+                lines.append(f"    {place.name} [{place.kind}]: {kids}")
+        seats = [p.name for p in self.places.values()
+                 if p.kind == "sect" and p.land is land]
+        if seats:
+            lines.append(f"  Sect seats here (untaxed, unruled): "
+                         f"{', '.join(seats)}")
+        return "\n".join(lines)
 
     def roster(self) -> str:
         lines = [f"ROSTER — year {self.year}, "
@@ -1515,6 +2248,8 @@ HELP = """Commands:
   log NAME       show a character's full private history
   follow         run on until the main character's story ends
   map            the nine lands on their 3x3 grid, with prosperity
+  courts         every ruler: polity, type, this year's style, unrest
+  land NAME      one land's tree: polities, rulers, edicts, prosperity
   roster         show living cultivators by sect
   famous         list famous figures (Nascent Soul and above)
   obits          show all obituaries so far
@@ -1593,6 +2328,11 @@ def interactive(world: World):
                 print(world.life_report(hero))
         elif cmd == "map":
             print(world.map_view())
+        elif cmd == "courts":
+            print(world.courts())
+        elif cmd.startswith("land "):
+            land = world.find_land(cmd[5:])
+            print(world.land_view(land) if land else "No such land.")
         elif cmd == "roster":
             print(world.roster())
         elif cmd == "famous":
