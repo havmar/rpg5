@@ -79,6 +79,20 @@ standing, and under a vice-heavy head the Righteous and the Humble DEFECT —
 which seeds precisely the cross-sect grudges the feud arithmetic has been
 counting all along.
 
+Part VII session P1 makes the PC playable. The year loop is now PLAN (the
+YEAR AGENDA: every event of the year rolled at year start and stamped with
+a season), PLAY (four season sub-steps; NPCs still take their one action in
+spring, read as what they mostly did that year) and CLOSE (the old
+resolution phase and the intakes, at winter's end) — in ALL modes, so batch
+and observer runs look exactly as they did. `--play` adds agent 65 to the
+watched intake with everything rolled honestly and hands them to a human:
+one activity per season from a small menu of reskins of the kernel's own
+actions, each paying a QUARTER of the matching yearly action, plus
+timeskips that stop the season BEFORE anything that is the player's
+business and print a digest of what was missed. Traits stop weighting the
+played character's choices and start being written BY them: the deed
+ledger, not the dice, decides what a played life mutates into.
+
 Logging policy (the product):
   * Every consequential event is appended to the PRIVATE history of every
     agent involved. Nothing is lost.
@@ -93,6 +107,7 @@ Run it:
     python3 cultivation_sim.py --years 200    # batch run
     python3 cultivation_sim.py --seed 7       # reproducible world
     python3 cultivation_sim.py --follow-pc    # follow one PC to the end
+    python3 cultivation_sim.py --play         # PLAY agent 65, season by season
 
 Stdlib only. Python 3.9+.
 """
@@ -101,7 +116,7 @@ import argparse
 import random
 import sys
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Callable, Optional
 
 # ---------------------------------------------------------------------------
 # Data tables and tuning knobs
@@ -1143,7 +1158,7 @@ ADVENTURE_SCENES = {
             "walked out of the {land} alone (+insight).",
         ],
         "quiet": [
-            "Walked the roads of the {land} for a year and came back with "
+            "Walked the roads of the {land} a long while and came back with "
             "nothing.",
             "Sat out a wet season in {where} in the {land}; nothing found.",
         ],
@@ -1181,7 +1196,7 @@ ADVENTURE_SCENES = {
             "in the {land} (+insight).",
         ],
         "quiet": [
-            "Spent the year at the fairs of {where} in the {land}; much "
+            "Spent the season at the fairs of {where} in the {land}; much "
             "seen, nothing gained.",
             "Priced out of every lot at the {where} auctions all season.",
         ],
@@ -1277,6 +1292,177 @@ REL_DISPLAY = {
     "rival": "rival", "grudge": "enemy",
 }
 
+# --- THE PLAYABLE LAYER (VII): TWO CLOCKS ----------------------------------
+# The world thinks in years; the player lives in seasons. Every year is now
+# PLANNED (the agenda below is rolled at year start), PLAYED (four season
+# sub-steps) and CLOSED (the old resolution phase). Batch and observer modes
+# run all three in one call, which is why there is only one code path.
+SEASONS = ("spring", "summer", "autumn", "winter")
+NPC_ACTION_SEASON = "spring"    # an NPC's ONE action, read as "what they
+                                # mostly did that year"
+# Which season each event of the year is stamped with; None = the year rolls
+# one for it. Tournaments gather in autumn, armies march in summer.
+AGENDA_SEASON = {
+    "politics": "spring",       # the standing tick: rule years and tribute
+    "campaign": "summer",       # a war already being fought
+    "war": "summer",            # ... and one about to be declared
+    "muster": "summer",         # notice only: the levies the player may join
+    "revolt": "summer",
+    "assassination": "autumn",
+    "usurpation": "autumn",
+    "sect": "winter",
+    "petition": "autumn",       # pleas lapse, and new riders are sent
+    "answer": None,             # ... and a champion rides for one
+    "tournament": "autumn",
+    "expedition": None,
+    "feud": None,
+    "grudge": None,             # somebody's grudge against the PC ripens
+}
+# Resolution order INSIDE a season — the old event phase's order, kept so
+# that stamping events across the calendar changes when they happen and not
+# what happens.
+AGENDA_ORDER = ("politics", "campaign", "war", "muster", "revolt",
+                "assassination", "usurpation", "sect", "answer", "petition",
+                "tournament", "expedition", "feud", "grudge")
+# What the season prompt says is coming. {season} and the item's own fields.
+AGENDA_NOTICES = {
+    "campaign": "the armies of {att} are in the field against {dfn} this "
+                "{season}",
+    "muster": "{domain} is calling up its levies this {season}",
+    "revolt": "{domain} is close to rising against {ruler}",
+    "tournament": "the sects gather in {season} for the tournament",
+    "expedition": "a secret realm is expected to open in {season}",
+    "feud": "{s1} and {s2} are one insult from open war",
+    "answer": "{sect} has asked you to ride for {where} in {season}",
+    "grudge": "{foe} has been asking after you",
+}
+# Notices everyone can see coming, whether or not they are the player's
+# business; the rest are shown only when they are a HARD interrupt for the PC.
+AGENDA_PUBLIC = ("tournament", "expedition", "feud")
+
+# --- THE PLAYABLE LAYER: THE SEASON ACTIVITIES (VII §3) --------------------
+# NO THROUGHPUT EDGE: a season pays a QUARTER of the matching yearly action,
+# in gains and in risk alike. Four choices a year instead of one is the
+# player's whole advantage — they can react to the agenda.
+SEASON_RATE = 0.25
+# Fight injustice: the road, but pointed at the worst-governed land in reach.
+INJUSTICE_LANDS = 3             # the worst-off lands the player picks from
+# Hunt spirit beasts: a contest against the wilds, priced off the hunter's
+# own realm, paying materials (resources) and, when it goes wrong, insight.
+HUNT_POWER = (14.0, 26.0)       # what a season's worst beast is worth
+HUNT_POWER_PER_REALM = 11.0     # ... and what it grows into higher country
+HUNT_SPOILS = (2, 5)            # hides, cores and glands, in silver
+HUNT_ODDS = (0.15, 0.95)
+HUNT_MAUL_DEATH = 0.05          # of a hunt that goes wrong
+HUNT_MAUL_INSIGHT = 4
+HUNT_MAUL_EPITHET = 0.25
+HUNT_LINES = {
+    "kill": [
+        "{who} ran down a spirit beast in the wilds of the {land} and came "
+        "back with its core (+resources).",
+        "{who} took a horned thing out of the ravines above {where} and sold "
+        "the hide in the market (+resources).",
+        "{who} hunted the uplands of the {land} all season and brought the "
+        "beast down in the last of the light (+resources).",
+    ],
+    "empty": [
+        "{who} hunted the wilds of the {land} all season, and found only "
+        "tracks.",
+        "{who} spent the season in the hills above {where}; the beasts had "
+        "moved on.",
+    ],
+    "maul": [
+        "{who} was mauled by the thing they had gone into the wilds of the "
+        "{land} to hunt, and crawled out of it (+insight).",
+        "{who} cornered a beast above {where} that turned out to be the one "
+        "doing the cornering (+insight).",
+    ],
+    # A death line is a CAUSE, and is read into the obituary: no name, no
+    # full stop, exactly like the road's.
+    "death": [
+        "killed by the thing they had gone into the wilds of the {land} to hunt",
+        "torn apart by a spirit beast in the ravines above {where}",
+        "lost on a winter hunt in the high country above {where}",
+    ],
+}
+# Trade run: silver made on the difference between two countries. The margin
+# is the prosperity GAP — a rich land's grain is worth most where there is
+# none — and the road takes its cut in bandits.
+# (yearly rates, like every other action here; a season pays SEASON_RATE
+# of them)
+TRADE_MARGIN = 3.0              # silver per point of prosperity gap
+TRADE_FLOOR = 4                 # ... and what an even run still pays
+TRADE_RISK = 0.40               # bandits somewhere on a year of that road
+TRADE_LOSS = (2, 5)             # what they take, and they take it whole
+TRADE_STANDING_CHANCE = 0.40    # a name in two markets is worth something
+TRADE_LINES = {
+    "run": ["{who} ran {goods} from the {a} into the {b} and sold it well "
+            "(+resources).",
+            "{who} spent the season on the road between the {a} and the {b} "
+            "with {goods} "
+            "(+resources).",
+            "{who} bought {goods} cheap in the {a} and dear in the {b} "
+            "(+resources)."],
+    "thin": ["{who} ran {goods} between the {a} and the {b} and barely covered "
+             "the road.",
+             "{who} traded {goods} out of the {a} all season for very little."],
+    "robbed": ["{who} was robbed of {goods} on the road out of the {a} "
+               "(-resources).",
+               "{who} lost a whole season's {goods} to bandits short of the "
+               "{b} (-resources)."],
+}
+TRADE_GOODS = ("grain", "salt", "iron", "medicine", "spirit-herbs", "cloth",
+               "talismans", "horses", "tea")
+
+# --- THE PLAYABLE LAYER: TIMESKIP AND THE INTERRUPT TABLE (VII §3) ---------
+TIMESKIP_CAP = 12               # seasons, three years: the hard ceiling
+DIGEST_LINES = 20               # chronicle lines a digest will print
+# HARD interrupts the agenda can SEE COMING — the skip stops on the eve, the
+# season BEFORE the event. (Foreseen: they were rolled at year start.)
+# Everything else the chronicle prints is SOFT and goes in the digest.
+GRUDGE_RIPE = 3                 # grudge intensity that comes looking for you
+GRUDGE_RIPEN_CHANCE = 0.10      # per ripe grudge against the PC, per year
+GRUDGE_RIPEN_MAX = 1            # ... and at most this many a year
+# HARD interrupts nothing can foresee — checked at each season boundary and
+# woken on the season they happen, not on an eve.
+WITNESS_REL_INTENSITY = 2       # a rel this close, dead or maimed, wakes you
+HOME_DESPERATE = 2.0            # home prosperity that wakes you
+
+# --- THE PLAYABLE LAYER: THE PLAYED CHARACTER (VII §2) ---------------------
+PLAYER_AID_NOTE = "agent 65"    # the player joins the watched intake
+# Deeds drive the played character's mutation: the world writes on the
+# player exactly as it writes on everyone, but it reads the RECORD, not the
+# dice. (Recorded for every agent; only the played PC mutates off them in
+# P1 — NPCs keep their trigger-driven mutation untouched.)
+DEED_WINDOW = 5                 # years a deed stays on the ledger
+DEED_THRESHOLD = 3              # deeds of a kind inside the window
+DEED_TRAITS = {
+    "blood": "Bloodthirsty",    # killings in fights the PC chose
+    "cruelty": "Cruel",         # maimings, shakedowns, the defenseless
+    "mercy": "Righteous",       # foes spared, villages pulled out of a fire
+}
+KARMA_WORDS = [(-24, "black"), (-10, "ill-famed"), (-3, "shadowed"),
+               (3, "unremarked"), (10, "well-thought-of"), (24, "honoured"),
+               (10 ** 9, "shining")]
+# The season menu (key, label, one line of what it pays).
+PLAYER_ACTIVITIES = [
+    ("cultivate", "Cultivate at the sect",
+     "qi at the sect's rate, and a trickle of silver"),
+    ("retreat", "Meditate in retreat",
+     "more qi than the sect gives; the world forgets you"),
+    ("injustice", "Fight injustice",
+     "a misruled land, its roads and its magistrates; karma and grudges"),
+    ("hunt", "Hunt spirit beasts",
+     "materials, and the wilds' own risk"),
+    ("trade", "Trade run",
+     "silver, scaled by what two countries are worth to each other"),
+    ("socialize", "Socialize",
+     "standing, friends, rivals, and old scores"),
+    ("muster", "Join the muster",
+     "a captain's pay, and whatever the war does with you"),
+]
+PLAYER_ACTIVITY_KEYS = [k for k, _, _ in PLAYER_ACTIVITIES]
+
 
 # ---------------------------------------------------------------------------
 # Places — the nested world tree
@@ -1288,6 +1474,15 @@ def prosperity_word(value: float) -> str:
         if value < ceiling:
             return word
     return PROSPERITY_WORDS[-1][1]
+
+
+def karma_word(value: int) -> str:
+    """VII §11: a ledger is reported in words too — the player sees how they
+    are spoken of, not the counter."""
+    for ceiling, word in KARMA_WORDS:
+        if value < ceiling:
+            return word
+    return KARMA_WORDS[-1][1]
 
 
 @dataclass(eq=False)
@@ -1450,8 +1645,53 @@ class War:
 
 
 # ---------------------------------------------------------------------------
+# The year agenda (VII §1) — the near future, rolled at year start
+# ---------------------------------------------------------------------------
+
+@dataclass(eq=False)
+class AgendaItem:
+    """One thing this year is going to do, and the season it does it in.
+
+    The agenda is the trick that makes "stop BEFORE something interesting"
+    possible: the engine knows the near future because it rolled it. Items
+    whose OUTCOME was decided at plan time carry it in `payload`; the rest
+    carry only the decision that the check happens, and roll their details
+    when their season comes.
+    """
+    kind: str
+    season: str
+    payload: dict = field(default_factory=dict)
+    notice: str = ""                # what the season prompt says about it
+    hard: bool = False              # a foreseen HARD interrupt for the PC
+
+
+# ---------------------------------------------------------------------------
 # Agents
 # ---------------------------------------------------------------------------
+
+@dataclass
+class PlayerState:
+    """What a PLAYED character carries that NPCs abstract into one number.
+
+    P1 fills almost none of this on purpose: hp, wounds and standing orders
+    are P3, proficiencies and masters P5, professions and pills P6,
+    techniques P7. The fields exist so later sessions have one place to put
+    them, and so the shape of a played sheet stops changing underneath the
+    save format. Nothing in the kernel reads them yet.
+    """
+    activity: str = "cultivate"     # the last chosen season activity
+    seasons: int = 0                # seasons actually played
+    hp: int = 100                   # P3: inside a fight only
+    max_hp: int = 100               # P3
+    wound: int = 0                  # P3: 0 none, 1 light, 2 serious
+    proficiencies: dict = field(default_factory=dict)   # P5: Body/Weapon/Theory
+    stances: dict = field(default_factory=dict)         # P2/P5: edge+manner ranks
+    professions: dict = field(default_factory=dict)     # P6: alchemy/forge/heal
+    techniques: list = field(default_factory=list)      # P7
+    pills: dict = field(default_factory=dict)           # P6
+    toxicity: int = 0                                   # P6
+    orders: dict = field(default_factory=dict)          # P3: standing orders
+
 
 @dataclass
 class Rel:
@@ -1493,6 +1733,9 @@ class Agent:
     history: list = field(default_factory=list)  # private log: (year, text)
     fortune: int = 0                  # streaky luck, clamped small
     stipend_years: int = 0            # years the family at home has sent silver
+    deeds: list = field(default_factory=list)    # VII §2: (year, kind) — the
+                                      # record the played character mutates off
+    play: Optional[PlayerState] = None   # set only on a PLAYED character
     alive: bool = True
     exited: bool = False              # voluntary exit (not a death)
     death_year: Optional[int] = None
@@ -1555,6 +1798,17 @@ class World:
         self.next_expedition = 0
         self.feud_cooldown = 0
         self.pc: Optional[Agent] = None
+        # VII §1: the two clocks. The world still thinks in years; `agenda`
+        # is the year's events, rolled at year start and stamped with the
+        # season each will fire in, and `season` is where the calendar is.
+        self.season: Optional[str] = None
+        self.agenda: list = []
+        # VII §2: set only when a human is playing agent 65. It repeals the
+        # camera constraint for the PC, takes them out of the NPC action
+        # phase, and turns the rolls the kernel makes FOR an agent (leaving
+        # the path, an offered seat, an assigned plea) into questions.
+        self.playing = False
+        self.ask: Optional[Callable] = None   # the UI's question hook
         # Geography (built first, in _setup).
         self.places: dict[int, Place] = {}
         self.lands: dict[str, Place] = {}          # land name -> land Place
@@ -1823,6 +2077,7 @@ class World:
             return
         if victim.realm < killer.realm:
             killer.karma += KARMA_KILL_DEFENSELESS
+            self._record_deed(killer, "cruelty")    # VII §2: the ledger
 
     def _fell_defending(self, a: Agent, whom: str):
         """§7: dying in defence of others. Posthumous — it buys the dead
@@ -1932,10 +2187,14 @@ class World:
         return max(1, min(10, round(self.rng.gauss(5, 2))))
 
     def _make_agent(self, sect, age, realm=1, intake_year=None,
-                    dominant_land=None) -> Agent:
+                    dominant_land=None, sex=None, land=None) -> Agent:
         r = self.rng
-        sex = r.choice("mf")
-        land = self._pick_land(dominant_land)
+        # VII §2: the player picks a name, a sex and a homeland. Everything
+        # else on this sheet is rolled, here, by the same dice as everyone.
+        if sex is None:
+            sex = r.choice("mf")
+        if land is None:
+            land = self._pick_land(dominant_land)
         home = self._pick_home(land)
         # Outer lands have one tongue; the Middle Plain's natives roll a
         # descent from the six pools evenly.
@@ -2162,21 +2421,64 @@ class World:
     # -- the year loop ------------------------------------------------------
 
     def step(self) -> list[str]:
-        """Advance one year; return the chronicle lines it produced."""
+        """Advance one year; return the chronicle lines it produced.
+
+        VII §1, ONE CODE PATH: a year is PLAN (roll the agenda), PLAY (four
+        season sub-steps) and CLOSE (resolution and intakes). Batch and
+        observer modes run all three back to back and see exactly what they
+        saw before; play mode calls the same three parts one at a time and
+        stops between the seasons for the player.
+        """
+        self.begin_year()
+        for season in SEASONS:
+            self.run_season(season)
+        return self.end_year()
+
+    def begin_year(self) -> None:
+        """PLAN: decide the year's events before any of them happen."""
         self._fresh_lines = []
         self.year += 1
+        self.season = None
+        self._plan_year()
 
-        self._action_phase()
-        self._event_phase()
+    def run_season(self, season: str) -> None:
+        """PLAY: one season sub-step.
+
+        NPCs take their ONE action of the year in spring — read as what they
+        mostly did that year — and the agenda's events resolve in the season
+        they were stamped with, in the old event phase's order.
+        """
+        self.season = season
+        if season == NPC_ACTION_SEASON:
+            self._action_phase()
+        for item in self.season_agenda(season):
+            self._resolve_agenda(item)
+
+    def end_year(self) -> list[str]:
+        """CLOSE: the resolution phase and the intake, at winter's end."""
+        self.season = None
         self._resolution_phase()
 
         if self.year % INTAKE_PERIOD == 0:
             self._recruit_intake()
 
+        # VII §2: the played character mutates off their RECORD, not off the
+        # dice — the one place where being played changes the physics, and
+        # it changes it toward more honesty, not less.
+        if self.playing and self.pc is not None and self.pc.alive:
+            self._deed_mutation(self.pc)
+
         if self.pc is not None and not self.pc.alive:
             self._succeed_pc()
 
         return self._fresh_lines
+
+    def season_agenda(self, season: str) -> list:
+        """This season's agenda items, in the old event phase's order."""
+        rank = {k: i for i, k in enumerate(AGENDA_ORDER)}
+        items = [i for i in self.agenda if i.season == season]
+        items.sort(key=lambda i: rank.get(i.kind, len(rank)))
+        return items
 
     def living(self):
         return [a for a in self.agents.values() if a.alive]
@@ -2205,12 +2507,20 @@ class World:
         return self.rng.choices(acts, [weights[k] for k in acts])[0]
 
     def _action_phase(self):
+        """Every NPC's ONE action of the year, taken in spring (VII §1).
+
+        A PLAYED character is not here: they spend four seasons of their own
+        (§3), and if they are on a throne the RULE action is taken for them
+        below, because a court runs at year tempo for everyone.
+        """
         for a in list(self.living()):
             if a.age < 14 or not a.alive:
                 continue
             if a.is_ruler():
                 self._act_rule(a)       # §4: ruling replaces the action phase
                 continue
+            if self.playing and a is self.pc:
+                continue                # the player takes their own seasons
             # §9: a war at home can take anyone's year; a muster in peacetime
             # only takes the ones who were looking for one.
             if (self.wars or a.has_trait("Bloodthirsty")) \
@@ -2230,7 +2540,7 @@ class World:
             w += WAR_VOLUNTEER_NATIVE
         return w
 
-    def _take_service(self, a: Agent) -> bool:
+    def _take_service(self, a: Agent, forced=False, share=1.0) -> bool:
         """§7/§9: the muster takes a cultivator's whole year.
 
         A country at war will take anyone with an appetite for it — the
@@ -2244,24 +2554,29 @@ class World:
         if polity is None or a.home is None:
             return False
         war = self._war_of(polity)
-        if war is None and not ("CONSCRIPTION" in polity.last_facets
-                                and a.has_trait("Bloodthirsty")):
+        if war is None and not (
+                "CONSCRIPTION" in polity.last_facets
+                and (forced or a.has_trait("Bloodthirsty"))):
             return False
-        eager = min(1.0, self.war_volunteer_weight(a, polity)
-                    / WAR_VOLUNTEER_FULL)
-        if eager <= 0 or r.random() >= SERVICE_CHANCE * eager:
-            return False
+        if not forced:
+            eager = min(1.0, self.war_volunteer_weight(a, polity)
+                        / WAR_VOLUNTEER_FULL)
+            if eager <= 0 or r.random() >= SERVICE_CHANCE * eager:
+                return False
         pay = r.randint(*SERVICE_PAY)
-        a.resources += pay + self._vice_spoils(a)
-        a.standing += 1
-        polity.army += 1
+        a.resources += self._share_int(pay + self._vice_spoils(a), share)
+        a.standing += self._share_int(1, share)
+        polity.army += self._share_int(1, share)
         leader = self.leader_of(polity)
         under = (f" under {self.ruler_ref(leader)}"
                  if leader is not None and leader.alive else "")
         if war is not None:
             other = self.polities.get(
                 war.defender if war.attacker == polity.pid else war.attacker)
-            war.enlisted.setdefault(polity.pid, []).append(a.aid)
+            riders = war.enlisted.setdefault(polity.pid, [])
+            if a.aid in riders:
+                return True     # already signed on; four seasons, one war
+            riders.append(a.aid)
             # No place= on this one, unlike the peacetime muster: a war
             # takes whole cohorts of natives at once, and a land's own
             # chronicle would be nothing else for three years running. The
@@ -2270,15 +2585,15 @@ class World:
                      f"{polity.domain}{under} against "
                      f"{other.domain if other else 'the enemy'}.", [a])
             return True
-        if r.random() < SERVICE_SKIRMISH:
+        if r.random() < SERVICE_SKIRMISH * share:
             a.insight += SERVICE_INSIGHT
             self.log(f"{a.display()} rode with the levies of {polity.domain}"
                      f"{under} and spent the season killing along the border "
                      f"(+resources, +insight).", [a], place=a.home)
         else:
             self.log(f"{a.display()} took a captain's pay in the muster of "
-                     f"{polity.domain}{under}; the levies drilled all year "
-                     f"and marched nowhere (+resources).", [a], place=a.home)
+                     f"{polity.domain}{under}; the levies drilled and "
+                     f"marched nowhere (+resources).", [a], place=a.home)
         return True
 
     def _act_rule(self, a: Agent):
@@ -2340,15 +2655,38 @@ class World:
             return None     # a rung this build does not carry
         return CORRUPTION_LADDER[rung], nxt
 
-    def _act_cultivate(self, a: Agent):
-        a.qi = min(100, a.qi + (3 + a.talent * 0.9) * self.sects[a.sect])
-        a.resources += 1
+    # -- one year, or one quarter of one (VII §3) ---------------------------
+    #
+    # NO THROUGHPUT EDGE: a played season pays a QUARTER of the matching
+    # yearly action, in gains and in risk alike. `share` is that quarter; at
+    # share 1.0 not one extra die is rolled, which is why the NPC year is
+    # untouched by any of this.
 
-    def _act_seclude(self, a: Agent):
-        a.qi = min(100, a.qi + 6 + a.talent * 1.2)
-        # The world moves on: relationships decay.
+    def _fires(self, share: float) -> bool:
+        """Does a whole-event outcome — a death, a treasure, a meeting —
+        happen at this share of a year?"""
+        return share >= 1.0 or self.rng.random() < share
+
+    def _share_int(self, amount: int, share: float) -> int:
+        """A share of an integer payout, with the remainder rolled for."""
+        if share >= 1.0:
+            return amount
+        whole = int(amount * share)
+        if self.rng.random() < amount * share - whole:
+            whole += 1
+        return whole
+
+    def _act_cultivate(self, a: Agent, share=1.0):
+        a.qi = min(100, a.qi
+                   + (3 + a.talent * 0.9) * self.sects[a.sect] * share)
+        a.resources += self._share_int(1, share)
+
+    def _act_seclude(self, a: Agent, share=1.0):
+        a.qi = min(100, a.qi + (6 + a.talent * 1.2) * share)
+        # The world moves on: relationships decay. A retreat carries the
+        # full social cost whether it lasts a season or a year.
         for rel in a.rels.values():
-            if self.rng.random() < 0.3:
+            if self.rng.random() < 0.3 * share:
                 rel.intensity = max(0, rel.intensity - 1)
 
     def _adventure_destination(self, a: Agent) -> Place:
@@ -2377,9 +2715,10 @@ class World:
             return "rich"
         return "settled"
 
-    def _act_adventure(self, a: Agent):
+    def _act_adventure(self, a: Agent, share=1.0, dest=None):
         r = self.rng
-        dest = self._adventure_destination(a)
+        if dest is None:
+            dest = self._adventure_destination(a)
         land = dest.land
         condition = self.road_condition(dest)
         scenes = ADVENTURE_SCENES[condition]
@@ -2401,9 +2740,9 @@ class World:
         # golden one.
         roll = (r.random() + a.fortune * FORTUNE_WEIGHT
                 + self._karma_tilt(a) + ADVENTURE_RISK_SHIFT[condition])
-        if roll < ADVENTURE_DEATH / a.realm:
+        if roll < ADVENTURE_DEATH / a.realm and self._fires(share):
             self.kill(a, scene("death"))
-        elif roll < ADVENTURE_NEAR_DEATH:
+        elif roll < ADVENTURE_NEAR_DEATH and self._fires(share):
             a.insight += 4
             a.burden += 1
             a.fortune = max(-FORTUNE_CAP, a.fortune - 1)
@@ -2417,27 +2756,33 @@ class World:
         elif roll < 0.42:
             a.history.append((self.year, scene("quiet")))   # nothing found
         elif roll < 0.67:
-            a.resources += r.randint(2, 6) + self._vice_spoils(a)
-            a.fortune = min(FORTUNE_CAP, a.fortune + 1)
-            if condition == "rich" and r.random() < ADVENTURE_PATRON_CHANCE:
-                a.standing += 1     # patrons and fairs make names
+            a.resources += self._share_int(r.randint(2, 6)
+                                           + self._vice_spoils(a), share)
+            if self._fires(share):
+                a.fortune = min(FORTUNE_CAP, a.fortune + 1)
+                if condition == "rich" \
+                        and r.random() < ADVENTURE_PATRON_CHANCE:
+                    a.standing += 1     # patrons and fairs make names
             a.history.append((self.year, scene("spoils")))
         elif roll < 0.82:
-            a.insight += 3
-            if condition == "harsh" and r.random() < ADVENTURE_RESCUE_CHANCE:
+            a.insight += 3 * share
+            if condition == "harsh" and r.random() < ADVENTURE_RESCUE_CHANCE \
+                    and self._fires(share):
                 # In a misruled land the insight is sometimes bought by a
                 # deed, and a deed is worth writing down.
                 a.karma += ADVENTURE_RESCUE_KARMA
+                self._record_deed(a, "mercy")
                 self.log(scene("rescue"), [a], place=where)
             else:
                 a.history.append((self.year, scene("insight")))
         elif roll < 0.92:
-            a.resources += 8 + self._vice_spoils(a)
-            a.insight += 2
-            a.fortune = min(FORTUNE_CAP, a.fortune + 2)
+            a.resources += self._share_int(8 + self._vice_spoils(a), share)
+            a.insight += 2 * share
+            if self._fires(share):
+                a.fortune = min(FORTUNE_CAP, a.fortune + 2)
             self.log(scene("treasure"), [a], dramatic=(a.realm >= 3),
                      place=where)
-        else:
+        elif self._fires(share):
             others = [o for o in self.cultivators()
                       if o.aid != a.aid and abs(o.realm - a.realm) <= 1]
             if others:
@@ -2446,8 +2791,10 @@ class World:
                 self._bind(a, o, kind, 2)
                 self.log(scene("meeting", other=o.display(), kind=kind),
                          [a, o], place=where)
+        else:
+            a.history.append((self.year, scene("quiet")))
 
-    def _act_socialize(self, a: Agent):
+    def _act_socialize(self, a: Agent, share=1.0):
         r = self.rng
         # A vengeful agent with a ripe grudge seeks the enemy. A grudge
         # against a RULER is not settled with a duel — that is a revolt or
@@ -2455,25 +2802,27 @@ class World:
         targets = [self.agents[i] for i, rel in a.rels.items()
                    if rel.kind in HOSTILE_KINDS and rel.intensity >= 3
                    and self.agents[i].alive and not self.agents[i].is_ruler()]
-        if targets and (a.has_trait("Vengeful") or a.has_trait("Ruthless")):
+        if (targets and (a.has_trait("Vengeful") or a.has_trait("Ruthless"))
+                and self._fires(share)):
             t = max(targets, key=lambda x: a.rels[x.aid].intensity)
             if a.power() >= t.power() - 3:
                 self._duel(a, t, lethal=True, context="a long-nursed grudge")
                 return
         # §7: a Bully fights only DOWNWARD — the tyranny of realms inverted.
-        if a.has_trait("Bully") and r.random() < BULLY_CHANCE:
+        if a.has_trait("Bully") and r.random() < BULLY_CHANCE * share:
             if self._bully_shakedown(a):
                 return
         # ... and Bloodthirsty goes looking for a fight with an equal, which
         # is the only kind that can actually kill them.
-        if a.has_trait("Bloodthirsty") and r.random() < BLOODTHIRSTY_DUEL_CHANCE:
+        if a.has_trait("Bloodthirsty") \
+                and r.random() < BLOODTHIRSTY_DUEL_CHANCE * share:
             peers = [o for o in self.cultivators()
                      if o.aid != a.aid and o.realm == a.realm and o.age >= 14]
             if peers:
                 self._duel(a, r.choice(peers), lethal=True,
                            context="a quarrel picked for its own sake")
                 return
-        if a.has_trait("Proud") and r.random() < 0.25:
+        if a.has_trait("Proud") and r.random() < 0.25 * share:
             peers = [o for o in self.cultivators() if o.sect == a.sect
                      and o.realm == a.realm and o.aid != a.aid]
             if peers:
@@ -2481,8 +2830,8 @@ class World:
                            context="a matter of face")
                 return
         # Default: mingle.
-        a.standing += 1 if r.random() < 0.5 else 0
-        if r.random() < 0.3:
+        a.standing += 1 if r.random() < 0.5 * share else 0
+        if r.random() < 0.3 * share:
             peers = [o for o in self.cultivators()
                      if o.aid != a.aid and abs(o.age - a.age) < 20
                      and abs(o.realm - a.realm) <= 1]
@@ -2516,6 +2865,101 @@ class World:
         if r.random() < 0.3:
             a.insight += 1
 
+    # -- the season activities the kernel did not already have (VII §3) -----
+
+    def _act_hunt(self, a: Agent, share=1.0):
+        """A season in the wilds after spirit beasts.
+
+        The same shape as everything else here: a contest against a number
+        that grows with the country the hunter can reach, materials for a
+        win, and for a loss the two things adversity always pays — insight
+        and a scar.
+        """
+        r = self.rng
+        where = self._adventure_destination(a)   # the roads they know, mostly
+        land = where.land
+        beast = r.uniform(*HUNT_POWER) + HUNT_POWER_PER_REALM * (a.realm - 1)
+        power = a.power()
+        odds = max(HUNT_ODDS[0], min(HUNT_ODDS[1], power / (power + beast)))
+        fields = dict(who=a.display(), land=land.name, where=where.name)
+
+        def line(key) -> str:
+            return r.choice(HUNT_LINES[key]).format(**fields)
+
+        if r.random() < odds:
+            a.resources += self._share_int(r.randint(*HUNT_SPOILS)
+                                           + self._vice_spoils(a), share)
+            a.history.append((self.year, line("kill")))
+            return
+        if not self._fires(share):
+            a.history.append((self.year, line("empty")))
+            return
+        if r.random() < HUNT_MAUL_DEATH:
+            self.kill(a, line("death"))
+            return
+        a.insight += HUNT_MAUL_INSIGHT
+        a.burden += 1
+        a.fortune = max(-FORTUNE_CAP, a.fortune - 1)
+        text = line("maul")
+        if r.random() < HUNT_MAUL_EPITHET and len(a.epithets) < 3:
+            ep = r.choice([e for e in MAIM_EPITHETS if e not in a.epithets])
+            a.epithets.append(ep)
+            text += f" [epithet: {ep}]"
+        self.log(text, [a], dramatic=True)
+        self._mutate(a, "near_death")
+
+    def _act_trade(self, a: Agent, share=1.0):
+        """A season on the roads between two countries.
+
+        The margin is the PROSPERITY GAP — a rich land's grain is worth most
+        where there is none — and the road takes its own cut. No insight, no
+        qi: this is the lane that only pays silver.
+        """
+        r = self.rng
+        lands = list(self.lands.values())
+        home = a.home.land if a.home is not None else r.choice(lands)
+        far = [l for l in lands if l is not home]
+        other = r.choice(far) if far else home
+        gap = abs(home.wealth() - other.wealth())
+        fields = dict(who=a.display(), a=home.name, b=other.name,
+                      goods=r.choice(TRADE_GOODS))
+        if r.random() < TRADE_RISK * share:
+            lost = min(a.resources, r.randint(*TRADE_LOSS))
+            a.resources -= lost
+            a.history.append((self.year,
+                              r.choice(TRADE_LINES["robbed"]).format(**fields)))
+            return
+        take = self._share_int(int(round(TRADE_FLOOR + TRADE_MARGIN * gap))
+                               + self._vice_spoils(a), share)
+        a.resources += take
+        if r.random() < TRADE_STANDING_CHANCE * share:
+            a.standing += 1
+        key = "run" if take >= 2 else "thin"
+        a.history.append((self.year,
+                          r.choice(TRADE_LINES[key]).format(**fields)))
+
+    def _act_injustice(self, a: Agent, share=1.0):
+        """A season spent on the worst-governed country within reach.
+
+        If the sect is holding an open plea from such a country and this
+        cultivator is fit to answer it, this IS the answer — the petition
+        machinery is what fighting injustice looks like in this kernel.
+        Otherwise it is the harsh road, where the misruled scenes live.
+        """
+        r = self.rng
+        mine = [pt for pt in self.petitions if pt.sect == a.sect]
+        if mine and a.realm >= PETITION_MIN_REALM and a.age >= 14:
+            worst = min(mine, key=lambda pt: pt.place.prosperity)
+            self._answer_petition(worst, a, ask=False)
+            return
+        lands = sorted(self.lands.values(), key=lambda l: l.wealth())
+        lands = lands[:INJUSTICE_LANDS]
+        weights = [ADVENTURE_HOME_BOOST
+                   if a.home is not None and l is a.home.land else 1.0
+                   for l in lands]
+        land = r.choices(lands, weights)[0]
+        self._act_adventure(a, share=share, dest=self._pick_home(land))
+
     # -- contests -----------------------------------------------------------
 
     def _bully_shakedown(self, a: Agent) -> bool:
@@ -2543,6 +2987,7 @@ class World:
         self._add_grudge(victim, a, BULLY_GRUDGE)
         spoil = (f"{taken} in silver" if taken
                  else "nothing, and beat them for having nothing")
+        self._record_deed(a, "cruelty")
         self.log(r.choice(BULLY_LINES).format(
             bully=a.display(), victim=victim.display(), spoil=spoil,
             sect=victim.sect or "the outer court"), [a, victim])
@@ -2566,6 +3011,7 @@ class World:
         loser.insight += CRUEL_MAIM_INSIGHT
         loser.burden += 1
         self._add_grudge(loser, winner, CRUEL_MAIM_GRUDGE)
+        self._record_deed(winner, "cruelty")   # VII §2: the ledger
         self.log(f"{winner.display()} went on breaking {loser.name} after "
                  f"{where} was already decided; the mark will not come off "
                  f"[epithet: {ep}] (+insight).", [winner, loser],
@@ -2593,6 +3039,7 @@ class World:
             if lethal and r.random() > flee:
                 strong.resources += self._vice_spoils(strong)
                 self._karma_kill(strong, weak)  # §7: killing the defenseless
+                self._record_deed(strong, "blood")
                 self.log(f"{strong.display()} struck down {weak.display()}"
                          f"{ctx} — a full realm between them left no "
                          f"contest{edge}.", [strong, weak], dramatic=True)
@@ -2622,6 +3069,7 @@ class World:
             if winner.has_trait("Righteous"):
                 kill_chance = 0.25
         if r.random() < kill_chance:
+            self._record_deed(winner, "blood")
             self.log(f"{winner.display()} defeated and slew {loser.display()}"
                      f"{ctx}{edge}.", [winner, loser], dramatic=True)
             self.kill(loser, f"slain in a duel by {winner.display()}",
@@ -2632,6 +3080,7 @@ class World:
             spared = ""
             if lethal:
                 winner.karma += KARMA_SPARE     # §7: sparing a beaten foe
+                self._record_deed(winner, "mercy")
                 spared = ", spared where the next blow would have finished it"
             self.log(f"{winner.display()} defeated {loser.display()}{ctx}; "
                      f"{loser.display()} survives, shamed{spared} (+insight).",
@@ -2642,23 +3091,321 @@ class World:
 
     # -- event phase --------------------------------------------------------
 
-    def _event_phase(self):
-        self._politics_phase()
-        self._war_phase()           # §9: campaigns first — they set at_war
-        self._revolt_phase()
-        self._maybe_assassinate()
-        self._maybe_usurp()
-        self._sect_year()           # §11: the head's character on the sect
-        self._petition_phase()
-        if self.year % TOURNAMENT_PERIOD == 0:
-            self._tournament()
-        if self.year >= self.next_expedition:
-            self._expedition()
-            self.next_expedition = self.year + self.rng.randint(4, 9)
+    def _plan_year(self):
+        """Roll the YEAR AGENDA (VII §1) and stamp every item with a season.
+
+        Some items carry their whole decision — who declares war on whom,
+        which champion a rising found, who rides for a plea, who is drawn
+        into a secret realm; the rest carry only the fact that their check
+        happens this year, and roll their details when the season comes.
+        Either way the engine knows what the year holds, which is what lets
+        a timeskip stop the season BEFORE something interesting.
+        """
+        r = self.rng
+        self.agenda = []
         if self.feud_cooldown > 0:
             self.feud_cooldown -= 1
-        else:
-            self._maybe_feud()
+
+        def add(kind, payload=None, fields=None):
+            season = AGENDA_SEASON.get(kind) or r.choice(SEASONS)
+            item = AgendaItem(kind=kind, season=season, payload=payload or {})
+            template = AGENDA_NOTICES.get(kind)
+            if template is not None and fields is not None:
+                item.notice = template.format(season=season, **fields)
+            item.hard = self._foreseen_hard(item)
+            self.agenda.append(item)
+            return item
+
+        add("politics")
+
+        # §9: the campaigns already in the field, and the one this year's
+        # restless court may start. A war declared this summer still does
+        # not fight until next year's campaign item, exactly as before.
+        for war in list(self.wars):
+            att = self.polities.get(war.attacker)
+            dfn = self.polities.get(war.defender)
+            add("campaign", {"war": war},
+                {"att": att.domain if att else "the armies",
+                 "dfn": dfn.domain if dfn else "the enemy"})
+        declaration = self._plan_declare_war()
+        if declaration is not None:
+            att, dfn, kind = declaration
+            add("war", {"attacker": att.pid, "defender": dfn.pid,
+                        "kind": kind},
+                {"att": att.domain, "dfn": dfn.domain})
+
+        # The muster is a NOTICE, not an event: the levies stand there all
+        # season and it is the player who decides whether to ride. NPCs
+        # answer it in their own action phase, as they always have.
+        home_polity = (self.polity_at(self.pc.home)
+                       if self.pc is not None else None)
+        if home_polity is not None and (
+                self._war_of(home_polity) is not None
+                or "CONSCRIPTION" in home_polity.last_facets):
+            add("muster", {"polity": home_polity.pid},
+                {"domain": home_polity.domain})
+
+        for polity, leader, champion in self._plan_revolts():
+            add("revolt", {"polity": polity.pid, "leader": leader.aid,
+                           "champion": champion.aid if champion else None},
+                {"domain": polity.domain, "ruler": self.ruler_ref(leader)})
+
+        add("assassination")
+        add("usurpation")
+        add("sect")             # §11: the head's character on the sect
+
+        # The contact surface: a plea that has found its champion is stamped
+        # (which is what makes "an assigned petition" a HARD interrupt);
+        # lapses and fresh riders keep to their own season.
+        for petition in list(self.petitions):
+            if self.year - petition.year >= PETITION_LAPSE:
+                continue    # this one runs out of time first (below)
+            hero = self._plan_petition_answer(petition)
+            if hero is not None:
+                add("answer", {"petition": petition, "hero": hero.aid},
+                    {"sect": petition.sect, "where": petition.place.name})
+        add("petition")
+
+        if self.year % TOURNAMENT_PERIOD == 0:
+            add("tournament", {}, {})
+        if self.year >= self.next_expedition:
+            volunteers = self._plan_expedition()
+            self.next_expedition = self.year + r.randint(4, 9)
+            if volunteers:
+                add("expedition", {"volunteers": [a.aid for a in volunteers]},
+                    {})
+        if self.feud_cooldown <= 0:
+            pair = self._feud_pair()
+            if pair is not None:
+                add("feud", {"pair": pair}, {"s1": pair[0], "s2": pair[1]})
+        for foe in self._plan_grudges():
+            add("grudge", {"foe": foe.aid}, {"foe": foe.display()})
+
+    def _resolve_agenda(self, item: AgendaItem):
+        """Run one agenda item in its stamped season.
+
+        Everything here re-checks the world before it fires: a leader planned
+        against in spring may be dead by summer, and the agenda is a
+        forecast, not a promise.
+        """
+        kind, p = item.kind, item.payload
+        if kind == "politics":
+            self._politics_phase()
+        elif kind == "campaign":
+            war = p["war"]
+            if war in self.wars:
+                self._war_year(war)
+        elif kind == "war":
+            att = self.polities.get(p["attacker"])
+            dfn = self.polities.get(p["defender"])
+            att_lord = self.leader_of(att)
+            def_lord = self.leader_of(dfn)
+            if (att is not None and dfn is not None
+                    and not att.at_war and not dfn.at_war
+                    and att_lord is not None and att_lord.alive
+                    and def_lord is not None and def_lord.alive):
+                self._declare_war(att, dfn, p["kind"])
+        elif kind == "muster":
+            return          # a standing offer to the player, not an event
+        elif kind == "revolt":
+            polity = self.polities.get(p["polity"])
+            leader = self.agents.get(p["leader"])
+            if (polity is None or leader is None or not leader.alive
+                    or polity.leader != leader.aid):
+                return      # the seat this rising was aimed at is gone
+            champion = self.agents.get(p["champion"]) if p["champion"] else None
+            if champion is not None and (not champion.alive
+                                         or champion.is_ruler()):
+                champion = None
+            self._revolt(polity, leader, champion)
+        elif kind == "assassination":
+            self._maybe_assassinate()
+        elif kind == "usurpation":
+            self._maybe_usurp()
+        elif kind == "sect":
+            self._sect_year()
+        elif kind == "answer":
+            petition, hero = p["petition"], self.agents.get(p["hero"])
+            if (petition in self.petitions and hero is not None
+                    and hero.alive and not hero.is_ruler()):
+                self._answer_petition(petition, hero)
+        elif kind == "petition":
+            self._lapse_petitions()
+            self._maybe_petition()
+        elif kind == "tournament":
+            self._tournament()
+        elif kind == "expedition":
+            drawn = [self.agents[aid] for aid in p["volunteers"]
+                     if self.agents[aid].alive
+                     and not self.agents[aid].is_ruler()]
+            if drawn:
+                self._run_expedition(drawn)
+        elif kind == "feud":
+            self._run_feud(*p["pair"])
+        elif kind == "grudge":
+            self._grudge_comes(self.agents.get(p["foe"]))
+
+    # -- the interrupt table (VII §3) ---------------------------------------
+
+    def _pc_touched(self, polity: Optional[Polity]) -> bool:
+        """Is this polity the played character's own country — the seat over
+        their home, or a court of their home land?"""
+        pc = self.pc
+        if polity is None or pc is None or pc.home is None:
+            return False
+        return (self.polity_at(pc.home) is polity
+                or polity.land is pc.home.land)
+
+    def _foreseen_hard(self, item: AgendaItem) -> bool:
+        """VII §3: is this a HARD interrupt the agenda can SEE COMING?
+
+        These are what a timeskip stops for, and it stops on the EVE — the
+        season before the item fires. The HARD interrupts nothing can
+        foresee (a friend killed, a seat overturned, the home village
+        falling below desperate) are caught at the season boundary instead,
+        by `pc_alarms`.
+        """
+        pc = self.pc
+        if pc is None or not pc.alive:
+            return False
+        kind, p = item.kind, item.payload
+        if kind == "grudge":
+            return True
+        if kind == "tournament":
+            band = sum(1 for a in self.cultivators()
+                       if a.realm == pc.realm and a.age >= 14)
+            return pc.age >= 14 and pc.realm <= 4 and band >= 4
+        if kind == "expedition":
+            return pc.aid in p.get("volunteers", ())
+        if kind == "feud":
+            return pc.sect in p.get("pair", ())
+        if kind == "answer":
+            return p.get("hero") == pc.aid
+        if kind == "muster":
+            return self._pc_touched(self.polities.get(p.get("polity")))
+        if kind == "war":
+            return (self._pc_touched(self.polities.get(p.get("attacker")))
+                    or self._pc_touched(self.polities.get(p.get("defender"))))
+        if kind == "campaign":
+            war = p.get("war")
+            if war is None:
+                return False
+            if any(pc.aid in riders for riders in war.enlisted.values()):
+                return True
+            return (self._pc_touched(self.polities.get(war.attacker))
+                    or self._pc_touched(self.polities.get(war.defender)))
+        if kind == "revolt":
+            return (p.get("champion") == pc.aid
+                    or self._pc_touched(self.polities.get(p.get("polity"))))
+        return False
+
+    def pc_watch(self) -> dict:
+        """A snapshot of the things a timeskip watches between seasons."""
+        pc = self.pc
+        if pc is None:
+            return {}
+        close = {}
+        for aid, rel in pc.rels.items():
+            if rel.intensity < WITNESS_REL_INTENSITY:
+                continue
+            other = self.agents.get(aid)
+            if other is not None:
+                close[aid] = other
+        ruler = self.ruler_at(pc.home)
+        return {"alive": {aid: a.alive for aid, a in close.items()},
+                "marks": {aid: len(a.epithets) for aid, a in close.items()},
+                "ruler": ruler.aid if ruler is not None else None,
+                "home": pc.home.prosperity if pc.home is not None else 10.0}
+
+    def pc_alarms(self, before: dict) -> list:
+        """VII §3, the HARD interrupts nothing could foresee: what has just
+        happened to the played character that a timeskip must wake for."""
+        pc = self.pc
+        out: list = []
+        if pc is None or not before:
+            return out
+        for aid, was_alive in before.get("alive", {}).items():
+            other = self.agents.get(aid)
+            if was_alive and other is not None and not other.alive:
+                out.append(f"{other.display()} is dead")
+        for aid, marks in before.get("marks", {}).items():
+            other = self.agents.get(aid)
+            if other is not None and other.alive and len(other.epithets) > marks:
+                out.append(f"{other.display()} was maimed")
+        ruler_before = before.get("ruler")
+        ruler_now = self.ruler_at(pc.home)
+        now_aid = ruler_now.aid if ruler_now is not None else None
+        if ruler_before is not None and now_aid != ruler_before:
+            old = self.agents.get(ruler_before)
+            where = pc.home.land.name if pc.home is not None else "their land"
+            out.append(f"{old.display() if old else 'the ruler'} no longer "
+                       f"holds the seat over {where}")
+        home_now = pc.home.prosperity if pc.home is not None else 10.0
+        if home_now < HOME_DESPERATE <= before.get("home", 10.0):
+            out.append(f"{pc.home.name} has fallen below desperate")
+        if (pc.qi >= 100 and pc.realm < MAX_REALM
+                and pc.insight >= INSIGHT_REQ[pc.realm]):
+            out.append(f"the way to {REALM_NAMES[pc.realm + 1]} is open — "
+                       f"the tribulation waits at the turn of the year")
+        return out
+
+    def agenda_notices(self, season: Optional[str] = None) -> list:
+        """What the player is told is coming: their own HARD interrupts, and
+        the handful of things the whole world can see."""
+        out = []
+        for item in self.agenda:
+            if not item.notice:
+                continue
+            if season is not None and SEASONS.index(item.season) \
+                    < SEASONS.index(season):
+                continue        # already happened
+            if item.hard or item.kind in AGENDA_PUBLIC:
+                out.append(item.notice)
+        return out
+
+    # -- the deed ledger (VII §2) -------------------------------------------
+
+    def _record_deed(self, a: Optional[Agent], kind: str):
+        """File a deed. Every agent keeps the ledger; in P1 only the PLAYED
+        character mutates off it (NPC mutation stays trigger-driven, and the
+        session-7 aggregates with it)."""
+        if a is None or not a.alive:
+            return
+        a.deeds.append((self.year, kind))
+
+    def _deed_mutation(self, a: Agent):
+        """VII §2: fight murderous three times in five years and the
+        Bloodthirsty roll comes for you; pull three villages out of the fire
+        and Righteous does. The world writes on the player exactly as it
+        writes on everyone — it just reads the record instead of the dice."""
+        a.deeds = [(y, k) for y, k in a.deeds
+                   if self.year - y <= DEED_WINDOW]
+        counts: dict = {}
+        for _, kind in a.deeds:
+            counts[kind] = counts.get(kind, 0) + 1
+        for kind, trait in DEED_TRAITS.items():
+            if counts.get(kind, 0) < DEED_THRESHOLD:
+                continue
+            if a.has_trait(trait) or trait not in ACQUIRABLE_TRAITS:
+                continue
+            self._mutate(a, "deeds", sure=True, deed_trait=trait)
+            a.deeds = [(y, k) for y, k in a.deeds if k != kind]
+            return          # one change a year is plenty
+
+    def ask_player(self, kind: str, prompt: str, options: list,
+                   default: str) -> str:
+        """Put a question to the human, if there is one.
+
+        The kernel calls this wherever it would otherwise roll FOR the played
+        character — leaving the path, an offered seat, an assigned plea. With
+        no player attached it returns the default and the roll stands, which
+        is why observer and batch runs are unchanged. UI input never touches
+        `world.rng`.
+        """
+        if not self.playing or self.ask is None:
+            return default
+        answer = self.ask(kind, prompt, options, default)
+        return answer if answer in options else default
 
     # -- politics: rule style, edicts, tribute, succession ------------------
 
@@ -3052,6 +3799,20 @@ class World:
                              CLAIM_CHANCE_PER_POINT * max(weights)):
             return False
         claimant = r.choices(pool, weights)[0]
+        if self.playing and claimant is self.pc:
+            # VII §2: a throne reaches the player as a choice, even when it
+            # is their own ambition that walked them to the hall door.
+            if self.ask_player(
+                    "throne",
+                    f"The seat of the {polity.name} is vacant, and your name "
+                    f"is being put about for it. A crown freezes your qi for "
+                    f"as long as you hold it.",
+                    ["press", "stand aside"], "press") != "press":
+                self.pc.thrones_refused += 1
+                self.log(f"{self.pc.display()} let the seat of the "
+                         f"{polity.name} pass without pressing a claim.",
+                         [self.pc], place=polity.seat)
+                return False
 
         rivals = [(a, w) for a, w in zip(pool, weights) if a is not claimant]
         if rivals and r.random() < CLAIM_CONTEST_CHANCE:
@@ -3128,7 +3889,17 @@ class World:
         refuse -= sum(v for t, v in INVITE_ACCEPT_TRAITS.items()
                       if guest.has_trait(t))
         refuse += INVITE_REFUSE_PER_REALM * (guest.realm - INVITE_MIN_REALM)
-        if r.random() < max(0.05, min(0.95, refuse)):
+        turn_it_down = r.random() < max(0.05, min(0.95, refuse))
+        if self.playing and guest is self.pc:
+            # VII §2: thrones reach the player as real choices. A crown ends
+            # cultivation while it lasts (§4) — that is the whole trade.
+            turn_it_down = self.ask_player(
+                "throne",
+                f"The notables of {polity.domain} offer you the seat of the "
+                f"{polity.name}. A crown freezes your qi for as long as you "
+                f"hold it.",
+                ["take", "refuse"], "refuse") != "take"
+        if turn_it_down:
             guest.thrones_refused += 1
             self.log(f"The notables of {polity.domain} offered the seat of "
                      f"the {polity.name} to {guest.display()} of "
@@ -3257,6 +4028,8 @@ class World:
         polity = self.polities.get(a.ruling)
         if polity is None:
             return
+        if self.playing and a is self.pc:
+            return      # VII §2/§10: the player lays it down, or does not
         reign = self.reign_length(a)
         if reign < ABDICATE_MIN_REIGN:
             return
@@ -3293,7 +4066,7 @@ class World:
 
     # -- consequences: revolts (§9) -----------------------------------------
 
-    def _revolt_phase(self):
+    def _plan_revolts(self) -> list:
         """The valve unrest never had.
 
         Everything else in this layer pushes unrest up — cruelty, edicts,
@@ -3301,8 +4074,12 @@ class World:
         a funeral spent it, so bad courts simply pinned at the cap. Over the
         threshold, a country can rise in any year. Vassals rise as readily as
         sovereigns; only a sovereign's rising is world news (§12).
+
+        VII §1: the risings of the year, and the champions who found them,
+        are settled at year start; the agenda fires them in summer.
         """
         r = self.rng
+        risings = []
         for polity in self.ruling_polities():
             if polity.unrest <= REVOLT_THRESHOLD:
                 continue
@@ -3311,7 +4088,9 @@ class World:
                 continue
             over = polity.unrest - REVOLT_THRESHOLD
             if r.random() < REVOLT_CHANCE_PER_UNREST * over:
-                self._revolt(polity, leader)
+                risings.append((polity, leader,
+                                self._revolt_champion(polity, leader)))
+        return risings
 
     def _revolt_champion(self, polity: Polity,
                          leader: Agent) -> Optional[Agent]:
@@ -3346,15 +4125,28 @@ class World:
     def _of_sect(a: Agent) -> str:
         return f" of {a.sect}" if a.sect else ""
 
-    def _revolt(self, polity: Polity, leader: Agent):
+    def _revolt(self, polity: Polity, leader: Agent,
+                champion: Optional[Agent]):
         """One rising, settled by the tyranny of realms like everything else.
 
         A mortal tyrant falls to any Foundation Establishment champion. A
         cultivator-king does not fall at all — he turns the same rising into a
         massacre, and the country pays for having tried.
+
+        The champion was picked when the year was planned (VII §1); None is
+        a leaderless mob.
         """
         r = self.rng
-        champion = self._revolt_champion(polity, leader)
+        if self.playing and champion is self.pc:
+            # VII §2: a revolt championship reaches the player as an offer,
+            # not a draft. A refusal leaves the country its leaderless mob.
+            if self.ask_player(
+                    "revolt",
+                    f"The country under {self.ruler_ref(leader)} is ready to "
+                    f"rise, and is looking for someone to ride at the head "
+                    f"of it.",
+                    ["ride", "refuse"], "ride") != "ride":
+                champion = None
         world = polity.is_sovereign()
         # These lines all name the domain themselves, so the ruler is named
         # without it: "the villages of the Wolf Steppe rose against Khan X".
@@ -3670,25 +4462,29 @@ class World:
                 return war
         return None
 
-    def _war_phase(self):
-        for war in list(self.wars):
-            self._war_year(war)
-        self._maybe_declare_war()
-
-    def _maybe_declare_war(self):
+    def _plan_declare_war(self) -> Optional[tuple]:
         """§9: between edge-adjacent sovereigns, and rarely across a corner.
 
         Started by a restless ruler with an army to spend; a court left weak
         by a contested succession is what one of them looks at, and a vassal
         that has kept the tribute one year too many is the other.
+
+        VII §1: the decision is taken at year start and returned for the
+        agenda to fire in summer, so the countries about to be invaded can
+        be told the drums are beating.
         """
         r = self.rng
         if r.random() >= WAR_CHANCE:
-            return
+            return None
+        # Who is spoken for: the courts already in a war that will still be
+        # running when this declaration fires in summer. A campaign that
+        # ends this year frees its two crowns, and the planning knows it —
+        # the old code saw the same thing by running after the campaigns.
         busy = set()
         for war in self.wars:
-            busy.add(war.attacker)
-            busy.add(war.defender)
+            if war.fought + 1 < war.length:
+                busy.add(war.attacker)
+                busy.add(war.defender)
         options, weights = [], []
         for polity in self.ruling_polities():
             if polity.pid in busy or polity.army < WAR_MIN_ARMY:
@@ -3740,9 +4536,8 @@ class World:
                     options.append((polity, other, "conquest"))
                     weights.append(w)
         if not options:
-            return
-        attacker, defender, kind = r.choices(options, weights)[0]
-        self._declare_war(attacker, defender, kind)
+            return None
+        return r.choices(options, weights)[0]
 
     def _declare_war(self, attacker: Polity, defender: Polity, kind: str):
         r = self.rng
@@ -4056,17 +4851,13 @@ class World:
 
     # -- petitions: the sect/polity interface (§9) ---------------------------
 
-    def _petition_phase(self):
-        """Starving villages beg the sects; the sects sometimes answer.
-
-        This is the only door between the spiritual exemption and the secular
-        world, so it is deliberately narrow: pleas lapse unheard, and at most
-        one new one is sent a year.
-        """
-        self._lapse_petitions()
-        for petition in list(self.petitions):
-            self._maybe_answer_petition(petition)
-        self._maybe_petition()
+    # Starving villages beg the sects; the sects sometimes answer. This is
+    # the only door between the spiritual exemption and the secular world, so
+    # it is deliberately narrow: pleas lapse unheard, and at most one new one
+    # is sent a year. VII §1 split the old phase in two — the champion a plea
+    # finds is picked when the year is planned (so an assigned plea can wake
+    # a timeskip on its eve), and lapses and fresh riders keep their own
+    # season.
 
     def _lapse_petitions(self):
         for petition in list(self.petitions):
@@ -4139,18 +4930,40 @@ class World:
             weights.append(w)
         return agents, weights
 
-    def _maybe_answer_petition(self, petition: Petition):
+    def _plan_petition_answer(self, petition: Petition) -> Optional[Agent]:
+        """Whether this plea finds a champion this year, and who."""
         r = self.rng
         if r.random() >= PETITION_ANSWER_CHANCE:
-            return
+            return None
         polity = self.polities.get(petition.polity)
         ruler = self.leader_of(polity) if polity else None
         if ruler is not None and not ruler.alive:
             ruler = None
         agents, weights = self._petition_candidates(petition, ruler)
         if not agents:
-            return
-        hero = r.choices(agents, weights)[0]
+            return None
+        return r.choices(agents, weights)[0]
+
+    def _answer_petition(self, petition: Petition, hero: Agent, ask=True):
+        r = self.rng
+        polity = self.polities.get(petition.polity)
+        ruler = self.leader_of(polity) if polity else None
+        if ruler is not None and not ruler.alive:
+            ruler = None
+        # VII §2: the sect assigns; a played character is asked. A refusal
+        # leaves the plea on the table for somebody else, or for the years
+        # to run out on it.
+        if ask and self.playing and hero is self.pc:
+            where_ = petition.place.name
+            if self.ask_player(
+                    "petition",
+                    f"{petition.sect} asks you to ride for {where_}: "
+                    f"{petition.plea.format(where=where_)}",
+                    ["ride", "refuse"], "ride") != "ride":
+                self.log(f"{hero.display()} was asked to ride for "
+                         f"{where_} and would not go.", [hero],
+                         place=petition.place)
+                return
         self.petitions.remove(petition)
         place = petition.place
         where = place.name
@@ -4172,6 +4985,7 @@ class World:
             place.prosperity = min(10.0, place.prosperity + PETITION_GAIN)
             hero.standing += PETITION_STANDING
             hero.karma += PETITION_KARMA
+            self._record_deed(hero, "mercy")     # VII §2: the ledger
             recovery = (f"the village is {place.word()} now where it was "
                         f"{was}" if place.word() != was else
                         f"the village is still {place.word()}, but it eats")
@@ -4256,7 +5070,9 @@ class World:
                 self._maim(champ, runner, "the final")
             self._mutate(runner, "humiliated")
 
-    def _expedition(self):
+    def _plan_expedition(self) -> list:
+        """Who a secret realm draws in. Rolled when the year is planned so
+        that a drawn cultivator's timeskip stops on the eve of the opening."""
         r = self.rng
         pool = [a for a in self.cultivators() if 14 <= a.age and a.realm <= 4]
         weights = []
@@ -4272,7 +5088,7 @@ class World:
                 w *= 2.5
             weights.append(w)
         if not pool:
-            return
+            return []
         k = min(len(pool), r.randint(6, 12))
         volunteers, seen = [], set()
         while len(volunteers) < k:
@@ -4280,6 +5096,10 @@ class World:
             if a.aid not in seen:
                 seen.add(a.aid)
                 volunteers.append(a)
+        return volunteers
+
+    def _run_expedition(self, volunteers: list):
+        r = self.rng
         self.log(f"A secret realm opened; {len(volunteers)} cultivators "
                  f"entered.", volunteers, world_event=True)
         deaths = []
@@ -4313,8 +5133,10 @@ class World:
             self.log(f"The secret realm claimed {len(deaths)} lives: {names}.",
                      survivors, world_event=True)
 
-    def _maybe_feud(self):
-        r = self.rng
+    def _feud_pair(self) -> Optional[tuple]:
+        """The two sects whose accumulated grudges are over the line, if any.
+        No dice: a feud is a reading of the ledger, which is why the agenda
+        can stamp it a season ahead."""
         totals: dict[tuple, int] = {}
         for a in self.cultivators():
             for i, rel in a.rels.items():
@@ -4323,41 +5145,93 @@ class World:
                         and o.sect != a.sect):
                     key = tuple(sorted((a.sect, o.sect)))
                     totals[key] = totals.get(key, 0) + rel.intensity
-        for (s1, s2), total in totals.items():
-            if total < FEUD_THRESHOLD:
+        for pair, total in totals.items():
+            if total >= FEUD_THRESHOLD:
+                return pair         # at most one feud per year
+        return None
+
+    def _run_feud(self, s1: str, s2: str):
+        """Three duels between the best each side can put in the road, and
+        then the grudges are half spent."""
+        r = self.rng
+        self.feud_cooldown = FEUD_COOLDOWN
+        self.log(f"Accumulated grudges ignite a feud between {s1} "
+                 f"and {s2}.", [], world_event=True)
+        # A crowned disciple does not answer the sect's muster.
+        side1 = [a for a in self.cultivators() if a.sect == s1]
+        side2 = [a for a in self.cultivators() if a.sect == s2]
+        losses = {s1: 0, s2: 0}
+        for _ in range(3):
+            if not side1 or not side2:
+                break
+            f1 = max(r.sample(side1, min(3, len(side1))),
+                     key=lambda x: x.realm)
+            f2 = max(r.sample(side2, min(3, len(side2))),
+                     key=lambda x: x.realm)
+            self._duel(f1, f2, lethal=True, context="the sect feud")
+            side1 = [a for a in side1 if a.alive]
+            side2 = [a for a in side2 if a.alive]
+            for s in (s1, s2):
+                losses[s] = sum(1 for a in self.agents.values()
+                                if a.sect == s and not a.alive
+                                and a.death_year == self.year)
+        loser_sect = max(losses, key=losses.get)
+        self.log(f"The feud burns out; {loser_sect} lost the most and "
+                 f"loses face.", [], world_event=True)
+        # Grudges are partly spent.
+        for a in self.living():
+            for i, rel in a.rels.items():
+                o = self.agents.get(i)
+                if (o and rel.kind in HOSTILE_KINDS
+                        and {a.sect, o.sect} == {s1, s2}):
+                    rel.intensity = max(1, rel.intensity // 2)
+
+    def _plan_grudges(self) -> list:
+        """VII §1: whose grudge against the played character ripens this year.
+
+        Only somebody who actually holds a score, is free to act on it, and
+        is not sitting on a throne — a crowned enemy answers with soldiers,
+        which is what revolts and assassinations are for.
+        """
+        r = self.rng
+        pc = self.pc
+        out: list = []
+        if pc is None or not pc.alive or pc.is_ruler() or pc.age < 14:
+            return out
+        for aid in list(pc.rels):
+            foe = self.agents.get(aid)
+            if foe is None or not foe.alive or foe.is_ruler() or foe.age < 14:
                 continue
-            self.feud_cooldown = FEUD_COOLDOWN
-            self.log(f"Accumulated grudges ignite a feud between {s1} "
-                     f"and {s2}.", [], world_event=True)
-            # A crowned disciple does not answer the sect's muster.
-            side1 = [a for a in self.cultivators() if a.sect == s1]
-            side2 = [a for a in self.cultivators() if a.sect == s2]
-            losses = {s1: 0, s2: 0}
-            for _ in range(3):
-                if not side1 or not side2:
+            held = foe.rels.get(pc.aid)
+            if (held is None or held.kind not in HOSTILE_KINDS
+                    or held.intensity < GRUDGE_RIPE):
+                continue
+            if r.random() < GRUDGE_RIPEN_CHANCE:
+                out.append(foe)
+                if len(out) >= GRUDGE_RIPEN_MAX:
                     break
-                f1 = max(r.sample(side1, min(3, len(side1))),
-                         key=lambda x: x.realm)
-                f2 = max(r.sample(side2, min(3, len(side2))),
-                         key=lambda x: x.realm)
-                self._duel(f1, f2, lethal=True, context="the sect feud")
-                side1 = [a for a in side1 if a.alive]
-                side2 = [a for a in side2 if a.alive]
-                for s in (s1, s2):
-                    losses[s] = sum(1 for a in self.agents.values()
-                                    if a.sect == s and not a.alive
-                                    and a.death_year == self.year)
-            loser_sect = max(losses, key=losses.get)
-            self.log(f"The feud burns out; {loser_sect} lost the most and "
-                     f"loses face.", [], world_event=True)
-            # Grudges are partly spent.
-            for a in self.living():
-                for i, rel in a.rels.items():
-                    o = self.agents.get(i)
-                    if (o and rel.kind in HOSTILE_KINDS
-                            and {a.sect, o.sect} == {s1, s2}):
-                        rel.intensity = max(1, rel.intensity // 2)
-            break  # at most one feud per year
+        return out
+
+    def _grudge_comes(self, foe: Optional[Agent]):
+        """VII §1/§3: a grudge against the played character ripens and comes
+        looking for them.
+
+        The kernel already does exactly this inside the socialize action —
+        a Vengeful agent with a ripe score seeks the enemy out. The agenda
+        only decides it a season early, so a timeskip can stop on its eve
+        instead of waking the player with a corpse.
+        """
+        pc = self.pc
+        if foe is None or pc is None or not foe.alive or not pc.alive:
+            return
+        if foe.is_ruler() or pc.is_ruler():
+            return      # a grudge against a crown is a revolt, not a duel
+        rel = foe.rels.get(pc.aid)
+        if rel is None or rel.kind not in HOSTILE_KINDS:
+            return
+        lethal = any(foe.has_trait(t)
+                     for t in ("Vengeful", "Ruthless", "Bloodthirsty"))
+        self._duel(foe, pc, lethal=lethal, context="a score come due")
 
     # -- resolution phase ---------------------------------------------------
 
@@ -4478,6 +5352,15 @@ class World:
                 "took an administrative post in the outer sect",
                 "lost conviction and returned to their village",
             ])
+            # VII §2: voluntary exits are never rolled for the played
+            # character — the conditions fire and the door is OFFERED.
+            if self.playing and a is self.pc:
+                if self.ask_player(
+                        "exit",
+                        f"The path has stopped paying: you could have "
+                        f"{reason}.",
+                        ["stay", "leave"], "stay") != "leave":
+                    return
             a.alive = False
             a.exited = True
             a.death_year = self.year
@@ -4623,7 +5506,12 @@ class World:
         if pc is None:
             return False
         if a.aid == pc.aid:
-            return True
+            # VII, decisions taken up front: NO VICE LOCK ON THE PLAYER. A
+            # played character may earn, mutate into and act on vice traits;
+            # karma and grudges are the honest price. Bound companions KEEP
+            # the constraint — the reader's seat around the player is still
+            # a seat.
+            return not self.playing
         rel = pc.rels.get(a.aid)
         return rel is not None and rel.kind in CAMERA_BOUND_KINDS
 
@@ -4643,16 +5531,19 @@ class World:
             return self.rng.choice(CAMERA_REROUTE)
         return trait
 
-    def _mutate(self, a: Agent, trigger: str, sure=False):
+    def _mutate(self, a: Agent, trigger: str, sure=False, deed_trait=None):
         """`sure` skips the usual gate: the caller has already rolled for it
-        (POWER CORRUPTS carries its own, slower clock)."""
+        (POWER CORRUPTS carries its own, slower clock; so does the deed
+        ledger of VII §2, which has already counted to three)."""
         r = self.rng
         if not a.alive or (not sure and r.random() > 0.35):
             return
         swap = None
         gain = None
         gained_by_the_seat = False
-        if trigger == "power":
+        if trigger == "deeds":
+            gain = deed_trait
+        elif trigger == "power":
             step = self._corruption_step(a)
             if step is None:
                 return              # the bottom of the ladder, or of the build
@@ -4682,23 +5573,175 @@ class World:
                 swap = ("Reckless", r.choice(["Cautious", "Ascetic"]))
             elif r.random() < 0.5 and "Ascetic" not in a.traits:
                 gain = "Ascetic"
+        by = ""
+        if gained_by_the_seat:
+            by = " by the seat"
+        elif trigger == "deeds":
+            by = " by what they have been doing"
         if swap is not None:
             to = self._camera_filter(a, swap[1])
             if to in a.traits:
                 return
             a.traits.remove(swap[0])
             a.traits.append(to)
-            self.log(f"{self.ruler_ref(a)} is changed"
-                     f"{' by the seat' if gained_by_the_seat else ''}: "
+            self.log(f"{self.ruler_ref(a)} is changed{by}: "
                      f"{swap[0]} -> {to}.", [a])
         elif gain is not None:
             to = self._camera_filter(a, gain)
             if to in a.traits:
                 return
             a.traits.append(to)
-            self.log(f"{self.ruler_ref(a)} is changed"
-                     f"{' by the seat' if gained_by_the_seat else ''}: "
+            self.log(f"{self.ruler_ref(a)} is changed{by}: "
                      f"gained trait {to}.", [a])
+
+    # -- the played character (VII §2) --------------------------------------
+
+    def begin_play(self, name: str, sex: Optional[str] = None,
+                   land: Optional[Place] = None, ask=None) -> Agent:
+        """Add the played character to the watched intake as agent 65.
+
+        Talent, traits, home settlement, the lot: ROLLED. The funnel is real
+        and there is no point-buy. The player names them and may pick sex and
+        homeland; that is all they get, and it is the whole difference
+        between a player and a camera.
+        """
+        r = self.rng
+        sects = list(self.sects)
+        a = self._make_agent(sects[self.intake_size % len(sects)], 14,
+                             realm=1, intake_year=0, sex=sex, land=land)
+        if name:
+            a.name = name
+        a.qi = r.uniform(0, 15)
+        a.insight = 0
+        a.resources = r.randint(0, 4)
+        a.standing = 1
+        a.play = PlayerState()
+        self.pc = a
+        self.playing = True
+        self.ask = ask
+        self._home_start(a)         # §10: the home they walked out of
+        cohort = [o for o in self.agents.values()
+                  if o.intake_year == 0 and o.aid != a.aid and o.alive
+                  and o.sect and o.age == a.age]
+        for other in r.sample(cohort, min(2, len(cohort))):
+            self._bind(a, other, r.choice(["friend", "friend", "rival"]),
+                       r.randint(1, 2))
+        a.history.append((0, "Entered the sect as a new disciple."))
+        return a
+
+    def take_over_pc(self) -> Optional[Agent]:
+        """Hand the successor `_succeed_pc` picked to the player."""
+        if self.pc is None:
+            return None
+        if self.pc.play is None:
+            self.pc.play = PlayerState()
+        return self.pc
+
+    def player_season(self, activity: str) -> None:
+        """The played character's ONE activity for this season (VII §3).
+
+        Every activity pays at SEASON_RATE — a quarter of the matching
+        yearly action — in gains and in risk alike. Traits no longer weight
+        the CHOICE (the player chooses); they keep every other job: power,
+        outcomes, and what the year makes of the person.
+        """
+        a = self.pc
+        if a is None or not a.alive or a.age < 14 or a.play is None:
+            return
+        if a.is_ruler():
+            return          # §10: a court eats the calendar, at year tempo
+        share = SEASON_RATE
+        a.play.activity = activity
+        a.play.seasons += 1
+        if activity == "retreat":
+            self._act_seclude(a, share)
+        elif activity == "injustice":
+            self._act_injustice(a, share)
+        elif activity == "hunt":
+            self._act_hunt(a, share)
+        elif activity == "trade":
+            self._act_trade(a, share)
+        elif activity == "socialize":
+            self._act_socialize(a, share)
+        elif activity == "muster":
+            if not self._take_service(a, forced=True, share=share):
+                self.log(f"{a.display()} went looking for a muster to join; "
+                         f"the levies were stood down and the season went "
+                         f"nowhere.", [a])
+        else:
+            self._act_cultivate(a, share)
+
+    def player_abdicate(self) -> bool:
+        """§4/§10: the played ruler lays the seat down. Always on the menu."""
+        a = self.pc
+        if a is None or not a.is_ruler():
+            return False
+        polity = self.polities.get(a.ruling)
+        if polity is None:
+            return False
+        reign = self.reign_length(a)
+        self.log(f"After {self.years_phrase(reign)} on the seat, "
+                 f"{self.ruler_ref(a)} laid it down and walked out of the "
+                 f"hall.", [a], dramatic=True, place=polity.seat,
+                 world_event=polity.is_sovereign())
+        self._polity_succession(polity, a, cause="abdication")
+        self._step_down(a, "laid down")
+        self._after_the_throne(a, "having laid down", polity)
+        return True
+
+    def player_status(self, season: str) -> str:
+        """VII §11: the season prompt's header."""
+        a = self.pc
+        if a is None:
+            return "There is no one left to play."
+        head = (f"Year {self.year}, {season} — age {a.age}, {a.realm_name}, "
+                f"qi {a.qi:.0f}, insight {a.insight:.0f}, "
+                f"burden {a.burden}")
+        lines = [head,
+                 f"  resources {a.resources} | standing {a.standing} | "
+                 f"karma {karma_word(a.karma)} ({a.karma:+d})"]
+        if a.play is not None and a.play.wound:
+            hurt = "light" if a.play.wound == 1 else "serious"
+            lines.append(f"  wounded ({hurt})")
+        if a.is_ruler():
+            polity = self.polities.get(a.ruling)
+            if polity is not None:
+                lines.append(f"  on the seat of the {polity.name}: "
+                             f"{polity.style} rule, unrest {polity.unrest}, "
+                             f"{polity.domain} is {polity.word()} "
+                             f"— no qi while it lasts")
+        rels = self.describe_rels(a)
+        if rels:
+            lines.append(f"  {rels}")
+        if a.home is not None:
+            lines.append(f"  home: {a.home.name}, {a.home.word()}")
+        for notice in self.agenda_notices(season):
+            lines.append(f"  * {notice}")
+        return "\n".join(lines)
+
+    def player_bag(self) -> str:
+        """VII §11: what the played character is carrying. Almost all of it
+        arrives in later sessions; the card exists so it has somewhere to
+        land."""
+        a = self.pc
+        if a is None or a.play is None:
+            return "Nothing to show."
+        st = a.play
+        lines = [f"{a.display()} carries:",
+                 f"  silver {a.resources} | standing {a.standing} | "
+                 f"burden {a.burden}",
+                 f"  epithets: {', '.join(a.epithets) if a.epithets else '-'}",
+                 f"  seasons played: {st.seasons}"]
+        recent = [k for y, k in a.deeds if self.year - y <= DEED_WINDOW]
+        if recent:
+            tally = {}
+            for k in recent:
+                tally[k] = tally.get(k, 0) + 1
+            lines.append("  recent deeds: "
+                         + ", ".join(f"{k} x{n}" for k, n in tally.items()))
+        lines.append("  (wounds, techniques, pills, professions and stance "
+                     "ranks arrive with later sessions)")
+        return "\n".join(lines)
 
     # -- PC handling --------------------------------------------------------
 
@@ -5234,6 +6277,436 @@ def interactive(world: World):
     print(world.final_report())
 
 
+PLAY_HELP = """Commands (play mode):
+  <enter>            repeat last season's activity
+  1-7 or NAME        this season's activity
+  menu               show the activity menu again
+  skip N doing X     keep doing X for up to %d seasons; the engine wakes you
+                     the season BEFORE anything that matters to you
+  agenda             what this year is known to hold
+  bag                what you are carrying
+  orders             standing orders (arrives with round combat)
+  pc / sheet NAME    a character sheet
+  log NAME           a character's whole private history
+  map / courts       the nine lands; every ruler and how they rule
+  land NAME          one land's polities, rulers, edicts, prosperity
+  roster / famous / obits
+  help / quit
+""" % TIMESKIP_CAP
+
+
+class Play:
+    """The terminal front end for a played life (VII §11).
+
+    Every print and every input lives in this class: the kernel is never
+    asked to print, and nothing the player types ever touches `world.rng`,
+    so identical play replays a seeded world and different play diverges it.
+    """
+
+    def __init__(self, world: World):
+        self.world = world
+        self.cursor = len(world.chronicle)
+        self.quit = False
+        self.skip_left = 0
+        self.skip_done = 0
+        self.skip_activity = "cultivate"
+        self.snapshot: dict = {}
+        self.season: Optional[str] = None
+        self.hcursor = len(world.pc.history) if world.pc is not None else 0
+
+    # -- plumbing -------------------------------------------------------
+
+    def read(self, prompt: str) -> str:
+        try:
+            return input(prompt)
+        except (EOFError, KeyboardInterrupt):
+            print()
+            self.quit = True
+            return ""
+
+    def flush(self, limit: Optional[int] = None) -> list:
+        """Print whatever the world has logged since the last flush."""
+        lines = [t for (_, _, t) in self.world.chronicle[self.cursor:]]
+        self.cursor = len(self.world.chronicle)
+        shown = lines if limit is None or len(lines) <= limit else lines[:limit]
+        for line in shown:
+            print(line)
+        if len(shown) < len(lines):
+            print(f"      ... and {len(lines) - len(shown)} more lines that "
+                  f"year; 'log' has the rest")
+        return lines
+
+    def flush_private(self, printed: list, quiet=False):
+        """The season's own record — the lines that went into the played
+        character's private history and were never public enough to reach
+        the chronicle. Without this the player would choose an activity and
+        watch nothing happen."""
+        pc = self.world.pc
+        if pc is None or pc.play is None:
+            return
+        fresh = pc.history[self.hcursor:]
+        self.hcursor = len(pc.history)
+        if quiet:
+            return
+        for _, text in fresh:
+            if any(text in line for line in printed):
+                continue        # the chronicle already carried it
+            print(f"       . {text}")
+
+    def ask(self, kind: str, prompt: str, options: list, default: str) -> str:
+        """The kernel's question hook (World.ask_player)."""
+        print()
+        print(f"  {prompt}")
+        while True:
+            answer = self.read(f"  [{' / '.join(options)}] > ").strip().lower()
+            if self.quit:
+                return default
+            if not answer:
+                return default
+            for opt in options:
+                if opt.startswith(answer):
+                    return opt
+            print(f"  one of: {', '.join(options)}")
+
+    # -- the menu -------------------------------------------------------
+
+    def menu(self) -> str:
+        lines = ["What will you do with the season?"]
+        for i, (key, label, pays) in enumerate(PLAYER_ACTIVITIES, 1):
+            mark = " " if self._available(key) else "-"
+            lines.append(f" {mark}{i}. {label:<24} {pays}")
+        lines.append("   (a season pays a quarter of a year's work; "
+                     "'skip N doing X' runs several)")
+        return "\n".join(lines)
+
+    def _available(self, key: str) -> bool:
+        if key != "muster":
+            return True
+        return any(i.kind == "muster" for i in self.world.agenda)
+
+    def match_activity(self, text: str) -> Optional[str]:
+        text = text.strip().lower()
+        if not text:
+            return None
+        if text.isdigit():
+            i = int(text) - 1
+            if 0 <= i < len(PLAYER_ACTIVITIES):
+                return PLAYER_ACTIVITIES[i][0]
+            return None
+        for key, label, _ in PLAYER_ACTIVITIES:
+            if key.startswith(text) or label.lower().startswith(text):
+                return key
+        return None
+
+    # -- the season prompt ----------------------------------------------
+
+    def prompt(self, season: str) -> Optional[str]:
+        w = self.world
+        self.season = season
+        print()
+        print(w.player_status(season))
+        while True:
+            cmd = self.read(f"[{season} of year {w.year}] > ").strip()
+            if self.quit:
+                return None
+            low = cmd.lower()
+            if low in ("quit", "exit", "q"):
+                self.quit = True
+                return None
+            if cmd == "":
+                return w.pc.play.activity
+            if low.startswith("skip"):
+                if self.start_skip(low):
+                    return self.skip_activity
+                continue
+            if self.observer_command(cmd):
+                continue
+            act = self.match_activity(cmd)
+            if act is not None:
+                if not self._available(act):
+                    print("There is no muster to join this year.")
+                    continue
+                return act
+            print("Unknown command; 'help' for the list.")
+
+    def observer_command(self, cmd: str) -> bool:
+        """Every command the observer build has, still working in play mode."""
+        w = self.world
+        low = cmd.lower()
+        if low == "help":
+            print(PLAY_HELP)
+        elif low == "menu":
+            print(self.menu())
+        elif low == "agenda":
+            notices = w.agenda_notices(self.season)
+            print("\n".join(f"  * {n}" for n in notices)
+                  or "  Nothing this year that concerns you.")
+        elif low == "bag":
+            print(w.player_bag())
+        elif low == "orders":
+            print("Standing orders arrive with round combat (session P3).")
+        elif low == "pc":
+            print(w.sheet(w.pc) if w.pc else "No one to show.")
+        elif low.startswith("sheet "):
+            a = find_agent(w, cmd[6:])
+            print(w.sheet(a) if a else "No such character.")
+        elif low.startswith("log "):
+            a = find_agent(w, cmd[4:])
+            print(w.personal_log(a) if a else "No such character.")
+        elif low == "map":
+            print(w.map_view())
+        elif low == "courts":
+            print(w.courts())
+        elif low.startswith("land "):
+            land = w.find_land(cmd[5:])
+            print(w.land_view(land) if land else "No such land.")
+        elif low == "roster":
+            print(w.roster())
+        elif low == "famous":
+            print(w.famous_list())
+        elif low == "obits":
+            print("\n".join(w.obituaries) or "No deaths yet.")
+        else:
+            return False
+        return True
+
+    # -- the timeskip (VII §3) -------------------------------------------
+
+    def start_skip(self, cmd: str) -> bool:
+        """`skip N doing X` — keep doing X for up to N seasons."""
+        parts = cmd.split()
+        count = TIMESKIP_CAP
+        activity = self.world.pc.play.activity
+        if len(parts) > 1 and parts[1].isdigit():
+            count = int(parts[1])
+        if "doing" in parts:
+            named = " ".join(parts[parts.index("doing") + 1:])
+            match = self.match_activity(named)
+            if match is None:
+                print(f"No such activity: {named}")
+                return False
+            activity = match
+        if not self._available(activity):
+            print("There is no muster to join this year.")
+            return False
+        count = max(1, min(TIMESKIP_CAP, count))
+        self.skip_left = count
+        self.skip_done = 0
+        self.skip_activity = activity
+        self.snapshot = self.gains_snapshot()
+        label = dict((k, l) for k, l, _ in PLAYER_ACTIVITIES)[activity]
+        print(f"  ({label.lower()}, up to {count} seasons — you will be woken "
+              f"if anything happens that is yours)")
+        return True
+
+    def gains_snapshot(self) -> dict:
+        a = self.world.pc
+        return dict(qi=a.qi, insight=a.insight, resources=a.resources,
+                    standing=a.standing, karma=a.karma, realm=a.realm,
+                    age=a.age, burden=a.burden, year=self.world.year)
+
+    def eve_reason(self, season: str) -> Optional[str]:
+        """Is something FORESEEN and HARD about to happen this season? Then
+        the skip stops now, on its eve."""
+        for item in self.world.season_agenda(season):
+            if item.hard:
+                return item.notice or f"something is coming: {item.kind}"
+        return None
+
+    def wake(self, reason: Optional[str]):
+        """THE DIGEST (VII §3): seasons elapsed, gains, the chronicle that
+        was missed, and then the interrupting event framed on its eve."""
+        w = self.world
+        a = w.pc
+        was = self.snapshot
+        self.skip_left = 0
+        print()
+        seasons = self.skip_done
+        span = f"{seasons} season{'s' if seasons != 1 else ''}"
+        print(f"--- {span} passed (year {was.get('year', w.year)} to "
+              f"{w.year}) ---")
+        if a is not None and was:
+            deltas = []
+            for key, label in (("qi", "qi"), ("insight", "insight"),
+                               ("resources", "silver"),
+                               ("standing", "standing"), ("karma", "karma"),
+                               ("burden", "burden")):
+                change = getattr(a, key) - was[key]
+                if abs(change) >= 1:
+                    deltas.append(f"{label} {change:+.0f}")
+            if a.realm != was["realm"]:
+                deltas.append(f"now {a.realm_name}")
+            print(f"  {a.display()}, age {a.age}: "
+                  + (", ".join(deltas) if deltas else "nothing much changed"))
+        missed = self.flush(limit=DIGEST_LINES)
+        self.flush_private(missed, quiet=True)   # the gains line covers it
+        if not missed:
+            print("  The chronicle was quiet.")
+        if reason:
+            print(f"  YOU WAKE: {reason}.")
+
+    # -- a played throne (VII §10 is P7; P1 offers the door out) ----------
+
+    def reign_turn(self) -> bool:
+        w = self.world
+        print()
+        print(w.player_status("the year"))
+        print("  A court runs at year tempo: one decision a year, and no qi "
+              "while it lasts.")
+        while True:
+            cmd = self.read(f"[year {w.year}, on the seat] > ").strip()
+            if self.quit:
+                return False
+            low = cmd.lower()
+            if low in ("quit", "exit", "q"):
+                self.quit = True
+                return False
+            if low in ("", "hold", "rule", "keep"):
+                return True
+            if low in ("abdicate", "lay down", "step down"):
+                if w.player_abdicate():
+                    self.flush()
+                    return True
+                print("There is no seat to lay down.")
+                continue
+            if self.observer_command(cmd):
+                continue
+            print("On the seat you may 'hold' the year or 'abdicate'.")
+
+    # -- the year -------------------------------------------------------
+
+    def season_turn(self, season: str) -> bool:
+        w = self.world
+        pc = w.pc
+        if pc is None or not pc.alive:
+            w.run_season(season)        # the world does not stop for a death
+            self.flush()
+            return True
+
+
+        activity: Optional[str] = None
+        if self.skip_left > 0:
+            activity = self.skip_activity
+        elif pc.is_ruler():
+            if season == NPC_ACTION_SEASON and not self.reign_turn():
+                return False
+        else:
+            activity = self.prompt(season)
+            if self.quit:
+                return False
+
+        if self.skip_left > 0:
+            reason = self.eve_reason(season)
+            if reason is not None:
+                self.wake(reason)       # stop the season BEFORE it
+                if pc.is_ruler():
+                    activity = None
+                else:
+                    activity = self.prompt(season)
+                    if self.quit:
+                        return False
+
+        skipping = self.skip_left > 0
+        watch = w.pc_watch()
+        if activity is not None and not pc.is_ruler():
+            w.player_season(activity)
+        w.run_season(season)
+
+        if not skipping:
+            self.flush_private(self.flush())
+            return True
+        self.skip_left -= 1
+        self.skip_done += 1
+        if not pc.alive:
+            self.wake("you did not walk out of it")
+        else:
+            alarms = w.pc_alarms(watch)
+            if alarms:
+                self.wake(alarms[0])
+            elif self.skip_left == 0:
+                self.wake(None)
+        return True
+
+    def on_death(self, hero: Agent) -> bool:
+        w = self.world
+        print()
+        print(w.life_report(hero))
+        successor = w.pc
+        if successor is None or not successor.alive:
+            print("There is no one young enough left to follow.")
+            return False
+        answer = self.ask(
+            "succeed",
+            f"{hero.display()} is gone. The chronicle turns to "
+            f"{successor.display()} of {successor.sect} (age "
+            f"{successor.age}, talent {successor.talent}, "
+            f"{'/'.join(successor.traits)}).",
+            ["play", "end"], "end")
+        if answer != "play":
+            return False
+        w.take_over_pc()
+        self.skip_left = 0
+        self.hcursor = len(w.pc.history)
+        print()
+        print(w.pc_intro())
+        print(self.menu())
+        return True
+
+    def run(self):
+        w = self.world
+        print(w.pc_intro())
+        print(PLAY_HELP)
+        print(self.menu())
+        while not self.quit and w.pc is not None and w.pc.alive:
+            hero = w.pc
+            w.begin_year()
+            for season in SEASONS:
+                if self.quit:
+                    break
+                if not self.season_turn(season):
+                    break
+            if self.quit:
+                break
+            w.end_year()
+            if self.skip_left == 0:
+                self.flush_private(self.flush())
+            if not hero.alive and not self.on_death(hero):
+                break
+        print()
+        print(w.final_report())
+
+
+def create_character(world: World, play: Play) -> Agent:
+    """VII §2: name, sex and homeland. Everything else is rolled."""
+    print("=" * 72)
+    print("A new disciple walks up the mountain with the rest of the intake.")
+    print("You may give them a name, a sex and a homeland. Talent, temper,")
+    print("the village they came out of and everything after it are rolled.")
+    print("=" * 72)
+    name = play.read("Name (blank for a rolled one) > ").strip()
+    sex = play.read("Sex [m/f, blank to roll] > ").strip().lower()
+    sex = sex if sex in ("m", "f") else None
+    lands = list(world.lands.values())
+    print("Homelands:")
+    for i, land in enumerate(lands, 1):
+        print(f"  {i}. {land.name} ({land.word()})")
+    choice = play.read("Homeland [number or name, blank to roll] > ").strip()
+    land = None
+    if choice.isdigit() and 1 <= int(choice) <= len(lands):
+        land = lands[int(choice) - 1]
+    elif choice:
+        land = world.find_land(choice)
+    return world.begin_play(name, sex, land, ask=play.ask)
+
+
+def play_mode(world: World):
+    session = Play(world)
+    create_character(world, session)
+    session.cursor = len(world.chronicle)
+    session.hcursor = len(world.pc.history)
+    session.run()
+
+
 def main():
     p = argparse.ArgumentParser(
         description="Cultivation World Simulator (toy version)")
@@ -5243,6 +6716,9 @@ def main():
                    help="RNG seed for a reproducible world")
     p.add_argument("--intake", type=int, default=INTAKE_SIZE,
                    help="students per intake cycle (default %(default)s)")
+    p.add_argument("--play", action="store_true",
+                   help="play agent 65 of the starting intake, one season "
+                        "at a time (VII: the playable layer)")
     p.add_argument("--follow-pc", action="store_true",
                    help="run until the main character reaches the peak, dies "
                         "or leaves the path, then print their whole life "
@@ -5251,7 +6727,9 @@ def main():
 
     world = World(seed=args.seed, intake_size=args.intake)
 
-    if args.follow_pc:
+    if args.play:
+        play_mode(world)
+    elif args.follow_pc:
         print(world.pc_intro())
         cap = args.years if args.years is not None else FOLLOW_CAP_YEARS
         hero = run_until_pc_resolved(world, cap)

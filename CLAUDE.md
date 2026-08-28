@@ -21,7 +21,14 @@ python3 cultivation_sim.py --years 200     # batch run + final report
 python3 cultivation_sim.py --seed 7        # reproducible world
 python3 cultivation_sim.py --intake 32     # smaller recruitment cycles
 python3 cultivation_sim.py --follow-pc     # run until the PC peaks, dies or quits
+python3 cultivation_sim.py --play          # PLAY agent 65, one season at a time
 ```
+
+Play-mode commands: Enter (repeat last season's activity), `1`-`7` or the
+activity's name, `menu`, `skip N doing X` (timeskip, cap 12 seasons),
+`agenda`, `bag`, `orders` (a stub until P3), plus every observer command
+(`pc`, `sheet`, `log`, `map`, `courts`, `land`, `roster`, `famous`,
+`obits`, `help`, `quit`).
 
 Interactive commands: Enter (step a year), `run N`, `pc`, `sheet NAME`,
 `log NAME`, `follow` (run on until the PC's story ends), `map` (the nine
@@ -54,15 +61,20 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   loop. `World.step()` advances exactly one year and returns the chronicle
   lines it produced (this is the API to build on: a UI, an AI-DM renderer,
   or a player layer would call `step()` and read the logs).
-- **Year loop** (`step`): action phase (each agent softmax-picks
-  cultivate/seclude/adventure/socialize/teach via trait weights + situational
-  nudges; a ruler instead gets the single RULE action, and a war can take
-  anyone's year) → event phase (every polity's rule year and tribute, then
-  campaigns, revolts, assassinations, usurpations, the sect year, petitions,
-  a tournament every 4 years, secret-realm expeditions, sect feuds,
-  successions) → resolution phase (prosperity drift, stipends, karma luck,
-  breakthroughs, aging, old-age death, abdications and voluntary exits) →
-  intake recruitment every 8 years.
+- **Year loop** (`step` = `begin_year` + four `run_season`s + `end_year`,
+  Part VII §1): PLAN rolls the YEAR AGENDA (`_plan_year`: every event of the
+  year, stamped with the season it fires in) → PLAY runs four season
+  sub-steps (`run_season`: the NPC action phase in spring — each agent
+  softmax-picks cultivate/seclude/adventure/socialize/teach via trait
+  weights + situational nudges, a ruler instead gets the single RULE action,
+  and a war can take anyone's year — then the agenda items stamped for that
+  season, in `AGENDA_ORDER`: rule years and tribute, campaigns and
+  declarations, revolts, assassinations, usurpations, the sect year,
+  petitions, a tournament every 4 years, expeditions, feuds) → CLOSE
+  (`end_year`: prosperity drift, stipends, karma luck, breakthroughs, aging,
+  old-age death, abdications and voluntary exits, then intake recruitment
+  every 8 years). Batch and observer modes run all three parts in one call
+  and print exactly what they printed before.
 - **Contests** — one formula (`Agent.power`) with the "tyranny of realms":
   1 realm apart = flee or lose; 2+ = not a fight. Insight is granted by
   ADVERSITY (surviving losses, near-death, grief), never by victory.
@@ -117,6 +129,47 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   and anyone bound to them as friend/sworn/lover/master/disciple never roll
   or mutate into a vice trait; blocked mutations reroute through
   `CAMERA_REROUTE`. It protects the reader's seat, not the characters.
+
+## The playable layer (Part VII — session P1 built)
+
+- **Two clocks** (§1) — the world thinks in years, the player lives in
+  seasons. The agenda (`World.agenda`, a list of `AgendaItem`) is what makes
+  "stop before something interesting" possible: the engine knows the near
+  future because it rolled it. Items that carry their whole decision were
+  split out of their old phases — `_plan_declare_war`, `_plan_revolts`,
+  `_plan_petition_answer`, `_plan_expedition`, `_feud_pair`,
+  `_plan_grudges`; the rest (assassination, usurpation, the sect year, new
+  pleas) are stamped to a season and roll their own details there.
+- **`--play`** (§2) — `World.begin_play` adds agent 65 to the watched
+  intake with everything rolled (no point-buy); the player supplies a name
+  and may pick sex and homeland. PC-only state lives on `Agent.play`
+  (`PlayerState`), which is nearly all placeholders for P2-P7 (hp/wounds,
+  proficiencies, stances, professions, techniques, pills, standing orders).
+  The camera constraint (VI §8) is REPEALED for a played PC — vice is
+  allowed, karma is the price — while bound companions keep it.
+- **Season activities** (§3, `World.player_season`) — cultivate, retreat,
+  fight injustice, hunt spirit beasts, trade run, socialize, join the
+  muster; all reskins of existing machinery, each paying `SEASON_RATE`
+  (a quarter) of the matching yearly action in gains AND in risk, via
+  `_fires` / `_share_int`. At `share=1.0` those two helpers roll no dice at
+  all, which is why the NPC year is untouched.
+- **Timeskip and the interrupt table** (§3) — `skip N doing X`, cap
+  `TIMESKIP_CAP`. HARD interrupts split in two: FORESEEN ones sit on the
+  agenda (`_foreseen_hard`) and stop the skip on the EVE, the season before;
+  the ones nothing can foresee (a close rel dead or maimed, the home seat
+  changing hands, home below desperate, a breakthrough ready) are caught at
+  the season boundary by `pc_watch` / `pc_alarms`. Waking prints a DIGEST.
+- **Deeds, not dice** (§2) — `_record_deed` files every agent's killings,
+  cruelties and mercies; `_deed_mutation` turns three of a kind inside
+  `DEED_WINDOW` into a trait, and in P1 only the PLAYED character mutates
+  off it (NPC mutation stays trigger-driven, and the session-7 aggregates
+  with it).
+- **The question hook** — `World.ask_player` is called wherever the kernel
+  would otherwise roll FOR the played character: leaving the path, a throne
+  claimed or offered, a rising asking for a champion, a plea assigned. With
+  no player attached it returns the default and the old roll stands. The UI
+  (`Play`, `play_mode`) owns every print and every `input`; nothing the
+  player types touches `world.rng`.
 
 ## The logging model (the important part)
 
@@ -207,11 +260,12 @@ The test for any change: does `log <agent>` still read like a life?
   elder-tempo opportunity injection (dying elders seeking heirs, purges).
 - AI DM as renderer over the logs (chronicles, "state of the world" digests).
 - World-generation mode (run 200 years, freeze, survivors become the setting).
-- The player layer: fully specced as **Part VII** of the design doc
-  (sessions P1–P7) — season-resolution play over the year kernel, timeskips
-  with an interrupt table, edge×manner stances, round-based autocombat with
-  pause points, the demon front, masters/professions/techniques, played
-  thrones. Until P1 lands, the PC here is only a *camera*, not a player.
+- The rest of the player layer (**Part VII**, sessions P2-P7): edge x manner
+  stances in `_duel`, round-based autocombat with pause points and wounds,
+  the demon front, masters and proficiencies, professions with toxicity,
+  techniques, and the played throne (P1 offers only hold-or-abdicate).
+  Session P1 — two clocks, `--play`, the season menu, the timeskip — is
+  built; the PC is a player, not only a camera.
 
 ## Known deviations from the spec (deliberate, from tuning)
 
