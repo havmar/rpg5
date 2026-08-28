@@ -75,9 +75,11 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   old-age death, abdications and voluntary exits, then intake recruitment
   every 8 years). Batch and observer modes run all three parts in one call
   and print exactly what they printed before.
-- **Contests** — one formula (`Agent.power`) with the "tyranny of realms":
-  1 realm apart = flee or lose; 2+ = not a fight. Insight is granted by
-  ADVERSITY (surviving losses, near-death, grief), never by victory.
+- **Contests** — one formula (`World.duel_odds`, off `Agent.power`) with the
+  "tyranny of realms": 1 realm apart = flee or lose; 2+ = not a fight.
+  Between equals the fight is fought IN STANCE (Part VII §4, below).
+  Insight is granted by ADVERSITY (surviving losses, near-death, grief),
+  never by victory.
 - **Trait mutation** (`_mutate`) — Proud crushed in public may become
   Humble/Vengeful/Broken, Loyal betrayed becomes Vengeful, near-death breeds
   Cautious/Ascetic. This is the main tool for making characters legible.
@@ -130,7 +132,7 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   or mutate into a vice trait; blocked mutations reroute through
   `CAMERA_REROUTE`. It protects the reader's seat, not the characters.
 
-## The playable layer (Part VII — session P1 built)
+## The playable layer (Part VII — sessions P1-P2 built)
 
 - **Two clocks** (§1) — the world thinks in years, the player lives in
   seasons. The agenda (`World.agenda`, a list of `AgendaItem`) is what makes
@@ -143,8 +145,9 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
 - **`--play`** (§2) — `World.begin_play` adds agent 65 to the watched
   intake with everything rolled (no point-buy); the player supplies a name
   and may pick sex and homeland. PC-only state lives on `Agent.play`
-  (`PlayerState`), which is nearly all placeholders for P2-P7 (hp/wounds,
-  proficiencies, stances, professions, techniques, pills, standing orders).
+  (`PlayerState`); `stances` is filled by P2, the rest are still
+  placeholders for P3-P7 (hp/wounds, proficiencies, professions,
+  techniques, pills, standing orders).
   The camera constraint (VI §8) is REPEALED for a played PC — vice is
   allowed, karma is the price — while bound companions keep it.
 - **Season activities** (§3, `World.player_season`) — cultivate, retreat,
@@ -164,6 +167,28 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   `DEED_WINDOW` into a trait, and in P1 only the PLAYED character mutates
   off it (NPC mutation stays trigger-driven, and the session-7 aggregates
   with it).
+- **Stances: edge x manner** (§4, P2) — a stance is one EDGE
+  (`STANCE_EDGES`: sparring / duelling / all-out / murderous — the stop
+  line, the accidental kill, the maim chance, the exchange weight and the
+  victor's appetite for a yield) plus at most one MANNER (`STANCE_MANNERS`:
+  rage, patience, harmonious, showy, humiliating, studying, merciful). The
+  two-slot grammar is the combination rule: contradictions cannot be
+  written down. `_duel` speaks it — `_pick_stance` reads both fighters off
+  their traits and the CONTEXT EDGE the call site passes (a tournament bout
+  is not a murder; a feud and a score come due are not sparring), the
+  harsher edge is the fight, and every death, maiming, yield, spare and
+  execution comes out of the tables instead of a ladder of trait checks.
+  Merciful forces kill and maim to zero, Humiliating costs the beaten one
+  standing and lands the grudge heavier, Studying pays insight win or lose,
+  Showy pays standing on a win, a murderous edge costs standing when it is
+  seen. The chronicle prints the vocabulary ("fought in a rage", "waited
+  out the storm"). **PROFICIENCY** is rank 0-3 (`stance_rank`): untrained
+  halves a bonus and doubles a malus; an NPC is trained up to the edge
+  their own character takes them to and in the one manner their nature
+  fights in, a played character's ranks live in `PlayerState.stances`
+  (`_seed_stances`), and EARNING ranks is P5's. `World.duel_odds` is the
+  one-roll win probability and the seam P3's round model must hold within
+  3 percentage points of.
 - **The question hook** — `World.ask_player` is called wherever the kernel
   would otherwise roll FOR the played character: leaving the path, a throne
   claimed or offered, a rising asking for a champion, a plea assigned. With
@@ -233,6 +258,14 @@ all of these currently hold at, are in parentheses.
   still die young and tyrants still die old and rich.)
 - **Chronicle balance**: political lines at most ~30% of the chronicle.
   (20.6%.)
+- **Duel aggregates** (P2's retune target, measured over 32 seeds x 200
+  years with a scratch instrument on `_duel`/`_maim`/`kill`): ~777 duels a
+  run, ~245 dead in them (~47 across a realm gap, ~186 executed or killed
+  by mischance between equals), ~100 beaten foes spared, ~33 maimings.
+  The stance rewrite holds all of these within a couple of percent; the
+  knobs are `STANCE_EDGES`' kill/maim/execute columns,
+  `STANCE_EXECUTE_TRAITS`, `STANCE_MURDEROUS_TRAITS` and
+  `STANCE_MURDEROUS_PLAIN`.
 - **Distinguishability**: pick five agents — including one ruler and one
   revolt champion — read `log NAME` for each; every life should be
   describable in one sentence, `log <ruler>` should read like a reign, and
@@ -260,12 +293,15 @@ The test for any change: does `log <agent>` still read like a life?
   elder-tempo opportunity injection (dying elders seeking heirs, purges).
 - AI DM as renderer over the logs (chronicles, "state of the world" digests).
 - World-generation mode (run 200 years, freeze, survivors become the setting).
-- The rest of the player layer (**Part VII**, sessions P2-P7): edge x manner
-  stances in `_duel`, round-based autocombat with pause points and wounds,
-  the demon front, masters and proficiencies, professions with toxicity,
-  techniques, and the played throne (P1 offers only hold-or-abdicate).
-  Session P1 — two clocks, `--play`, the season menu, the timeskip — is
-  built; the PC is a player, not only a camera.
+- The rest of the player layer (**Part VII**, sessions P3-P7): round-based
+  autocombat with hp, pause points and wounds (P2 left `duel_odds` and the
+  stance tables as its seam, and `PlayerState.hp/wound/orders` as its
+  fields), the demon front, masters and proficiencies (which is where
+  stance ranks are earned), professions with toxicity, techniques, and the
+  played throne (P1 offers only hold-or-abdicate). Sessions P1 — two
+  clocks, `--play`, the season menu, the timeskip — and P2 — stances in the
+  kernel — are built; the PC is a player, not only a camera, and there is
+  no player combat UI yet.
 
 ## Known deviations from the spec (deliberate, from tuning)
 

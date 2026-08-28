@@ -503,13 +503,16 @@ BULLY_LINES = [
     "records, and took {spoil} (+insight, grudge).",
 ]
 # CRUEL — does not stop at winning. The victim carries the evidence.
-CRUEL_MAIM_CHANCE = 0.5
+# (How OFTEN is now the fighting stance's business: VII §4's edges carry
+# their own maim chance and STANCE_MAIM_CRUEL is what a Cruel victor
+# multiplies it by.)
 CRUEL_MAIM_INSIGHT = 4
 CRUEL_MAIM_GRUDGE = 3
-# BLOODTHIRSTY — takes a duel past winning, and rides to any muster. Both
-# knobs are deliberately small: a duel between equals kills one of the two
+# BLOODTHIRSTY — takes a duel past winning, and rides to any muster. The
+# knob is deliberately small: a duel between equals kills one of the two
 # more often than not, so a taste for them is a fast way to empty a sect.
-BLOODTHIRSTY_LETHAL = 0.3       # an ordinary duel becomes a killing matter
+# (Taking a duel past winning is VII §4's murderous EDGE now — see
+# STANCE_MURDEROUS_TRAITS.)
 BLOODTHIRSTY_DUEL_CHANCE = 0.1  # ... and they go looking for one
 # The muster (§9): war_volunteer_weight() is the scan a campaign calls to
 # find the cultivators who will ride to it, and a peacetime levy under a
@@ -1428,6 +1431,146 @@ GRUDGE_RIPEN_MAX = 1            # ... and at most this many a year
 WITNESS_REL_INTENSITY = 2       # a rel this close, dead or maimed, wakes you
 HOME_DESPERATE = 2.0            # home prosperity that wakes you
 
+# --- THE PLAYABLE LAYER: STANCES — EDGE x MANNER (VII §4) ------------------
+# A stance is one EDGE (required) plus at most one MANNER. That two-slot
+# grammar IS the combination rule: every sensible pair exists and the
+# contradictions (murderous non-violence) cannot be written down at all.
+#
+# The kernel speaks stance too. `_duel` picks both fighters' stances off
+# their traits and the fight's context, and every duel death, maiming,
+# yield, spare and execution in the world now comes out of these numbers —
+# which is why they are tuned to the aggregates the trait-to-lethality code
+# they replaced produced, not to taste.
+#
+# NOTHING HERE BRIDGES A REALM (VII §5). The tyranny of realms is settled
+# first: across a gap of one realm the fight is flee-or-die and the only
+# column read is `lethal` (did somebody come to kill, or only to win). The
+# weights tilt a fight between EQUALS and nothing else.
+#
+# The maim and execute columns are RETUNED, not §4's literal numbers. The
+# spec's 2/5/15% maim is read by EVERY victor, where the code these tables
+# replace let only a Cruel one cripple anybody, and it came out half again
+# too many maimings; the execute rates had to come up to hold the old flat
+# 0.55 a lethal duel killed at. §13 asks for the session-7 aggregates over
+# the spec's decimals, and these hold them inside a couple of percent over
+# 32 seeds x 200 years: ~245 dead in duels, ~100 spared, ~32 maimed.
+#
+#   stop     hp fraction left at which the fight is called (P3's stop line)
+#   kill     the ACCIDENT — a death nobody in the ring intended
+#   maim     a crippling the loser carries out of it for good
+#   weight   the one-roll exchange weight (P3: damage dealt per round)
+#   execute  the victor's own appetite for finishing a beaten foe who
+#            yields — the choice VII §4 puts in their hands, not the dice
+#   lethal   whether a yield is even offered, and whether the realm-gap
+#            branch above is a killing or a fleeing
+STANCE_EDGES = {
+    "sparring":  {"stop": 0.75, "kill": 0.00, "maim": 0.013, "weight": 0.0,
+                  "execute": 0.0, "lethal": False},
+    "duelling":  {"stop": 0.50, "kill": 0.02, "maim": 0.037, "weight": 0.0,
+                  "execute": 0.0, "lethal": False},
+    "allout":    {"stop": 0.0,  "kill": 0.10, "maim": 0.112, "weight": 0.15,
+                  "execute": 0.35, "lethal": True},
+    # Murderous kills by intent, not by accident, and does not stop to
+    # cripple: it stops when the other one is dead or has been let go.
+    "murderous": {"stop": 0.0,  "kill": 0.0,  "maim": 0.0,  "weight": -0.10,
+                  "execute": 0.84, "lethal": True},
+}
+EDGE_ORDER = ("sparring", "duelling", "allout", "murderous")   # by harshness
+# MANNERS — how you fight and what the fight is FOR.
+#   weight    the one-roll exchange weight
+#   taken     Rage: damage taken as well as dealt (P3 reads it; the one-roll
+#             form hands the opponent the same weight)
+#   early/late  Patience: P3's two-phase schedule. `weight` is what the
+#             schedule is worth over a whole fight.
+#   vs_rage / vs_vice   Harmonious: what it is worth against a burning
+#             opponent, or one carrying a vice trait
+STANCE_MANNERS = {
+    "rage":        {"weight": 0.20, "taken": 0.20},
+    "patience":    {"weight": 0.05, "early": -0.15, "late": 0.15},
+    "harmonious":  {"weight": 0.0, "vs_rage": 0.10, "vs_vice": 0.10},
+    "showy":       {"weight": -0.10, "standing": 1},
+    "humiliating": {"weight": -0.10, "shame": 1, "grudge": 1},
+    "studying":    {"weight": -0.15, "insight": 1},
+    "merciful":    {"weight": -0.10, "spares": True},
+}
+# PROFICIENCY, rank 0-3: untrained HALVES what a stance gives you and
+# DOUBLES what it costs. Ranks are earned through use, masters and the
+# training hall — all of which is P5; P2 only stores them and reads them
+# here (`stance_rank`). A played character's ranks live in
+# `PlayerState.stances`; an NPC is trained UP TO the edge their own
+# character takes them to and in the one manner their nature fights in, so
+# an edge the situation forces on them is the expensive one.
+STANCE_RANK_MAX = 3
+STANCE_PROFICIENCY = {          # rank: (bonus multiplier, malus multiplier)
+    0: (0.5, 2.0),
+    1: (1.0, 1.0),
+    2: (1.15, 0.85),
+    3: (1.3, 0.7),
+}
+STANCE_NPC_RANK = 1             # the stances a character's own nature has
+# Which manner a trait fights in, in priority order — the first trait an
+# agent carries decides. (VII §4 names Cruel, Proud, Cautious, Scholarly
+# and Righteous; the other three are the same reading of traits the sim
+# already fights with.)
+STANCE_TRAIT_MANNER = [
+    ("Righteous", "merciful"),
+    ("Cruel", "humiliating"),
+    ("Scholarly", "studying"),
+    ("Proud", "showy"),
+    ("Reckless", "rage"),
+    ("Cautious", "patience"),
+    ("Humble", "harmonious"),
+    ("Cold", "patience"),
+]
+# Who carries a fight past the edge its context asked for. A killing matter
+# is a killing matter whoever came to it; these are the people who make one
+# out of something else. (This replaces the flat trait-to-lethality roll the
+# kernel used to make inside _duel: the same behaviour, said in stance.)
+STANCE_MURDEROUS_TRAITS = {"Bloodthirsty": 0.80, "Ruthless": 0.30,
+                           "Vengeful": 0.25}
+STANCE_MURDEROUS_PLAIN = 0.05   # ... multiplied down when nobody came to a
+                                # fight that was ever going to be a killing
+STANCE_EXECUTE_ATTACKED = 0.30  # ... and what it adds to have been fought
+                                # by somebody who DID come to kill, when you
+                                # did not
+STANCE_MERCIFUL_HOLDS = 0.6     # a Righteous fighter who keeps the pledge
+                                # even after the other one drew for the neck
+# The victor's appetite for a yield, on top of the edge's own `execute`.
+STANCE_EXECUTE_TRAITS = {"Bloodthirsty": 0.30, "Ruthless": 0.25,
+                         "Vengeful": 0.10, "Cruel": 0.10,
+                         "Righteous": -0.30, "Humble": -0.15,
+                         "Loyal": -0.10}
+STANCE_MAIM_CRUEL = 5.0         # a Cruel or humiliating victor does not stop
+                                # at winning: the edge's maim chance, times
+STANCE_SEEN = 0.5               # a killing edge is remembered by somebody
+STANCE_SEEN_STANDING = 1        # ... and costs the standing of the one who
+                                # brought it: people remember who came to kill
+# What the chronicle says. A manner is what a fight LOOKED like, so it is
+# printed when there is one; an edge is what it was FOR, and speaks when
+# the fighter brought no manner to it.
+MANNER_PHRASE = {
+    "rage": "fought in a rage",
+    "patience": "waited out the storm",
+    "harmonious": "gave the quarrel nothing to burn",
+    "showy": "fought for the gallery",
+    "humiliating": "made a lesson of it",
+    "studying": "fought to learn",
+    "merciful": "fought to end it and no further",
+}
+EDGE_PHRASE = {
+    "sparring": "kept the edges blunted",
+    "duelling": "fought it as a duel",
+    "allout": "held nothing back",
+    "murderous": "had come to kill",
+}
+# A maiming is either meant or it is not, and the line says which.
+MAIM_LINES = {
+    "meant": "{winner} went on breaking {loser} after {where} was already "
+             "decided; the mark will not come off [epithet: {ep}] (+insight).",
+    "accident": "{winner} put {loser} down harder than {where} called for, "
+                "and the damage did not heal [epithet: {ep}] (+insight).",
+}
+
 # --- THE PLAYABLE LAYER: THE PLAYED CHARACTER (VII §2) ---------------------
 PLAYER_AID_NOTE = "agent 65"    # the player joins the watched intake
 # Deeds drive the played character's mutation: the world writes on the
@@ -1685,7 +1828,7 @@ class PlayerState:
     max_hp: int = 100               # P3
     wound: int = 0                  # P3: 0 none, 1 light, 2 serious
     proficiencies: dict = field(default_factory=dict)   # P5: Body/Weapon/Theory
-    stances: dict = field(default_factory=dict)         # P2/P5: edge+manner ranks
+    stances: dict = field(default_factory=dict)         # P2: stance ranks 0-3
     professions: dict = field(default_factory=dict)     # P6: alchemy/forge/heal
     techniques: list = field(default_factory=list)      # P7
     pills: dict = field(default_factory=dict)           # P6
@@ -2369,6 +2512,9 @@ class World:
     def _add_grudge(self, holder: Agent, target: Agent, amount=1):
         # §7: the wronged remember a black ledger longer. Every grudge in the
         # sim comes through here, so this is the whole coupling.
+        if holder is target:
+            return      # nobody keeps a score against themselves (a rare
+                        # self-grudge used to send them to duel themselves)
         if target.karma < GRUDGE_VS_VICE_AT:
             amount = int(amount * GRUDGE_VS_VICE_MULT + 0.5)
         rel = holder.rels.get(target.aid)
@@ -2806,7 +2952,8 @@ class World:
                 and self._fires(share)):
             t = max(targets, key=lambda x: a.rels[x.aid].intensity)
             if a.power() >= t.power() - 3:
-                self._duel(a, t, lethal=True, context="a long-nursed grudge")
+                self._duel(a, t, context="a long-nursed grudge",
+                           edge="allout")
                 return
         # §7: a Bully fights only DOWNWARD — the tyranny of realms inverted.
         if a.has_trait("Bully") and r.random() < BULLY_CHANCE * share:
@@ -2819,14 +2966,14 @@ class World:
             peers = [o for o in self.cultivators()
                      if o.aid != a.aid and o.realm == a.realm and o.age >= 14]
             if peers:
-                self._duel(a, r.choice(peers), lethal=True,
+                self._duel(a, r.choice(peers), edge="allout",
                            context="a quarrel picked for its own sake")
                 return
         if a.has_trait("Proud") and r.random() < 0.25 * share:
             peers = [o for o in self.cultivators() if o.sect == a.sect
                      and o.realm == a.realm and o.aid != a.aid]
             if peers:
-                self._duel(a, r.choice(peers), lethal=False,
+                self._duel(a, r.choice(peers), edge="duelling",
                            context="a matter of face")
                 return
         # Default: mingle.
@@ -2994,12 +3141,16 @@ class World:
         self._mutate(victim, "humiliated")
         return True
 
-    def _maim(self, winner: Agent, loser: Agent, where: str) -> bool:
-        """§7: a Cruel victor does not stop at winning.
+    def _maim(self, winner: Agent, loser: Agent, where: str,
+              meant=True) -> bool:
+        """A victor who does not stop at winning — or a fight that did not
+        stop when it should have (VII §4: the edge's own maim chance).
 
         The victim walks out of it with an epithet, a heavier burden and the
         insight that adversity pays — which is how the sim ends up full of
-        walking evidence of somebody's character.
+        walking evidence of somebody's character. Only a maiming that was
+        MEANT is filed as a cruelty; an all-out fight that went too far is a
+        thing that happened, not a thing somebody chose.
         """
         if not loser.alive or len(loser.epithets) >= 3:
             return False
@@ -3011,27 +3162,207 @@ class World:
         loser.insight += CRUEL_MAIM_INSIGHT
         loser.burden += 1
         self._add_grudge(loser, winner, CRUEL_MAIM_GRUDGE)
-        self._record_deed(winner, "cruelty")   # VII §2: the ledger
-        self.log(f"{winner.display()} went on breaking {loser.name} after "
-                 f"{where} was already decided; the mark will not come off "
-                 f"[epithet: {ep}] (+insight).", [winner, loser],
-                 dramatic=True)
+        if meant:
+            self._record_deed(winner, "cruelty")   # VII §2: the ledger
+        self.log(MAIM_LINES["meant" if meant else "accident"].format(
+            winner=winner.display(), loser=loser.name, where=where, ep=ep),
+            [winner, loser], dramatic=True)
         return True
 
-    def _duel(self, att: Agent, dfn: Agent, lethal=False, context=""):
-        """One formula, with the tyranny of realms."""
+    # -- stances: edge x manner (VII §4) ------------------------------------
+
+    def stance_rank(self, a: Agent, key: str) -> int:
+        """Rank 0-3 in one edge or one manner.
+
+        The EARNING of ranks — use, masters, the training hall — is P5; this
+        is the seam it writes through. A played character carries real ranks
+        on `Agent.play`. An NPC is trained UP TO the edge their own character
+        takes them to — a killer knows how to duel, a duellist has never
+        learned to kill — and in the one manner their nature fights in; a
+        stance the situation forces on them is untrained, which is what
+        makes a forced edge expensive.
+        """
+        if a.play is not None:
+            return max(0, min(STANCE_RANK_MAX, a.play.stances.get(key, 0)))
+        edge, manner = self._native_stance(a)
+        if key in STANCE_EDGES:
+            return (STANCE_NPC_RANK
+                    if EDGE_ORDER.index(key) <= EDGE_ORDER.index(edge) else 0)
+        return STANCE_NPC_RANK if key == manner else 0
+
+    def _native_stance(self, a: Agent) -> tuple:
+        """The edge and manner this character's own nature fights in."""
+        manner = None
+        for trait, name in STANCE_TRAIT_MANNER:
+            if a.has_trait(trait):
+                manner = name
+                break
+        edge = "murderous" if a.has_trait("Bloodthirsty") else "duelling"
+        return (edge, manner)
+
+    def _pick_stance(self, a: Agent, context_edge: str) -> tuple:
+        """(edge, manner) for one fighter (VII §4).
+
+        The context sets the edge the fight was called at, and a fighter can
+        only carry it FURTHER: a sect feud is not answered with a sparring
+        bout. Traits pick the manner, and the manner is the one thing that
+        can take the killing back out of a fight — a Righteous fighter's
+        pledge either holds under a drawn blade or it does not.
+        """
+        r = self.rng
+        base = context_edge if context_edge in STANCE_EDGES else "duelling"
+        _, manner = self._native_stance(a)
+        # P3 fills standing orders; until it does, only the world's own
+        # reading of a character picks their stance.
+        if a.play is not None and a.play.orders:
+            base = a.play.orders.get("edge") or base
+            manner = a.play.orders.get("manner", manner)
+        if base != "murderous":
+            plain = not STANCE_EDGES[base]["lethal"]
+            for trait, chance in STANCE_MURDEROUS_TRAITS.items():
+                if not a.has_trait(trait):
+                    continue
+                if plain:
+                    chance *= STANCE_MURDEROUS_PLAIN
+                if r.random() < chance:
+                    base = "murderous"
+                    break
+        if (manner == "merciful" and STANCE_EDGES[base]["lethal"]
+                and r.random() >= STANCE_MERCIFUL_HOLDS):
+            manner = None       # the pledge did not survive the drawn blade
+        return (base, manner)
+
+    def _stance_weight(self, a: Agent, mine: tuple, theirs: tuple,
+                       foe: Optional[Agent] = None) -> float:
+        """What a stance is worth in the one exchange the kernel rolls.
+
+        A bonus is HALVED and a malus DOUBLED at rank 0 (VII §4), which is
+        what makes an edge somebody else chose expensive. The whole spread
+        is a few percent of one roll: by VII §5 nothing here may bridge a
+        realm, and a realm gap never reaches this function at all.
+        """
+        edge, manner = mine
+        w = STANCE_EDGES[edge]["weight"]
+        w *= self._rank_scale(w, self.stance_rank(a, edge))
+        if manner:
+            spec = STANCE_MANNERS[manner]
+            m = spec["weight"]
+            if manner == "harmonious":
+                if theirs[1] == "rage":
+                    m += spec["vs_rage"]
+                if self._has_vice(foe):
+                    m += spec["vs_vice"]
+            m *= self._rank_scale(m, self.stance_rank(a, manner))
+            w += m
+        # Rage: what it hands out it also hands over.
+        if theirs[1] == "rage":
+            w += STANCE_MANNERS["rage"]["taken"]
+        return w
+
+    @staticmethod
+    def _rank_scale(value: float, rank: int) -> float:
+        bonus, malus = STANCE_PROFICIENCY.get(rank, (1.0, 1.0))
+        return bonus if value >= 0 else malus
+
+    @staticmethod
+    def _has_vice(a: Optional[Agent]) -> bool:
+        return a is not None and any(a.has_trait(t) for t in VICE_TRAITS)
+
+    def duel_odds(self, att: Agent, dfn: Agent,
+                  sa: tuple, sb: tuple) -> float:
+        """THE ONE-ROLL WIN PROBABILITY, and the only one in the sim.
+
+        VII §5's invariant lives here: whatever round model P3 builds, its
+        win rate must sit within three percentage points of this number, so
+        that the funnel cannot tell which resolution ran. Stances tilt the
+        exchange by a few percent; realms were settled before it was called.
+        """
+        pa = att.power() * (1.0 + self._stance_weight(att, sa, sb, dfn))
+        pb = dfn.power() * (1.0 + self._stance_weight(dfn, sb, sa, att))
+        pa, pb = max(1.0, pa), max(1.0, pb)
+        return pa / (pa + pb)
+
+    def _stance_words(self, a: Agent, st: tuple) -> str:
+        """How this one fought, in words — the vocabulary VII §4 asks the
+        chronicle to speak."""
+        edge, manner = st
+        if manner:
+            return f"{a.display()} {MANNER_PHRASE[manner]}"
+        return f"{a.display()} {EDGE_PHRASE[edge]}"
+
+    def _stance_tail(self, att: Agent, sa: tuple,
+                     dfn: Agent, sb: tuple) -> str:
+        return (f" — {self._stance_words(att, sa)}, "
+                f"{self._stance_words(dfn, sb)}")
+
+    def _execute_chance(self, winner: Agent, st: tuple,
+                        theirs: tuple) -> float:
+        """Whether a beaten foe who yields is finished (VII §4).
+
+        The choice belongs to the VICTOR, and so does the number: it is
+        their own edge that says how far they came to go, not the edge the
+        fight reached. What the loser brought matters in exactly one way —
+        a victor who has just been fought FOR THEIR LIFE finishes it far
+        more readily than one who was only being fought.
+        """
+        if st[1] == "merciful":
+            return 0.0
+        chance = STANCE_EDGES[st[0]]["execute"]
+        if st[0] != "murderous" and theirs[0] == "murderous":
+            chance += STANCE_EXECUTE_ATTACKED
+        for trait, step in STANCE_EXECUTE_TRAITS.items():
+            if winner.has_trait(trait):
+                chance += step
+        return max(0.0, min(1.0, chance))
+
+    @staticmethod
+    def _killer_clause(came: list) -> str:
+        """The tail that names who brought a killing edge to a fight."""
+        if not came:
+            return ""
+        if len(came) > 1:
+            return "; both of them had come to kill"
+        return f"; {came[0].display()} had come to kill, not to win"
+
+    def _stance_seen(self, a: Agent, st: tuple):
+        """VII §4: a killing edge costs standing when it is witnessed.
+        People remember who came to kill."""
+        if st[0] != "murderous" or not a.alive:
+            return
+        if self.rng.random() < STANCE_SEEN:
+            a.standing = max(0, a.standing - STANCE_SEEN_STANDING)
+
+    def _duel(self, att: Agent, dfn: Agent, context="", edge="duelling"):
+        """One formula, with the tyranny of realms — fought in stance.
+
+        `edge` is what the CONTEXT called the fight at: a tournament bout is
+        not a murder, and a sect feud or a score come due is not a sparring
+        match. Each fighter brings their own stance to it (`_pick_stance`),
+        and every death, maiming, yield, spare and execution below is read
+        out of the stance tables instead of a ladder of trait checks.
+        """
         r = self.rng
         gap = att.realm - dfn.realm
         ctx = f" over {context}" if context else ""
-        # §7: Bloodthirsty escalates. A matter of face becomes a killing
-        # matter because one of the two wanted it to be.
-        edge = ""
-        if not lethal and r.random() < BLOODTHIRSTY_LETHAL and (
-                att.has_trait("Bloodthirsty") or dfn.has_trait("Bloodthirsty")):
-            lethal = True
-            edge = "; one of them had come to kill, not to win"
+        sa = self._pick_stance(att, edge)
+        sb = self._pick_stance(dfn, edge)
+        # The harsher edge is the fight: nobody spars with someone who came
+        # to kill them.
+        fight = max((sa[0], sb[0]), key=EDGE_ORDER.index)
+        spec = STANCE_EDGES[fight]
+        lethal = spec["lethal"]
+        # Who brought the killing edge. Between equals the stance clause
+        # already describes a fighter who carries no manner BY their edge,
+        # so naming them twice is dropped there and kept across a gap,
+        # where no stance clause is printed at all.
+        killer_edge = self._killer_clause(
+            [x for x, st in ((att, sa), (dfn, sb)) if st[0] == "murderous"])
+        killer_named = self._killer_clause(
+            [x for x, st in ((att, sa), (dfn, sb))
+             if st[0] == "murderous" and st[1]])
 
         if abs(gap) >= 1:
+            # VII §5: the realms settle it before a stance is worth anything.
             strong, weak = (att, dfn) if gap > 0 else (dfn, att)
             flee = 0.5 + (0.25 if weak.has_trait("Cautious") else 0)
             if abs(gap) >= 2:
@@ -3042,8 +3373,10 @@ class World:
                 self._record_deed(strong, "blood")
                 self.log(f"{strong.display()} struck down {weak.display()}"
                          f"{ctx} — a full realm between them left no "
-                         f"contest{edge}.", [strong, weak], dramatic=True)
+                         f"contest{killer_edge}.", [strong, weak],
+                         dramatic=True)
                 self.kill(weak, f"killed by {strong.display()}", killer=strong)
+                self._stance_seen(strong, sa if strong is att else sb)
             else:
                 weak.insight += 3
                 self._add_grudge(weak, strong, 2)
@@ -3053,41 +3386,67 @@ class World:
                 self._mutate(weak, "humiliated")
             return
 
-        pa, pb = att.power(), dfn.power()
-        att_wins = r.random() < pa / (pa + pb)
+        att_wins = r.random() < self.duel_odds(att, dfn, sa, sb)
         winner, loser = (att, dfn) if att_wins else (dfn, att)
+        win_st, lose_st = (sa, sb) if att_wins else (sb, sa)
         winner.standing += 1
         winner.resources += self._vice_spoils(winner)   # §7: spoils to the bone
+        tail = self._stance_tail(winner, win_st, loser, lose_st)
+        # Studying pays win or lose; the gallery pays only a win.
+        for who, st in ((att, sa), (dfn, sb)):
+            if st[1] == "studying":
+                who.insight += STANCE_MANNERS["studying"]["insight"]
+        if win_st[1] == "showy":
+            winner.standing += STANCE_MANNERS["showy"]["standing"]
+        self._stance_seen(att, sa)
+        self._stance_seen(dfn, sb)
+        merciful = win_st[1] == "merciful"
 
-        kill_chance = 0.0
-        if lethal:
-            kill_chance = 0.55
-            if winner.has_trait("Ruthless"):
-                kill_chance = 0.85
-            if winner.has_trait("Bloodthirsty"):
-                kill_chance = 0.9
-            if winner.has_trait("Righteous"):
-                kill_chance = 0.25
-        if r.random() < kill_chance:
+        # 1. The accident: a death nobody in the ring intended.
+        if not merciful and r.random() < spec["kill"]:
             self._record_deed(winner, "blood")
-            self.log(f"{winner.display()} defeated and slew {loser.display()}"
-                     f"{ctx}{edge}.", [winner, loser], dramatic=True)
+            self.log(f"{winner.display()} put {loser.display()} down{ctx}"
+                     f"{tail}; the blow was not meant to kill, and killed.",
+                     [winner, loser], dramatic=True)
+            self.kill(loser, f"killed by mischance in a duel with "
+                             f"{winner.display()}", killer=winner)
+            return
+        # 2. The yield, and what the victor does with it.
+        if lethal and not merciful \
+                and r.random() < self._execute_chance(winner, win_st,
+                                                      lose_st):
+            # §7 prices the killing: across a realm gap it is a killing
+            # and costs the ledger, between equals a duel is a duel and the
+            # spare below is the whole moral asymmetry.
+            self._karma_kill(winner, loser)
+            self._record_deed(winner, "blood")
+            self.log(f"{winner.display()} beat {loser.display()} down{ctx} "
+                     f"and finished it where they lay{tail}{killer_named}.",
+                     [winner, loser], dramatic=True)
             self.kill(loser, f"slain in a duel by {winner.display()}",
                       killer=winner)
-        else:
-            loser.insight += 3
-            self._add_grudge(loser, winner, 2)
-            spared = ""
-            if lethal:
-                winner.karma += KARMA_SPARE     # §7: sparing a beaten foe
-                self._record_deed(winner, "mercy")
-                spared = ", spared where the next blow would have finished it"
-            self.log(f"{winner.display()} defeated {loser.display()}{ctx}; "
-                     f"{loser.display()} survives, shamed{spared} (+insight).",
-                     [winner, loser])
-            if winner.has_trait("Cruel") and r.random() < CRUEL_MAIM_CHANCE:
-                self._maim(winner, loser, "the duel")
-            self._mutate(loser, "humiliated")
+            return
+        # 3. The beaten one lives: spared, shamed, or crippled anyway.
+        loser.insight += 3
+        humbling = win_st[1] == "humiliating"
+        self._add_grudge(loser, winner, 2 + (
+            STANCE_MANNERS["humiliating"]["grudge"] if humbling else 0))
+        spared = ""
+        if lethal:
+            winner.karma += KARMA_SPARE     # §7: sparing a beaten foe
+            self._record_deed(winner, "mercy")
+            spared = ", spared where the next blow would have finished it"
+        if humbling:
+            loser.standing = max(0, loser.standing
+                                 - STANCE_MANNERS["humiliating"]["shame"])
+        self.log(f"{winner.display()} defeated {loser.display()}{ctx}{tail}; "
+                 f"{loser.display()} survives, shamed{spared} (+insight).",
+                 [winner, loser])
+        meant = humbling or winner.has_trait("Cruel")
+        maim = spec["maim"] * (STANCE_MAIM_CRUEL if meant else 1.0)
+        if not merciful and r.random() < maim:
+            self._maim(winner, loser, "the duel", meant=meant)
+        self._mutate(loser, "humiliated")
 
     # -- event phase --------------------------------------------------------
 
@@ -5064,10 +5423,17 @@ class World:
                      f"tournament, defeating {runner.display()} in the final; "
                      f"a rivalry is born before the assembled sects.",
                      [champ, runner], dramatic=(realm >= 3))
-            # §7: a Cruel champion cripples the runner-up in front of the
-            # assembled sects, which is how everyone learns what they are.
-            if champ.has_trait("Cruel") and r.random() < CRUEL_MAIM_CHANCE:
-                self._maim(champ, runner, "the final")
+            # VII §4: a tournament bout is fought at the DUELLING edge —
+            # a final is not a murder. What the runner-up carries out of it
+            # is that edge's own risk, tripled when the champion meant it,
+            # and nothing at all when they fought merciful.
+            st = self._native_stance(champ)
+            meant = st[1] == "humiliating"
+            maim = 0.0 if st[1] == "merciful" else (
+                STANCE_EDGES["duelling"]["maim"]
+                * (STANCE_MAIM_CRUEL if meant else 1.0))
+            if r.random() < maim:
+                self._maim(champ, runner, "the final", meant=meant)
             self._mutate(runner, "humiliated")
 
     def _plan_expedition(self) -> list:
@@ -5168,7 +5534,7 @@ class World:
                      key=lambda x: x.realm)
             f2 = max(r.sample(side2, min(3, len(side2))),
                      key=lambda x: x.realm)
-            self._duel(f1, f2, lethal=True, context="the sect feud")
+            self._duel(f1, f2, context="the sect feud", edge="allout")
             side1 = [a for a in side1 if a.alive]
             side2 = [a for a in side2 if a.alive]
             for s in (s1, s2):
@@ -5229,9 +5595,13 @@ class World:
         rel = foe.rels.get(pc.aid)
         if rel is None or rel.kind not in HOSTILE_KINDS:
             return
-        lethal = any(foe.has_trait(t)
-                     for t in ("Vengeful", "Ruthless", "Bloodthirsty"))
-        self._duel(foe, pc, lethal=lethal, context="a score come due")
+        # A score come due is a killing matter to the people who keep
+        # scores; to everyone else it is a duel (VII §4: the call site names
+        # the edge, and the stances take it from there).
+        edge = "allout" if any(
+            foe.has_trait(t) for t in ("Vengeful", "Ruthless", "Bloodthirsty")
+        ) else "duelling"
+        self._duel(foe, pc, context="a score come due", edge=edge)
 
     # -- resolution phase ---------------------------------------------------
 
@@ -5616,6 +5986,7 @@ class World:
         a.resources = r.randint(0, 4)
         a.standing = 1
         a.play = PlayerState()
+        self._seed_stances(a)       # VII §4: what their own nature taught
         self.pc = a
         self.playing = True
         self.ask = ask
@@ -5635,7 +6006,23 @@ class World:
             return None
         if self.pc.play is None:
             self.pc.play = PlayerState()
+            self._seed_stances(self.pc)
         return self.pc
+
+    def _seed_stances(self, a: Agent) -> None:
+        """VII §4: a played character starts trained in the one stance their
+        own character already fights in, exactly like an NPC, and untrained
+        in everything else. Raising the rest is P5's training hall.
+        """
+        if a.play is None:
+            return
+        edge, manner = self._native_stance(a)
+        keys = list(EDGE_ORDER[:EDGE_ORDER.index(edge) + 1])
+        if manner:
+            keys.append(manner)
+        for key in keys:
+            a.play.stances[key] = max(a.play.stances.get(key, 0),
+                                      STANCE_NPC_RANK)
 
     def player_season(self, activity: str) -> None:
         """The played character's ONE activity for this season (VII §3).
@@ -5739,8 +6126,12 @@ class World:
                 tally[k] = tally.get(k, 0) + 1
             lines.append("  recent deeds: "
                          + ", ".join(f"{k} x{n}" for k, n in tally.items()))
-        lines.append("  (wounds, techniques, pills, professions and stance "
-                     "ranks arrive with later sessions)")
+        if st.stances:
+            lines.append("  stances: " + ", ".join(
+                f"{k} {v}/{STANCE_RANK_MAX}"
+                for k, v in sorted(st.stances.items())))
+        lines.append("  (wounds, techniques, pills and professions arrive "
+                     "with later sessions; stance ranks are earned in P5)")
         return "\n".join(lines)
 
     # -- PC handling --------------------------------------------------------
