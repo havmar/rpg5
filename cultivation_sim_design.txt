@@ -725,5 +725,415 @@ not depend on the AI DM or the player layer.
 
 
 ================================================================================
+PART VII — THE PLAYABLE LAYER (seasons, stances, autocombat, the demon front:
+full spec)
+================================================================================
+
+What this layer adds: the game. The PC stops being only a camera and becomes
+agent 65 played by a human — same rules, same funnel, no plot armor. Play
+runs at SEASON resolution while the world keeps its year tick; fights unfold
+into rounds with stances and pause points; a permanent demon front gives the
+world a source of deathly fighting that never runs dry; masters, professions
+and techniques give the player long-term projects. Everything here obeys
+Part IV's law: WHAT CHANGES IS RESOLUTION, NOT PHYSICS.
+
+Decisions taken up front (so no session relitigates them):
+- NO VICE LOCK ON THE PLAYER. The camera constraint (VI §8) is repealed for
+  the PC in play mode: the player may earn, mutate into, and act on vice
+  traits; karma and grudges are the honest price. Bound companions KEEP the
+  constraint — the supporting cast still darkens rather than turning
+  monstrous, because the reader's seat around the player is still a seat.
+- DEMONS ARE A FIELD, NOT AGENTS. Like the commoners (VI §10), the demon
+  host is a number plus scene tables — a threat level on one edge of the
+  map, never an agent roster. Named demon lords as real agents are a future
+  session, deliberately out of scope.
+- ONE CODE PATH. The year loop is restructured as plan-then-play (an agenda
+  rolled at year start, executed season by season) in ALL modes; play mode
+  merely pauses for input between seasons. Batch runs stay seeded-
+  reproducible against themselves; compatibility with pre-VII seeds is
+  statistical (all tuning targets re-validated), not bitwise.
+- NO THROUGHPUT EDGE. A season's payout is one quarter of the corresponding
+  yearly action. Four choices a year instead of one is the player's whole
+  advantage: they can REACT to the agenda. An autopilot player must land
+  inside the Part III funnel (§13 below).
+- REIGNS RUN AT YEAR TEMPO even for the player. The court eats the
+  calendar: a played throne offers one decision per year, not four.
+- PROFESSIONS AND TECHNIQUES ARE PLAYER-FACING ONLY in v1, with one small
+  exception (famous NPCs roll token techniques, §9) so the player is not
+  uniquely armed. NPC resource abstraction (Part III) is unchanged.
+
+
+1. TWO CLOCKS — THE YEAR KERNEL AND THE SEASON SURFACE
+   The world thinks in years; the player lives in seasons (spring, summer,
+   autumn, winter). `World.step()` becomes three parts:
+
+   - PLAN: at year start, roll the YEAR AGENDA — every event-phase event
+     that will fire this year is decided NOW and stamped with a season:
+     tournaments (autumn), expeditions, feuds, musters and campaign years
+     (summer), petitions, incursions, ripening grudges aimed at the PC.
+     The agenda is the trick that makes "stop BEFORE something interesting"
+     possible: the engine knows the near future because it rolled it.
+   - PLAY: four season sub-steps. NPCs still take ONE action per year
+     (rolled in spring, read as "what they mostly did that year"); agenda
+     events resolve in their stamped season; the PC acts every season.
+   - CLOSE: the resolution phase (prosperity drift, stipends, karma luck,
+     breakthroughs, aging, exits) and intakes, unchanged, at winter's end.
+
+   In batch and observer modes the three parts run in one call and nothing
+   changes on screen. In play mode (`--play`) the loop pauses each season
+   for the player's choice. Player UI input never touches `world.rng`;
+   different play diverges a seeded world, identical play replays it.
+
+2. THE PLAYER CHARACTER
+   `--play` adds agent 65 to the watched intake: talent, traits, homeland,
+   home settlement all rolled honestly (the funnel is real; there is no
+   point-buy). The player names them and may pick sex and homeland; that is
+   all. New PC-only state: hp (in-fight), wound level, stance
+   proficiencies, proficiencies (Body / Weapon / Theory), profession ranks,
+   techniques, pills and toxicity, standing orders (§6).
+
+   Traits stop weighting the PC's action choice (the player chooses) but
+   keep every other job: power modifiers, event outcomes, mutation. DEEDS
+   NOW DRIVE MUTATION for the PC: fight murderous three times in five
+   years and the Bloodthirsty roll comes for you; spare three beaten foes
+   and Righteous does. The world writes on the player exactly as it writes
+   on everyone.
+
+   Death: the obituary prints, then a choice — end the run with the final
+   report, or continue playing the successor `_succeed_pc` picks. Voluntary
+   exits are never rolled for the player, only offered when the conditions
+   fire. Thrones are offered as real choices (claims, invitations, revolt
+   championships); a played reign is §10.
+
+3. SEASONS, ACTIVITIES, TIMESKIP
+   One activity per season, chosen from a menu; Enter repeats the current
+   activity. Every activity pays in the existing currencies (qi, insight,
+   resources, standing, karma, burden, rels) plus the player-layer ones,
+   at ONE QUARTER of the corresponding yearly action's rate.
+
+   THE ACTIVITY LIST (v1; the payout column is the design intent, the
+   constants live in the data tables):
+
+   - Cultivate at the sect ... qi (cultivate/4), +resources trickle
+   - Meditate in retreat ..... qi (seclude/4); relationships decay
+   - Train the body .......... Body proficiency; +max hp, wound resistance
+   - Train a weapon .......... Weapon proficiency; combat bonus; stance
+                               proficiency progress
+   - Sect training hall ...... learn techniques from the sect library
+                               (standing + resources gate); stance teaching
+   - Study theory ............ Theory proficiency; breakthrough bonus,
+                               insight trickle
+   - Fight injustice ......... pick a misruled land; the harsh-road
+                               adventure table + petition-flavored scenes;
+                               karma up, grudge(ruler) both ways
+   - Hunt spirit beasts ...... beast risk table; materials (resources /
+                               crafting stock), injury risk, insight on
+                               near-death
+   - Trade run ............... pick two lands; margin scales with their
+                               prosperity gap; road risk en route; the
+                               PROFITEER option (grain into a starving
+                               land at famine prices) pays double and
+                               costs karma — vice stays the fast lane
+   - Seek a master ........... search + trial scene; a master rel gives a
+                               teaching multiplier and grants stances /
+                               techniques (§8)
+   - Socialize ............... rels, standing, scheming (socialize/4)
+   - The demon front ......... §7; the deadliest lane in the game
+   - Join the muster ......... when a war or levy exists (VI §9); the
+                               player gets the choice `_take_service`
+                               rolls for NPCs
+   - Heal / brew / forge ..... profession seasons (§8), once learned
+
+   TIMESKIP is an activity with a duration: "keep doing X for up to N
+   seasons (cap 12), wake me if". The engine plans a year, checks the
+   agenda for interrupts, and stops THE SEASON BEFORE the event — the eve.
+   Retreat timeskips carry seclusion's full social cost.
+
+   THE INTERRUPT TABLE (personal, never world news — a war two lands over
+   goes in the digest, or no skip would ever finish):
+
+   HARD (always wake, on the eve):
+   - a tournament the PC's realm band gathers for
+   - breakthrough ready (qi 100 + insight met); any tribulation
+   - a challenge, ambush, or grudge against the PC ripening
+   - war, muster, or incursion touching the PC's home land, sect, or a
+     front they served on within 3 years
+   - a master's offer; an assigned petition; an expedition draw
+   - death, maiming, or betrayal of anyone in `rels` at intensity >= 2
+   - the home settlement falling below desperate (prosperity < 2)
+   - a throne offered, or the PC's ruler deposed/killed
+   SOFT (never wake; summarized): everything else the chronicle prints.
+
+   On waking (or completing), print the DIGEST: seasons elapsed, gains,
+   the missed chronicle filtered through the existing [PC]/[home]/[world]
+   machinery, then the interrupting event framed on its eve.
+
+4. STANCES — EDGE x MANNER
+   A stance is one EDGE (required) plus at most one MANNER. The two-slot
+   grammar is the whole combination rule: every sensible pair from the
+   idea list exists, and contradictions (murderous non-violence) cannot
+   be expressed.
+
+   EDGES — how far the fight goes. Sets the stop threshold and what can
+   kill or maim:
+
+     edge        stops at      kill                maim        modifier
+     Sparring    75% hp left   never               2% accident none
+     Duelling    50% hp left   2% accident         5%          none
+     All-out     yield/K.O.    10% accidental      15%         +15% damage
+     Murderous   death         intended            —           -10% to hit
+                                                               (telegraphed)
+
+   In All-out and Murderous a beaten foe may YIELD; the victor chooses:
+   spare (+1 karma, the existing KARMA_SPARE) or execute (-2 karma via
+   `_karma_kill` — killing the defenseless, exactly as the kernel already
+   prices it). Murderous carries a standing cost when witnessed: people
+   remember who came to kill.
+
+   MANNERS — how you fight and what the fight is FOR:
+
+     Rage        +20% damage dealt and taken
+     Patience    -15% for two rounds, +15% after
+     Harmonious  no modifier; +10% against Rage and vice-trait opponents
+     Showy       -10%; victory pays +1 standing (face)
+     Humiliating -10%; the defeated loses standing and the grudge lands
+                 heavier (+1 intensity, on top of the karma multiplier)
+     Studying    -15%; +1 insight win or lose, and stance/technique
+                 progress
+     Merciful    -10%; kill and maim chances are forced to zero (the
+                 non-violent pledge, expressed as a manner so it can
+                 temper any edge)
+
+   PROFICIENCY: each edge and manner has a rank 0-3. Untrained (0) doubles
+   the stance's malus and halves its bonus; ranks come from use, masters,
+   and the training hall. Stances are teachable content — a master's
+   parting gift can be Patience at rank 2.
+
+   THE KERNEL SPEAKS STANCE TOO. `_duel` is rewritten to pick both
+   fighters' stances from traits — Bloodthirsty goes Murderous, Cruel
+   Humiliating, Proud Showy, Cautious Patience, Scholarly Studying,
+   Righteous Duelling/Merciful, the rest Duelling — and resolves through
+   the same outcome constants. This replaces today's hardcoded
+   trait-to-lethality logic with a vocabulary the chronicle can print
+   ("fought in a rage", "waited out the storm"), and MUST be retuned so
+   aggregate NPC death and maim rates match the session-7 numbers.
+
+5. COMBAT — ONE DISTRIBUTION, TWO RESOLUTIONS
+   The kernel's one-roll duel (win chance pa/(pa+pb)) remains the truth.
+   Fights stay one-roll off camera; a fight the PC is in unfolds into
+   rounds. THE INVARIANT: the round model's win probability must sit
+   within 3 percentage points of pa/(pa+pb) across the matchup grid, so
+   the funnel cannot tell which resolution ran.
+
+   - THE TYRANNY OF REALMS IS UNTOUCHED. A gap of 1+ realms never reaches
+     rounds: the existing flee-or-die logic runs, stances irrelevant.
+     Nothing in this layer — stances, proficiencies, gear, techniques —
+     may bridge a realm. The hard cap: all player-layer combat bonuses
+     sum to at most +4 power, less than half a realm's 10.
+   - ROUNDS: both sides enter at 100% hp (less standing wounds). Each
+     round is an exchange weighted by power x stance modifiers; the loser
+     of the exchange takes 12-20% hp scaled by the power ratio. Tuned to
+     resolve equal fights in 3-8 rounds — longer and Patience turns
+     degenerate, shorter and the pauses never fire.
+   - PAUSES (the autocombat contract — no round-by-round decisions):
+     own hp crossing 50% and 25%: yield / switch edge or manner / fight
+     on / in lethal fights, attempt escape (base 50%, up with Movement
+     technique and Cautious, down a realm gap). Enemy hp crossing 50%
+     and 25% while ahead: downgrade the edge or switch manner (the
+     moment to go Humiliating, Studying, or Merciful). One prompt per
+     crossing, then the fight flows. NPCs hit the same thresholds and
+     switch by trait rules; the player may also pre-empt all prompts
+     with standing orders (§6).
+   - WOUNDS, NOT HIT POINTS. hp exists only inside a fight. Walking out
+     under 50% leaves a LIGHT wound (-10 max hp), under 25% a SERIOUS
+     one (-25 max hp, halves activity payouts). Wounds heal one level
+     per restful season, instantly under a healer or healing pill.
+     Maiming remains what it is: permanent, an epithet, the kernel's
+     `_maim`.
+   - THE TEST HARNESS the thresholds asked for: `--test-combat` runs a
+     stdlib Monte Carlo (10k fights per cell) over realm/talent/stance
+     matchups and prints: win% vs the one-roll formula (must hold the
+     invariant), round-count distribution, and death/maim rates per edge
+     (sparring deaths 0; duel accidents < 3%; maim ordered sparring <
+     duelling < all-out). The 75/50 stop lines and pause thresholds are
+     data-table constants tuned against this harness, not guesses.
+
+6. STANDING ORDERS
+   So fights interrupt only when it matters, the player keeps a small
+   card of defaults: default edge and manner, auto-yield threshold
+   (default 25%), execution policy (spare / ask / kill), escape policy.
+   A fight that resolves entirely inside standing orders prints as one
+   summary line, like any NPC fight. Orders are exactly what NPC traits
+   are to NPCs — which is why the machinery is shared.
+
+7. THE DEMON FRONT (the minimal permanent war)
+   At worldgen one outer EDGE of the 3x3 grid (seeded roll) borders the
+   DEMON WASTE. The 2-3 lands along it are MARCH-LANDS; the front is a
+   fact of their geography, like weather.
+
+   - `world.demon_threat`, float 0-10, starts at 3. Drift: +0.15/year.
+     Every cultivator-season served on the front: -0.1. The front is a
+     pot that boils unless people die stirring it.
+   - THE FRONT ACTIVITY: a season of deadly fighting — a risk table
+     roughly twice as lethal as the harsh road, paying insight, standing,
+     materials, and front epithets (Demon-Scarred, Wastewalker). NPCs
+     volunteer by the war-volunteer machinery (Righteous and Bloodthirsty
+     skew, march-land natives doubled) — the front burns through NPC
+     lives too, honestly.
+   - INCURSION: while threat >= 7, roll ~35% a year (agenda-stamped, so
+     a timeskip stops on its eve for march-landers and front veterans).
+     A one-year event: march-land prosperity -1.5, conscript deaths as
+     chronicle color, defenders drawn like an expedition (plus march
+     polity armies), resolved as a contest against the threat number.
+     Victory: threat resets to 2-4, survivors gain insight and standing,
+     the dead are named. Defeat (rare): a march settlement is SWALLOWED —
+     prosperity floored, a permanent scar line in `state_of_the_lands`,
+     threat stays high. Either way `_remember` files it.
+   - March-lands below prosperity 3 petition the sects for front relief
+     through the existing petition machinery. No new diplomacy: the
+     Waste holds no court, takes no tribute, signs nothing.
+
+8. MASTERS, PROFICIENCIES, PROFESSIONS
+   - PROFICIENCIES (Body / Weapon / Theory): rank 0-5; rank N costs N
+     seasons of the matching activity. Effects deliberately small (hp
+     and wound resistance; combat bonus inside the +4 cap; breakthrough
+     percentage points) — they are texture and project, not power.
+   - SEEK A MASTER: a search season finds a candidate (realm >= PC+1,
+     compatible traits weighted); their TRIAL is a scene — a test of the
+     PC's record (karma, insight, epithets, a fight at Sparring). A won
+     master rel: teaching multiplier on training seasons, stance grants,
+     occasionally a technique; and a real relationship the world can
+     kill, betray, or avenge.
+   - PROFESSIONS (alchemy / forging / healing): ONE rank mechanic, three
+     skins. Rank 0-3; rank N needs 3xN practice seasons, rank 2+ needs a
+     teacher or manual.
+       Alchemy: brew Qi pills (+qi on a cultivation season), Healing
+       pills (heal a wound level), Clarity pills (+3%/rank on one
+       breakthrough attempt). TOXICITY: every pill taken +1; above 6,
+       each further pill +1 BURDEN — pill-stacking gives power now and
+       poisons the ceiling later, exactly Part I §3's promise made
+       mechanical. Toxicity decays 1 per pill-free year.
+       Forging: gear at +1/+2 power (inside the cap), sellable.
+       Healing: heal own wounds free; healing others pays karma,
+       gratitude rels, and at rank 2+, a LIFE-DEBT rel when the patient
+       would have died — the social ledger's strongest coin.
+     Pills and gear the player sells melt into NPC `resources`; NPCs do
+     not practice professions in v1 (their single resource number is
+     already the abstraction of all of this).
+
+9. TECHNIQUES (minimal)
+   A technique is a card: school, realm gate, one effect. Known or not —
+   comprehension levels are deferred. Schools:
+   - MOVEMENT: +15% escape per rank of the school's ladder (realm 1+)
+   - MISSILES: a free first-round hit at range (realm 2+)
+   - PRESSURE: overawe mortals and realm-lower foes without a fight;
+     scene intimidation (realm 3+)
+   - FLIGHT: escape almost anything; travel color; the genre gate at
+     realm 3+
+   - ELEMENTAL ARTS: +1 power, elemental epithets and scene flavor
+     (realm 2+)
+   Acquisition: the sect training hall (standing + resources), masters,
+   expedition and adventure treasure slots, and looted MANUALS — 20% of
+   which are FLAWED: the technique works, and learning it adds +1 burden
+   discovered only at the next tribulation. Everything counts inside the
+   +4 cap. Famous NPCs (realm >= FAME_REALM or standing >= 10) roll 0-2
+   techniques at realm-up so the arms race is symmetric.
+
+10. A PLAYED THRONE
+   Throne paths reach the player as choices: press a claim, accept or
+   refuse an invitation, champion a revolt, keep or lay down the crown.
+   A played reign runs at YEAR tempo: each year the player picks one
+   facet to emphasize from the top three their traits score (the engine
+   fires it alongside what the situation forces), and may repeal or
+   proclaim an edict when the engine's own rules would allow one. That
+   is all v1 offers — rulership stays rulership-shaped: cultivation
+   locked, qi frozen, insight only from governance adversity, corruption
+   rolls unmodified. Abdication is always on the menu, with VI §4's
+   consequences. Playing a king should feel like holding a job that is
+   slowly eating your cultivation — because it is.
+
+11. UI (terminal, v1)
+   The season prompt: date line (Year 12, autumn — age 26, Foundation,
+   qi 61, insight 9, burden 2), resources/standing/karma-word, wound if
+   any, active rels one line, agenda notices ("the sects gather in
+   autumn for the tournament"). Then the numbered menu, Enter to repeat,
+   `skip N doing X`, `orders`, `bag` (pills, gear, techniques,
+   proficiencies, toxicity), and every existing observer command (`map`,
+   `courts`, `log`, `sheet`...). Fights print one line per round, pause
+   menus at thresholds, a summary line when standing orders carried it.
+   Every player scene routes through `World.log` with honest flags —
+   the PC tag machinery already knows what to show.
+
+12. TUNING TARGETS (additions; every earlier target still holds)
+   - AUTOPILOT FUNNEL: 32 seeded runs where the PC is played by a random
+     legal-choice bot must land inside the Part III funnel and die at
+     ordinary rates. The player's edge is judgment, not existence.
+   - COMBAT INVARIANT: round-model win% within 3pp of pa/(pa+pb);
+     equal fights 3-8 rounds; sparring kills nobody; duel accidents
+     < 3%; maim rates ordered by edge. (`--test-combat` prints the
+     whole table.)
+   - FRONT CADENCE: an incursion every 8-15 years; the front visibly
+     the deadliest activity per season; march-lands running 1-2
+     prosperity below their baseline temper.
+   - THE PILL WALL: a scripted pill-stacking bot should reach realm 3
+     unusually fast and stall at the realm-4 tribulation on burden.
+     If it doesn't stall, toxicity is decoration.
+   - KERNEL REGRESSION: after the stance retrofit (§4), all Part III
+     and VI §13 targets re-measured and holding.
+   - THE OLD TEST, SHARPENED: `log <PC>` reads like a life — now a life
+     somebody chose, where the choices are visible in the record.
+
+13. IMPLEMENTATION SESSIONS
+   Seven sessions; each leaves the sim runnable and seeded-reproducible,
+   validated by reading logs (and now by playing a hand or two) before
+   the next. Guardrails unchanged: single file, stdlib only, all
+   randomness through world.rng, every event through World.log, every
+   constant in the data tables.
+
+   SESSION P1 — TWO CLOCKS. Plan-then-play year loop (agenda pre-roll,
+   season sub-steps, one code path); `--play` and PC creation; the
+   activity menu limited to reskins of existing machinery (cultivate,
+   retreat, fight injustice, hunt beasts, trade run, socialize, join
+   the muster); quarter-rate payouts; timeskip, the interrupt table,
+   the digest. Validate: batch targets hold; a hand-played life is
+   playable start to death.
+
+   SESSION P2 — STANCES IN THE KERNEL. Edge x manner data tables;
+   `_duel` rewritten to speak stance, NPC stances from traits; maim,
+   spare, execute, and karma routed through the stance outcomes; retune
+   to session-7 death/maim aggregates. No player combat UI yet.
+   Validate: funnel and cadence unchanged; chronicle shows the
+   vocabulary.
+
+   SESSION P3 — ROUND COMBAT. hp, rounds, the two pause thresholds,
+   yield/execute/escape, wounds and healing seasons, standing orders;
+   `--test-combat` harness; tune the 75/50 stop lines and thresholds
+   against it. Validate: the combat invariant table, and a played duel
+   feels like FTL, not like a menu.
+
+   SESSION P4 — THE DEMON FRONT. The Waste edge, march-lands, threat
+   drift, the front activity and NPC volunteering, incursions on the
+   agenda, swallowed settlements, front petitions and epithets,
+   `state_of_the_lands` scar lines. Validate: front cadence target; a
+   front veteran's log reads like a war record.
+
+   SESSION P5 — MASTERS AND TRAINING. Body/Weapon/Theory proficiencies;
+   the training hall; seek-a-master trials and master rels; stance
+   proficiency and teaching; the +4 combat cap enforced in one place.
+   Validate: autopilot funnel target (the bot exists from here on).
+
+   SESSION P6 — PROFESSIONS. The rank mechanic; alchemy with toxicity,
+   forging, healing with life-debts; pills and gear in the bag; the
+   profiteer option on trade runs. Validate: the pill wall.
+
+   SESSION P7 — TECHNIQUES, THRONES, POLISH. Technique cards and
+   schools, manuals and flawed manuals, famous-NPC technique rolls; the
+   played throne (facet emphasis, edict choice); full tuning sweep of
+   §12 plus all older targets; CLAUDE.md update. Validate: one
+   hand-played life per archetype — sword saint, poison merchant,
+   front veteran, tyrant king — each describable in one sentence.
+
+
+================================================================================
 END OF DOCUMENT
 ================================================================================
