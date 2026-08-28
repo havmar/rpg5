@@ -113,6 +113,7 @@ Stdlib only. Python 3.9+.
 """
 
 import argparse
+import math
 import random
 import sys
 from dataclasses import dataclass, field
@@ -1455,25 +1456,33 @@ HOME_DESPERATE = 2.0            # home prosperity that wakes you
 # the spec's decimals, and these hold them inside a couple of percent over
 # 32 seeds x 200 years: ~245 dead in duels, ~100 spared, ~32 maimed.
 #
-#   stop     hp fraction left at which the fight is called (P3's stop line)
+#   stop     hp fraction left at which the fight is CALLED. §4 writes 75%
+#            and 50%; both come down one swing (P3) so that a bout runs the
+#            3-8 rounds VII §5 asks for and the pauses have somewhere to
+#            fire. Zero means the edge itself never calls it: a killing
+#            fight is ended by a yield (ORDERS_DEFAULT["yield"]) or by a
+#            body.
 #   kill     the ACCIDENT — a death nobody in the ring intended
 #   maim     a crippling the loser carries out of it for good
-#   weight   the one-roll exchange weight (P3: damage dealt per round)
+#   weight   the one-roll exchange weight
+#   dmg      P3: what a blow struck at this edge is worth. The harsher
+#            edges hit harder, which shortens the bout and does NOT tilt it
+#            — the race calibration absorbs damage exactly (VII §5).
 #   execute  the victor's own appetite for finishing a beaten foe who
 #            yields — the choice VII §4 puts in their hands, not the dice
 #   lethal   whether a yield is even offered, and whether the realm-gap
 #            branch above is a killing or a fleeing
 STANCE_EDGES = {
-    "sparring":  {"stop": 0.75, "kill": 0.00, "maim": 0.013, "weight": 0.0,
-                  "execute": 0.0, "lethal": False},
-    "duelling":  {"stop": 0.50, "kill": 0.02, "maim": 0.037, "weight": 0.0,
-                  "execute": 0.0, "lethal": False},
+    "sparring":  {"stop": 0.70, "kill": 0.00, "maim": 0.013, "weight": 0.0,
+                  "dmg": 1.0, "execute": 0.0, "lethal": False},
+    "duelling":  {"stop": 0.45, "kill": 0.02, "maim": 0.037, "weight": 0.0,
+                  "dmg": 1.0, "execute": 0.0, "lethal": False},
     "allout":    {"stop": 0.0,  "kill": 0.10, "maim": 0.112, "weight": 0.15,
-                  "execute": 0.35, "lethal": True},
+                  "dmg": 1.15, "execute": 0.35, "lethal": True},
     # Murderous kills by intent, not by accident, and does not stop to
     # cripple: it stops when the other one is dead or has been let go.
     "murderous": {"stop": 0.0,  "kill": 0.0,  "maim": 0.0,  "weight": -0.10,
-                  "execute": 0.84, "lethal": True},
+                  "dmg": 1.15, "execute": 0.84, "lethal": True},
 }
 EDGE_ORDER = ("sparring", "duelling", "allout", "murderous")   # by harshness
 # MANNERS — how you fight and what the fight is FOR.
@@ -1570,6 +1579,160 @@ MAIM_LINES = {
     "accident": "{winner} put {loser} down harder than {where} called for, "
                 "and the damage did not heal [epithet: {ep}] (+insight).",
 }
+
+# --- THE PLAYABLE LAYER: ROUND COMBAT (VII §5) -----------------------------
+# ONE DISTRIBUTION, TWO RESOLUTIONS. The kernel's one roll (`duel_odds`,
+# pa/(pa+pb)) stays the truth and every fight off camera is still settled
+# with it; a fight the PLAYED character is in unfolds into rounds instead.
+# THE INVARIANT: the round model's win probability must sit within three
+# percentage points of that one roll across the matchup grid, so the funnel
+# cannot tell which resolution ran. `--test-combat` measures it.
+#
+# How the invariant is HELD rather than tuned: a bout is a RACE. Each
+# fighter's blow (`swing`) is rolled once when the bout opens, so the number
+# of exchanges each of them needs to win is a known pair of whole numbers,
+# and the chance of taking your own before the other takes theirs is a
+# binomial tail. `_exchange_chance` INVERTS that tail — it solves for the
+# per-exchange chance whose race comes out at exactly the one roll's number.
+# Everything the rounds add (heavier blows at the harsher edges, rage
+# trading damage both ways, patience's two-phase schedule) only moves the
+# geometry, and the inversion absorbs it.
+#
+# What it deliberately does NOT absorb: the calibration is computed for two
+# UNWOUNDED fighters stopping at the edge's own line. Fight it wounded, or
+# with a yield line you moved yourself, and the geometry is worse than the
+# reference — which is exactly how a wound is allowed to cost something
+# without the kernel ever hearing about it.
+# THE HARD CAP (VII §5). Everything the player layer will ever add to a
+# fighter — Body and Weapon proficiency (P5), forged gear (P6), techniques
+# (P7) — is summed and clipped HERE, at less than half a realm's ten points,
+# so that nothing this layer builds can bridge a realm. `player_power` is
+# the one place it is enforced; P5 fills it in.
+PLAYER_POWER_CAP = 4.0
+ROUND_HP = 100.0                # a whole body, in points. hp exists ONLY
+                                # inside a fight (VII §5); what walks out is
+                                # a wound.
+ROUND_SWING = (12.0, 20.0)      # what the loser of an exchange takes ...
+ROUND_SWING_TILT = 0.5          # ... raised by the power ratio, this power
+ROUND_SWING_CLAMP = (0.75, 1.35)
+ROUND_CAP = 40                  # a bout neither can finish is called on hp
+# Patience's two-phase schedule (VII §4): the early rounds are given away
+# and taken back afterwards. Two rounds is what makes the schedule worth
+# STANCE_MANNERS["patience"]["weight"] over a whole fight — the number the
+# one roll reads — measured against --test-combat, not assumed.
+ROUND_PATIENCE_ROUNDS = 2
+# THE PAUSE THRESHOLDS (VII §5), as a fraction of the fighter's own maximum.
+# §5 asks for 50% and 25%, and neither survives contact with a 12-20 point
+# swing: 50% lands ON the duelling stop line, and 25% IS the yield, so the
+# fight would be over before either could be a choice. So the first is moved
+# up one swing — 60% is "this is going badly" — and the second is not a
+# fixed number at all but THE BRINK: one exchange above whatever line this
+# fighter actually stops at, so it always arrives with exactly one decision
+# left. PAUSE_*[1] is its floor, and a brink closer than PAUSE_BRINK_GAP to
+# the first threshold is dropped rather than asked twice in two rounds —
+# which is why a duel pauses once and a killing fight twice.
+PAUSE_OWN = (0.60, 0.30)        # own hp: yield / stance / fight on / escape
+PAUSE_FOE = (0.60, 0.30)        # theirs, while ahead: ease off, or change
+PAUSE_BRINK_GAP = 0.10
+# What a round looks like from outside, by how the one who took it is doing.
+# Picked by round number, never by a die: narration must not move the world.
+ROUND_BLOW_LINES = {
+    "even": ["{w} turned {l}'s guard and made them pay for it",
+             "{w} took the exchange; {l} gave a step and kept their feet",
+             "{w} came inside {l}'s reach and was gone again before it told",
+             "{w} read the opening and took it"],
+    "hurt": ["{w} broke through and put {l} back on their heels",
+             "{w} landed one that {l} felt in the bone",
+             "{l} blocked it late, and the block cost as much as the blow",
+             "{w} drove {l} across the ground they had been holding"],
+    "failing": ["{w} landed one that folded {l} up",
+                "{l} is fighting off the back foot now, and losing it",
+                "{w} put {l} down and let them get up",
+                "{l} can barely lift the guard, and {w} knows it"],
+}
+ROUND_OPEN = "{a} ({aw}) and {b} ({bw}) squared off{ctx}."
+ROUND_LINE = "   {n}. {blow}.  [{a} {ahp:.0f} | {b} {bhp:.0f}]"
+
+# --- THE PLAYABLE LAYER: WOUNDS (VII §5) -----------------------------------
+# WOUNDS, NOT HIT POINTS. Walk out of a fight low and you carry it: a
+# smaller body to fight the next one with, and a season that pays less.
+# Maiming is untouched — permanent, an epithet, the kernel's `_maim`.
+WOUND_LIGHT_AT = 0.50           # walked out under this: a light wound
+WOUND_SERIOUS_AT = 0.25         # ... and under this, a serious one
+WOUND_MAX_HP = {0: 0.0, 1: 10.0, 2: 25.0}    # points off the body
+WOUND_PAYOUT = {0: 1.0, 1: 1.0, 2: 0.5}      # a serious wound halves a season
+WOUND_WORD = {0: "unhurt", 1: "light", 2: "serious"}
+# Seasons that heal one level. The road, the hunt, the front and the muster
+# do not; sitting still does. (A healer or a healing pill closes one
+# instantly — that is P6, and `heal_wound` is the seam it writes through.)
+WOUND_REST = ("cultivate", "retreat", "socialize")
+WOUND_LINES = {
+    1: "{who} walked out of it carrying a wound that will keep for a season.",
+    2: "{who} walked out of it badly hurt; everything will come harder until "
+       "it closes.",
+}
+WOUND_HEALED = "{who} rested, and the {what} wound closed."
+
+# --- THE PLAYABLE LAYER: BREAKING OFF (VII §5) -----------------------------
+# The door out of a killing matter. Base one in two; the realm gap term is
+# the hook for the fights this layer never sees (a gap is settled before
+# rounds are reached at all), and the Movement term is P7's technique
+# school reaching back for it.
+ESCAPE_BASE = 0.50
+ESCAPE_CAUTIOUS = 0.15
+ESCAPE_PER_REALM = 0.25
+ESCAPE_MOVEMENT = 0.15          # per rank of P7's Movement school
+ESCAPE_CLAMP = (0.05, 0.95)
+ESCAPE_INSIGHT = 2              # running is a kind of adversity too
+ESCAPE_STANDING = 1             # ... and it is seen
+
+# --- THE PLAYABLE LAYER: STANDING ORDERS (VII §6) --------------------------
+# Orders are to a played character exactly what traits are to an NPC, which
+# is why the machinery underneath is the same one. A bout that resolves
+# entirely inside them never asks a question, and prints as one line like
+# anybody else's fight.
+ORDERS_DEFAULT = {
+    "edge": "context",      # what the fight was called at, or an edge of
+                            # your own (you may only carry it FURTHER)
+    "manner": "nature",     # what your own character fights in, or a manner
+    "yield": 0.25,          # own hp at which you stop fighting
+    "execute": "ask",       # spare / ask / kill — a beaten foe who yields
+    "escape": "ask",        # never / ask / always, in a killing fight
+    "pauses": "ask",        # ask / orders — does a crossing stop the fight
+}
+ORDERS_CHOICES = {
+    "edge": ("context",) + EDGE_ORDER,
+    "manner": ("nature", "none") + tuple(STANCE_MANNERS),
+    "execute": ("spare", "ask", "kill"),
+    "escape": ("never", "ask", "always"),
+    "pauses": ("ask", "orders"),
+}
+ORDERS_HELP = {
+    "edge": "how far you take a fight you did not call",
+    "manner": "how you fight when nobody has asked you otherwise",
+    "yield": "the hp you stop at (0 to fight to the last)",
+    "execute": "what you do with a beaten foe who yields",
+    "escape": "whether you try the door in a killing fight",
+    "pauses": "'orders' fights the whole bout without asking",
+}
+ORDERS_YIELD_CLAMP = (0.0, 0.60)
+# NPCs hit the same thresholds and answer them by their nature. A yield line
+# is where a character stops fighting, and the traits that cannot stop are
+# the ones that get people killed.
+NPC_YIELD_BASE = 0.25
+NPC_YIELD_TRAITS = {"Proud": -0.10, "Reckless": -0.15, "Bloodthirsty": -0.20,
+                    "Loyal": -0.05, "Cautious": 0.10, "Humble": 0.05}
+NPC_YIELD_CLAMP = (0.0, 0.40)
+# The manner a losing NPC changes into at a threshold, and the one a winning
+# NPC eases off into. First trait held decides; no trait, no change.
+NPC_PAUSE_LOSING = [("Reckless", "rage"), ("Bloodthirsty", "rage"),
+                    ("Vengeful", "rage"), ("Cautious", "patience"),
+                    ("Cold", "patience"), ("Scholarly", "studying"),
+                    ("Humble", "harmonious")]
+NPC_PAUSE_WINNING = [("Cruel", "humiliating"), ("Proud", "showy"),
+                     ("Scholarly", "studying"), ("Humble", "merciful")]
+NPC_ESCAPE_TRAITS = ("Cautious", "Broken")     # who tries the door ...
+NPC_ESCAPE_CHANCE = 0.5                        # ... and how often
 
 # --- THE PLAYABLE LAYER: THE PLAYED CHARACTER (VII §2) ---------------------
 PLAYER_AID_NOTE = "agent 65"    # the player joins the watched intake
@@ -1816,16 +1979,17 @@ class AgendaItem:
 class PlayerState:
     """What a PLAYED character carries that NPCs abstract into one number.
 
-    P1 fills almost none of this on purpose: hp, wounds and standing orders
-    are P3, proficiencies and masters P5, professions and pills P6,
-    techniques P7. The fields exist so later sessions have one place to put
-    them, and so the shape of a played sheet stops changing underneath the
-    save format. Nothing in the kernel reads them yet.
+    Proficiencies and masters are P5, professions and pills P6, techniques
+    P7; the fields exist so later sessions have one place to put them, and
+    so the shape of a played sheet stops changing underneath the save
+    format.
+
+    There is deliberately no hp here. VII §5: hp exists ONLY inside a fight,
+    where `_bout` holds it on the stack; what a character carries between
+    fights is a WOUND, and the body it leaves them is `World.max_hp`.
     """
     activity: str = "cultivate"     # the last chosen season activity
     seasons: int = 0                # seasons actually played
-    hp: int = 100                   # P3: inside a fight only
-    max_hp: int = 100               # P3
     wound: int = 0                  # P3: 0 none, 1 light, 2 serious
     proficiencies: dict = field(default_factory=dict)   # P5: Body/Weapon/Theory
     stances: dict = field(default_factory=dict)         # P2: stance ranks 0-3
@@ -1834,6 +1998,8 @@ class PlayerState:
     pills: dict = field(default_factory=dict)           # P6
     toxicity: int = 0                                   # P6
     orders: dict = field(default_factory=dict)          # P3: standing orders
+                                                        # (VII §6; seeded
+                                                        # from ORDERS_DEFAULT)
 
 
 @dataclass
@@ -1952,6 +2118,14 @@ class World:
         # the path, an offered seat, an assigned plea) into questions.
         self.playing = False
         self.ask: Optional[Callable] = None   # the UI's question hook
+        # VII §5: round combat. Fights stay one-roll off camera; a fight the
+        # PLAYED character is in unfolds into exchanges. `narrate` is the
+        # fight camera the front end hangs on the kernel (see `tell`), and
+        # `_exchange_cache` memoises the race inversion that holds the
+        # invariant, which is pure arithmetic and worth doing once.
+        self.round_combat = True
+        self.narrate: Optional[Callable] = None
+        self._exchange_cache: dict = {}
         # Geography (built first, in _setup).
         self.places: dict[int, Place] = {}
         self.lands: dict[str, Place] = {}          # land name -> land Place
@@ -3212,11 +3386,20 @@ class World:
         r = self.rng
         base = context_edge if context_edge in STANCE_EDGES else "duelling"
         _, manner = self._native_stance(a)
-        # P3 fills standing orders; until it does, only the world's own
-        # reading of a character picks their stance.
-        if a.play is not None and a.play.orders:
-            base = a.play.orders.get("edge") or base
-            manner = a.play.orders.get("manner", manner)
+        # VII §6: a played character's standing orders are exactly what an
+        # NPC's nature is — read in the same place, for the same reason. The
+        # ordered edge can only carry the fight FURTHER than the context
+        # called it: nobody spars their way out of a sect feud.
+        if a.play is not None:
+            orders = self.orders_of(a)
+            want = orders["edge"]
+            if want in STANCE_EDGES:
+                base = max((base, want), key=EDGE_ORDER.index)
+            told = orders["manner"]
+            if told in STANCE_MANNERS:
+                manner = told
+            elif told == "none":
+                manner = None
         if base != "murderous":
             plain = not STANCE_EDGES[base]["lethal"]
             for trait, chance in STANCE_MURDEROUS_TRAITS.items():
@@ -3233,13 +3416,19 @@ class World:
         return (base, manner)
 
     def _stance_weight(self, a: Agent, mine: tuple, theirs: tuple,
-                       foe: Optional[Agent] = None) -> float:
+                       foe: Optional[Agent] = None,
+                       phase: Optional[int] = None) -> float:
         """What a stance is worth in the one exchange the kernel rolls.
 
         A bonus is HALVED and a malus DOUBLED at rank 0 (VII §4), which is
         what makes an edge somebody else chose expensive. The whole spread
         is a few percent of one roll: by VII §5 nothing here may bridge a
         realm, and a realm gap never reaches this function at all.
+
+        `phase` is the round number, and only the round model passes one:
+        patience is a SCHEDULE (give the opening away, take it back later)
+        whose flat `weight` is what the schedule comes to over a whole
+        fight, which is the number the one roll is entitled to read.
         """
         edge, manner = mine
         w = STANCE_EDGES[edge]["weight"]
@@ -3247,6 +3436,8 @@ class World:
         if manner:
             spec = STANCE_MANNERS[manner]
             m = spec["weight"]
+            if manner == "patience" and phase is not None:
+                m = spec["early" if phase <= ROUND_PATIENCE_ROUNDS else "late"]
             if manner == "harmonious":
                 if theirs[1] == "rage":
                     m += spec["vs_rage"]
@@ -3268,27 +3459,50 @@ class World:
     def _has_vice(a: Optional[Agent]) -> bool:
         return a is not None and any(a.has_trait(t) for t in VICE_TRAITS)
 
-    def duel_odds(self, att: Agent, dfn: Agent,
-                  sa: tuple, sb: tuple) -> float:
+    def player_power(self, a: Agent) -> float:
+        """What the PLAYER LAYER adds to a fighter, and the one place the
+        VII §5 cap is enforced.
+
+        Zero for everybody in P3 — proficiencies are P5, gear P6, techniques
+        P7 — so this changes nothing yet. It exists now so that when those
+        land there is exactly one line to clip them at, and no combination of
+        them can ever add up to a realm.
+        """
+        if a.play is None:
+            return 0.0
+        bonus = 0.0
+        return min(PLAYER_POWER_CAP, bonus)
+
+    def _stance_power(self, a: Agent, mine: tuple, theirs: tuple,
+                      foe: Optional[Agent] = None,
+                      phase: Optional[int] = None) -> float:
+        """What a fighter is worth in this fight, in this stance."""
+        return max(1.0, (a.power() + self.player_power(a))
+                   * (1.0 + self._stance_weight(a, mine, theirs, foe, phase)))
+
+    def duel_odds(self, att: Agent, dfn: Agent, sa: tuple, sb: tuple,
+                  phase: Optional[int] = None) -> float:
         """THE ONE-ROLL WIN PROBABILITY, and the only one in the sim.
 
-        VII §5's invariant lives here: whatever round model P3 builds, its
-        win rate must sit within three percentage points of this number, so
-        that the funnel cannot tell which resolution ran. Stances tilt the
-        exchange by a few percent; realms were settled before it was called.
+        VII §5's invariant lives here: the round model's win rate must sit
+        within three percentage points of this number, so that the funnel
+        cannot tell which resolution ran. Stances tilt the exchange by a few
+        percent; realms were settled before it was called.
         """
-        pa = att.power() * (1.0 + self._stance_weight(att, sa, sb, dfn))
-        pb = dfn.power() * (1.0 + self._stance_weight(dfn, sb, sa, att))
-        pa, pb = max(1.0, pa), max(1.0, pb)
+        pa = self._stance_power(att, sa, sb, dfn, phase)
+        pb = self._stance_power(dfn, sb, sa, att, phase)
         return pa / (pa + pb)
+
+    @staticmethod
+    def _stance_phrase(st: tuple) -> str:
+        """What a stance looks like from outside, with nobody's name on it."""
+        edge, manner = st
+        return MANNER_PHRASE[manner] if manner else EDGE_PHRASE[edge]
 
     def _stance_words(self, a: Agent, st: tuple) -> str:
         """How this one fought, in words — the vocabulary VII §4 asks the
         chronicle to speak."""
-        edge, manner = st
-        if manner:
-            return f"{a.display()} {MANNER_PHRASE[manner]}"
-        return f"{a.display()} {EDGE_PHRASE[edge]}"
+        return f"{a.display()} {self._stance_phrase(st)}"
 
     def _stance_tail(self, att: Agent, sa: tuple,
                      dfn: Agent, sb: tuple) -> str:
@@ -3331,6 +3545,430 @@ class World:
             return
         if self.rng.random() < STANCE_SEEN:
             a.standing = max(0, a.standing - STANCE_SEEN_STANDING)
+
+    # -- round combat: the fight the played character is IN (VII §5) --------
+
+    def _rounds_wanted(self, att: Agent, dfn: Agent) -> bool:
+        """Does this fight unfold, or is it settled with the one roll?
+
+        Only a fight the PLAYED character is in. Everything else in the world
+        — every feud, every score come due, every quarrel picked in a
+        courtyard two lands away — is resolved exactly as it was, which is
+        what keeps the funnel and the tuning targets where they were.
+        """
+        return self.round_combat and (att.play is not None
+                                      or dfn.play is not None)
+
+    def max_hp(self, a: Agent) -> float:
+        """The body a fighter brings to a bout.
+
+        In P3 only a wound takes points off it; P5's Body proficiency is the
+        thing that puts them back on.
+        """
+        if a.play is None:
+            return ROUND_HP
+        return max(ROUND_HP * 0.4,
+                   ROUND_HP - WOUND_MAX_HP.get(a.play.wound, 0.0))
+
+    def orders_of(self, a: Agent) -> dict:
+        """A played character's standing orders (VII §6), defaults filled."""
+        out = dict(ORDERS_DEFAULT)
+        if a.play is not None:
+            out.update({k: v for k, v in a.play.orders.items() if k in out})
+        return out
+
+    def set_order(self, a: Agent, key: str, value: str) -> str:
+        """Change one standing order. Returns what to tell the player."""
+        if a is None or a.play is None:
+            return "There is nobody to give orders to."
+        key = key.strip().lower()
+        if key not in ORDERS_DEFAULT:
+            return f"No such order: {key}"
+        value = value.strip().lower()
+        if key == "yield":
+            try:
+                num = float(value.rstrip("%"))
+            except ValueError:
+                return ("The yield line is a fraction (0.25) or a percent "
+                        "(25%).")
+            if num > 1.0:
+                num /= 100.0
+            num = max(ORDERS_YIELD_CLAMP[0], min(ORDERS_YIELD_CLAMP[1], num))
+            a.play.orders["yield"] = num
+            return f"Standing order: yield at {num * 100:.0f}% of your own."
+        choices = ORDERS_CHOICES[key]
+        if not value:
+            return f"{key} is one of: {', '.join(choices)}"
+        for opt in choices:
+            if opt.startswith(value):
+                a.play.orders[key] = opt
+                return f"Standing order: {key} = {opt}."
+        return f"{key} is one of: {', '.join(choices)}"
+
+    def orders_card(self, a: Agent) -> str:
+        """VII §6: the small card of defaults a fight is fought off."""
+        if a is None or a.play is None:
+            return "Nothing to show."
+        orders = self.orders_of(a)
+        lines = ["Standing orders (`orders KEY VALUE` to change one):"]
+        for key in ("edge", "manner", "yield", "execute", "escape", "pauses"):
+            value = orders[key]
+            if key == "yield":
+                value = f"{float(value) * 100:.0f}%"
+            lines.append(f"  {key:<8} {str(value):<10} {ORDERS_HELP[key]}")
+        lines.append("  (a fight that never has to ask you anything prints "
+                     "as one line, like anybody else's)")
+        return "\n".join(lines)
+
+    def _yield_line(self, a: Agent) -> float:
+        """The hp fraction a fighter stops at.
+
+        Orders for a played character; nature for everyone else, and the
+        natures that cannot stop are the ones that get people killed.
+        """
+        if a.play is not None:
+            try:
+                want = float(self.orders_of(a)["yield"])
+            except (TypeError, ValueError):
+                want = ORDERS_DEFAULT["yield"]
+            return max(ORDERS_YIELD_CLAMP[0], min(ORDERS_YIELD_CLAMP[1], want))
+        line = NPC_YIELD_BASE
+        for trait, step in NPC_YIELD_TRAITS.items():
+            if a.has_trait(trait):
+                line += step
+        return max(NPC_YIELD_CLAMP[0], min(NPC_YIELD_CLAMP[1], line))
+
+    @staticmethod
+    def _race_odds(q: float, na: int, nb: int) -> float:
+        """The chance of landing `na` exchanges before the other lands `nb`.
+
+        A race to na and nb is decided inside na+nb-1 exchanges however it
+        actually plays out, so it is a binomial tail and nothing more.
+        """
+        n = na + nb - 1
+        return sum(math.comb(n, k) * (q ** k) * ((1.0 - q) ** (n - k))
+                   for k in range(na, n + 1))
+
+    def _exchange_chance(self, p: float, na: int, nb: int) -> float:
+        """THE INVARIANT, solved instead of tuned (VII §5).
+
+        Given the one roll's win probability and the geometry of the race,
+        this is the per-exchange chance whose race comes out at exactly that
+        number. Everything the rounds add moves na and nb; the inversion
+        gives it all back.
+        """
+        key = (round(p, 4), na, nb)
+        hit = self._exchange_cache.get(key)
+        if hit is not None:
+            return hit
+        lo, hi = 0.0005, 0.9995
+        for _ in range(32):
+            mid = (lo + hi) / 2.0
+            if self._race_odds(mid, na, nb) < p:
+                lo = mid
+            else:
+                hi = mid
+        out = (lo + hi) / 2.0
+        self._exchange_cache[key] = out
+        return out
+
+    def _swing_of(self, a: Agent, foe: Agent, mine: tuple, theirs: tuple,
+                  roll: float) -> float:
+        """What one landed exchange takes off the other one.
+
+        VII §5's 12-20%, tilted by the power ratio — the stronger fighter's
+        blows tell — and by what each of them came to do: the harsh edges
+        hit harder, and rage hands out and takes the same extra.
+        """
+        pa = self._stance_power(a, mine, theirs, foe)
+        pb = self._stance_power(foe, theirs, mine, a)
+        tilt = (pa / pb) ** ROUND_SWING_TILT
+        tilt = max(ROUND_SWING_CLAMP[0], min(ROUND_SWING_CLAMP[1], tilt))
+        swing = roll * tilt * STANCE_EDGES[mine[0]]["dmg"]
+        if mine[1] == "rage":
+            swing *= 1.0 + STANCE_MANNERS["rage"]["weight"]
+        if theirs[1] == "rage":
+            swing *= 1.0 + STANCE_MANNERS["rage"]["taken"]
+        return max(1.0, swing)
+
+    def _movement_rank(self, a: Agent) -> int:
+        """P7's Movement school, read early. Techniques do not exist yet, so
+        this is zero for everybody and the escape table already has its
+        term."""
+        if a.play is None:
+            return 0
+        return sum(1 for t in a.play.techniques if t == "movement")
+
+    def _escape_chance(self, a: Agent, foe: Agent) -> float:
+        """Breaking off a killing fight (VII §5)."""
+        chance = ESCAPE_BASE
+        if a.has_trait("Cautious"):
+            chance += ESCAPE_CAUTIOUS
+        chance += ESCAPE_MOVEMENT * self._movement_rank(a)
+        gap = foe.realm - a.realm
+        if gap > 0:
+            chance -= ESCAPE_PER_REALM * gap
+        return max(ESCAPE_CLAMP[0], min(ESCAPE_CLAMP[1], chance))
+
+    def _pause_switch(self, a: Agent, which: str, mine: tuple) -> tuple:
+        """The second half of a pause: which edge, or which manner."""
+        if which == "edge":
+            pick = self.ask_player(
+                "edge", "Fight it at what edge?", list(EDGE_ORDER), mine[0])
+            return ("stance", (pick, mine[1]))
+        opts = ["none"] + list(STANCE_MANNERS)
+        pick = self.ask_player("manner", "Fight it in what manner?", opts,
+                               mine[1] or "none")
+        return ("stance", (mine[0], None if pick == "none" else pick))
+
+    def _pause_own(self, a: Agent, foe: Agent, mine: tuple, theirs: tuple,
+                   own: float, other: float, lethal: bool) -> tuple:
+        """A threshold crossed on your own body (VII §5).
+
+        ONE prompt per crossing and then the fight flows again — this is the
+        autocombat contract, not a round-by-round menu. A played character
+        answers off their standing orders unless the orders say to ask; an
+        NPC answers with its nature, which is the same machinery read the
+        other way round.
+        """
+        if a.play is not None:
+            orders = self.orders_of(a)
+            if lethal and orders["escape"] == "always":
+                return ("escape", None)
+            if orders["pauses"] != "ask":
+                return ("fight", None)
+            opts = ["fight", "yield", "manner", "edge"]
+            if lethal:
+                opts.append("last")
+                if orders["escape"] != "never":
+                    opts.append("escape")
+            answer = self.ask_player(
+                "pause",
+                f"You are down to {own * 100:.0f}% and {foe.display()} is at "
+                f"{other * 100:.0f}% — you {self._stance_phrase(mine)}, "
+                f"they "
+                f"{self._stance_phrase(theirs)}.",
+                opts, "fight")
+            if answer in ("edge", "manner"):
+                return self._pause_switch(a, answer, mine)
+            return (answer, None)
+        if lethal and any(a.has_trait(t) for t in NPC_ESCAPE_TRAITS) \
+                and self.rng.random() < NPC_ESCAPE_CHANCE:
+            return ("escape", None)
+        for trait, manner in NPC_PAUSE_LOSING:
+            if a.has_trait(trait) and mine[1] != manner:
+                return ("stance", (mine[0], manner))
+        return ("fight", None)
+
+    def _pause_foe(self, a: Agent, foe: Agent, mine: tuple, theirs: tuple,
+                   own: float, other: float, lethal: bool) -> tuple:
+        """A threshold crossed on the OTHER one, while you are ahead: the
+        moment to ease off, or to make a lesson of it (VII §5)."""
+        if a.play is not None:
+            orders = self.orders_of(a)
+            if orders["pauses"] != "ask":
+                return ("press", None)
+            opts = ["press", "ease", "manner"]
+            answer = self.ask_player(
+                "advantage",
+                f"{foe.display()} is down to {other * 100:.0f}% and you are "
+                f"at {own * 100:.0f}%.", opts, "press")
+            if answer == "manner":
+                return self._pause_switch(a, "manner", mine)
+            if answer == "ease":
+                step = EDGE_ORDER.index(mine[0])
+                if step > 0:
+                    return ("stance", (EDGE_ORDER[step - 1], mine[1]))
+            return ("press", None)
+        for trait, manner in NPC_PAUSE_WINNING:
+            if a.has_trait(trait) and mine[1] != manner:
+                return ("stance", (mine[0], manner))
+        return ("press", None)
+
+    def _blow_line(self, n: int, w: Agent, l: Agent, left: float) -> str:
+        """One line for one exchange. Chosen by the round number and the
+        state of the man taking it — narration never touches `rng`, so
+        watching a fight cannot move the world."""
+        bucket = ("even" if left >= PAUSE_FOE[0]
+                  else "hurt" if left >= PAUSE_FOE[1] else "failing")
+        pool = ROUND_BLOW_LINES[bucket]
+        return pool[n % len(pool)].format(w=w.display(), l=l.name)
+
+    def _bout(self, att: Agent, dfn: Agent, sa: tuple, sb: tuple,
+              edge: str, ctx: str) -> dict:
+        """THE FIGHT, exchange by exchange (VII §5).
+
+        Both sides enter at their whole body less what they are still
+        carrying. Each round is one exchange, weighted by power x stance and
+        calibrated so the race reproduces the one roll; the loser of it takes
+        a swing. Crossings of the pause thresholds hand the decision back —
+        to the player through their orders, to an NPC through its nature —
+        and then the fight flows on. Nothing here kills anybody: the bout
+        decides who is standing, and `_duel`'s own outcome chain does the
+        rest, which is why a played fight and a rolled one are the same
+        fight.
+        """
+        r = self.rng
+        who = [att, dfn]
+        st = [sa, sb]
+        top = [self.max_hp(att), self.max_hp(dfn)]
+        hp = [top[0], top[1]]
+        # Each fighter's blow is rolled ONCE: it is the pair of whole numbers
+        # of exchanges this makes the fight take that the calibration inverts.
+        roll = [r.uniform(*ROUND_SWING), r.uniform(*ROUND_SWING)]
+        line = [self._yield_line(att), self._yield_line(dfn)]
+        crossed = [set(), set()]      # own-hp thresholds already answered
+        watched = [set(), set()]      # ... and the other one's, while ahead
+        marks = [list(PAUSE_OWN), list(PAUSE_OWN)]
+        seen_marks = [list(PAUSE_FOE), list(PAUSE_FOE)]
+        # What the bout hands back: who is standing, how it ended, the
+        # stances it ended in (they can change mid-fight), and the two bodies
+        # it ended with, which is where the wounds come from.
+        bout = {"who": who, "winner": None, "loser": None, "how": "beaten",
+                "rounds": 0, "fled": None, "edge": edge,
+                "hp": hp, "top": top, "sa": sa, "sb": sb}
+        swing = [0.0, 0.0]
+        floor = [0.0, 0.0]
+        na = nb = 1
+        fight = edge
+        lethal = STANCE_EDGES[fight]["lethal"]
+        stale = True
+        n = 0
+        self.tell("open", ROUND_OPEN.format(
+            a=att.display(), aw=self._stance_phrase(st[0]),
+            b=dfn.display(), bw=self._stance_phrase(st[1]), ctx=ctx))
+
+        def settle(hitter: int, how: str):
+            bout.update(winner=who[hitter], loser=who[1 - hitter], how=how)
+
+        def strike(hitter: int) -> bool:
+            """One landed exchange. True if it ended the fight."""
+            target = 1 - hitter
+            hp[target] = max(0.0, hp[target] - swing[hitter])
+            self.tell("round", ROUND_LINE.format(
+                n=n, blow=self._blow_line(n, who[hitter], who[target],
+                                          hp[target] / max(1.0, top[target])),
+                a=att.name, ahp=hp[0], b=dfn.name, bhp=hp[1]))
+            if hp[target] <= floor[target]:
+                settle(hitter, "down" if hp[target] <= 0.0
+                       else ("yielded" if lethal else "beaten"))
+                return True
+            return False
+
+        while n < ROUND_CAP:
+            if stale:
+                fight = max((st[0][0], st[1][0]), key=EDGE_ORDER.index)
+                spec = STANCE_EDGES[fight]
+                lethal = spec["lethal"]
+                swing[0] = self._swing_of(att, dfn, st[0], st[1], roll[0])
+                swing[1] = self._swing_of(dfn, att, st[1], st[0], roll[1])
+                # THE REFERENCE GEOMETRY: two whole bodies stopping at the
+                # edge's own line. The fight is then run on the real one, so
+                # a wound or a yield line somebody moved themselves costs
+                # exactly what it should and the invariant still holds for
+                # the fight the harness measures.
+                stop = spec["stop"] or ORDERS_DEFAULT["yield"]
+                room = ROUND_HP * (1.0 - stop)
+                na = max(1, math.ceil(room / swing[0]))
+                nb = max(1, math.ceil(room / swing[1]))
+                for i in (0, 1):
+                    floor[i] = max(spec["stop"], line[i]) * top[i]
+                    # THE BRINK: one exchange above the line this one stops
+                    # at, so the last pause always leaves exactly one
+                    # decision (see PAUSE_OWN).
+                    brink = (floor[i] + swing[1 - i]) / max(1.0, top[i])
+                    for table, into in ((PAUSE_OWN, marks),
+                                        (PAUSE_FOE, seen_marks)):
+                        second = max(table[1], brink)
+                        into[i] = [table[0]]
+                        if second <= table[0] - PAUSE_BRINK_GAP:
+                            into[i].append(second)
+                stale = False
+            n += 1
+            q = self._exchange_chance(
+                self.duel_odds(att, dfn, st[0], st[1], phase=n), na, nb)
+            hitter = 0 if r.random() < q else 1
+            if strike(hitter):
+                break
+            target = 1 - hitter
+            done = False
+            # The one who took it, first: it is their business.
+            for step, mark in enumerate(marks[target]):
+                if hp[target] > mark * top[target] or step in crossed[target]:
+                    continue
+                crossed[target].add(step)
+                act, payload = self._pause_own(
+                    who[target], who[hitter], st[target], st[hitter],
+                    hp[target] / top[target], hp[hitter] / top[hitter], lethal)
+                if act == "yield":
+                    settle(hitter, "yielded" if lethal else "beaten")
+                    done = True
+                elif act == "last":
+                    line[target] = 0.0
+                    floor[target] = 0.0
+                elif act == "escape":
+                    if r.random() < self._escape_chance(who[target],
+                                                        who[hitter]):
+                        settle(hitter, "fled")
+                        bout["fled"] = who[target]
+                        done = True
+                    else:
+                        self.tell("round", f"   {n}. "
+                                  f"{who[target].display()} broke and could "
+                                  f"not get clear.")
+                        done = strike(hitter)
+                elif act == "stance":
+                    st[target] = payload
+                    stale = True
+                break
+            if done:
+                break
+            # ... and then the one who is ahead, easing off or leaning in.
+            for step, mark in enumerate(seen_marks[target]):
+                if hp[target] > mark * top[target] or step in watched[hitter]:
+                    continue
+                if hp[hitter] <= hp[target]:
+                    continue
+                watched[hitter].add(step)
+                act, payload = self._pause_foe(
+                    who[hitter], who[target], st[hitter], st[target],
+                    hp[hitter] / top[hitter], hp[target] / top[target], lethal)
+                if act == "stance":
+                    st[hitter] = payload
+                    stale = True
+                break
+        if bout["winner"] is None:
+            # Nobody could finish it: the one still on their feet has it.
+            hitter = 0 if hp[0] >= hp[1] else 1
+            settle(hitter, "beaten")
+        bout.update(rounds=n, edge=fight, sa=st[0], sb=st[1])
+        self.tell("close", "")
+        return bout
+
+    def _bout_wounds(self, bout: dict):
+        """VII §5: hp is gone when the fight is. What walks out is a wound —
+        and only a played character carries one, because an NPC's whole body
+        is already abstracted into the one number the kernel fights with."""
+        for i, a in enumerate(bout["who"]):
+            if a.play is None or not a.alive:
+                continue
+            frac = bout["hp"][i] / max(1.0, bout["top"][i])
+            level = (2 if frac < WOUND_SERIOUS_AT
+                     else 1 if frac < WOUND_LIGHT_AT else 0)
+            if level <= a.play.wound:
+                continue
+            a.play.wound = level
+            self.log(WOUND_LINES[level].format(who=a.display()), [a])
+
+    def heal_wound(self, a: Agent, how="rest") -> bool:
+        """One level closed. A restful season does it; P6's healer and
+        healing pill will call the same door with `how` set."""
+        if a is None or a.play is None or a.play.wound <= 0:
+            return False
+        word = WOUND_WORD[a.play.wound]
+        a.play.wound -= 1
+        self.log(WOUND_HEALED.format(who=a.display(), what=word), [a])
+        return True
 
     def _duel(self, att: Agent, dfn: Agent, context="", edge="duelling"):
         """One formula, with the tyranny of realms — fought in stance.
@@ -3386,7 +4024,27 @@ class World:
                 self._mutate(weak, "humiliated")
             return
 
-        att_wins = r.random() < self.duel_odds(att, dfn, sa, sb)
+        # VII §5: a fight the PLAYED character is in unfolds into exchanges;
+        # every other fight in the world is still settled with the one roll,
+        # and both come out of the same distribution. A bout decides who is
+        # left standing and nothing else — the outcome chain below is the
+        # same chain either resolution ends in, in the same order.
+        bout = None
+        if self._rounds_wanted(att, dfn):
+            bout = self._bout(att, dfn, sa, sb, fight, ctx)
+            sa, sb = bout["sa"], bout["sb"]   # a stance can change mid-fight
+            fight = bout["edge"]
+            spec = STANCE_EDGES[fight]
+            lethal = spec["lethal"]
+            killer_named = self._killer_clause(
+                [x for x, st in ((att, sa), (dfn, sb))
+                 if st[0] == "murderous" and st[1]])
+            if bout["how"] == "fled":
+                self._broke_off(bout, ctx)
+                return
+            att_wins = bout["winner"] is att
+        else:
+            att_wins = r.random() < self.duel_odds(att, dfn, sa, sb)
         winner, loser = (att, dfn) if att_wins else (dfn, att)
         win_st, lose_st = (sa, sb) if att_wins else (sb, sa)
         winner.standing += 1
@@ -3410,11 +4068,9 @@ class World:
                      [winner, loser], dramatic=True)
             self.kill(loser, f"killed by mischance in a duel with "
                              f"{winner.display()}", killer=winner)
-            return
         # 2. The yield, and what the victor does with it.
-        if lethal and not merciful \
-                and r.random() < self._execute_chance(winner, win_st,
-                                                      lose_st):
+        elif lethal and not merciful \
+                and self._finishes(winner, win_st, lose_st, loser):
             # §7 prices the killing: across a realm gap it is a killing
             # and costs the ledger, between equals a duel is a duel and the
             # spare below is the whole moral asymmetry.
@@ -3425,28 +4081,72 @@ class World:
                      [winner, loser], dramatic=True)
             self.kill(loser, f"slain in a duel by {winner.display()}",
                       killer=winner)
-            return
-        # 3. The beaten one lives: spared, shamed, or crippled anyway.
-        loser.insight += 3
-        humbling = win_st[1] == "humiliating"
-        self._add_grudge(loser, winner, 2 + (
-            STANCE_MANNERS["humiliating"]["grudge"] if humbling else 0))
-        spared = ""
-        if lethal:
-            winner.karma += KARMA_SPARE     # §7: sparing a beaten foe
-            self._record_deed(winner, "mercy")
-            spared = ", spared where the next blow would have finished it"
-        if humbling:
-            loser.standing = max(0, loser.standing
-                                 - STANCE_MANNERS["humiliating"]["shame"])
-        self.log(f"{winner.display()} defeated {loser.display()}{ctx}{tail}; "
-                 f"{loser.display()} survives, shamed{spared} (+insight).",
-                 [winner, loser])
-        meant = humbling or winner.has_trait("Cruel")
-        maim = spec["maim"] * (STANCE_MAIM_CRUEL if meant else 1.0)
-        if not merciful and r.random() < maim:
-            self._maim(winner, loser, "the duel", meant=meant)
-        self._mutate(loser, "humiliated")
+        else:
+            # 3. The beaten one lives: spared, shamed, or crippled anyway.
+            loser.insight += 3
+            humbling = win_st[1] == "humiliating"
+            self._add_grudge(loser, winner, 2 + (
+                STANCE_MANNERS["humiliating"]["grudge"] if humbling else 0))
+            spared = ""
+            if lethal:
+                winner.karma += KARMA_SPARE     # §7: sparing a beaten foe
+                self._record_deed(winner, "mercy")
+                spared = ", spared where the next blow would have finished it"
+            if humbling:
+                loser.standing = max(0, loser.standing
+                                     - STANCE_MANNERS["humiliating"]["shame"])
+            self.log(f"{winner.display()} defeated {loser.display()}{ctx}"
+                     f"{tail}; {loser.display()} survives, shamed{spared} "
+                     f"(+insight).", [winner, loser])
+            meant = humbling or winner.has_trait("Cruel")
+            maim = spec["maim"] * (STANCE_MAIM_CRUEL if meant else 1.0)
+            if not merciful and r.random() < maim:
+                self._maim(winner, loser, "the duel", meant=meant)
+            self._mutate(loser, "humiliated")
+        # VII §5: hp was only ever inside the fight. What is carried out of
+        # it is a wound, and only by whoever was played.
+        if bout is not None:
+            self._bout_wounds(bout)
+
+    def _finishes(self, winner: Agent, win_st: tuple, lose_st: tuple,
+                  loser: Agent) -> bool:
+        """Does the victor finish a beaten foe who yields (VII §4, §6)?
+
+        The kernel's roll is made either way, so that watching a fight does
+        not shift the world's own dice; for a PLAYED victor the answer then
+        comes from their standing orders instead, because the whole point of
+        a yield is that the choice belongs to the one still standing.
+        """
+        rolled = self.rng.random() < self._execute_chance(winner, win_st,
+                                                          lose_st)
+        if winner.play is None:
+            return rolled
+        policy = self.orders_of(winner)["execute"]
+        if policy in ("kill", "spare"):
+            return policy == "kill"
+        if not self.playing or self.ask is None:
+            return rolled       # nobody at the keyboard: their own appetite
+        return self.ask_player(
+            "execute", f"{loser.display()} is beaten, and yields.",
+            ["spare", "kill"], "spare") == "kill"
+
+    def _broke_off(self, bout: dict, ctx: str):
+        """VII §5: somebody took the door out of a killing fight.
+
+        Nobody won it. The one who ran keeps the wound, the grudge and the
+        lesson adversity always pays, and is seen running — which is its own
+        price in a world that remembers.
+        """
+        fled, foe = bout["fled"], bout["winner"]
+        fled.insight += ESCAPE_INSIGHT
+        fled.standing = max(0, fled.standing - ESCAPE_STANDING)
+        foe.standing += 1
+        self._add_grudge(fled, foe, 1)
+        self.log(f"{fled.display()} broke off from {foe.display()}{ctx} and "
+                 f"got clear of it, hurt and seen to run (+insight).",
+                 [fled, foe])
+        self._bout_wounds(bout)
+        self._mutate(fled, "humiliated")
 
     # -- event phase --------------------------------------------------------
 
@@ -3765,6 +4465,19 @@ class World:
             return default
         answer = self.ask(kind, prompt, options, default)
         return answer if answer in options else default
+
+    def tell(self, kind: str, text: str):
+        """THE FIGHT CAMERA (VII §5, §11).
+
+        `ask_player` is how the kernel puts a question to the human; this is
+        how it shows them a fight, one exchange at a time. It is not the
+        chronicle — nothing here is recorded, and with no front end attached
+        (batch runs, `--test-combat`) it goes nowhere at all. The kernel
+        still never prints: `Play` owns the screen and decides whether these
+        lines reach it or the fight collapses into its one chronicle line.
+        """
+        if self.narrate is not None:
+            self.narrate(kind, text)
 
     # -- politics: rule style, edicts, tribute, succession ------------------
 
@@ -5987,6 +6700,7 @@ class World:
         a.standing = 1
         a.play = PlayerState()
         self._seed_stances(a)       # VII §4: what their own nature taught
+        self._seed_orders(a)        # VII §6: and what it does by default
         self.pc = a
         self.playing = True
         self.ask = ask
@@ -6007,6 +6721,7 @@ class World:
         if self.pc.play is None:
             self.pc.play = PlayerState()
             self._seed_stances(self.pc)
+            self._seed_orders(self.pc)
         return self.pc
 
     def _seed_stances(self, a: Agent) -> None:
@@ -6024,6 +6739,15 @@ class World:
             a.play.stances[key] = max(a.play.stances.get(key, 0),
                                       STANCE_NPC_RANK)
 
+    def _seed_orders(self, a: Agent) -> None:
+        """VII §6: a played character starts under the default orders, not a
+        blank card, so that every question a fight can ask already has an
+        answer and a bout can run without stopping at all."""
+        if a.play is None:
+            return
+        for key, value in ORDERS_DEFAULT.items():
+            a.play.orders.setdefault(key, value)
+
     def player_season(self, activity: str) -> None:
         """The played character's ONE activity for this season (VII §3).
 
@@ -6037,7 +6761,10 @@ class World:
             return
         if a.is_ruler():
             return          # §10: a court eats the calendar, at year tempo
-        share = SEASON_RATE
+        # VII §5: a serious wound halves what a season is worth — the
+        # season is spent whether or not the body was up to it.
+        share = SEASON_RATE * WOUND_PAYOUT.get(a.play.wound, 1.0)
+        carried = a.play.wound      # what they walked INTO the season with
         a.play.activity = activity
         a.play.seasons += 1
         if activity == "retreat":
@@ -6057,6 +6784,11 @@ class World:
                          f"nowhere.", [a])
         else:
             self._act_cultivate(a, share)
+        # ... and a season spent quietly closes one level of it (VII §5) —
+        # but never one taken THIS season: a fight you walked out of an hour
+        # ago is not something the same three months also mended.
+        if activity in WOUND_REST and a.play.wound and a.play.wound <= carried:
+            self.heal_wound(a)
 
     def player_abdicate(self) -> bool:
         """§4/§10: the played ruler lays the seat down. Always on the menu."""
@@ -6088,8 +6820,10 @@ class World:
                  f"  resources {a.resources} | standing {a.standing} | "
                  f"karma {karma_word(a.karma)} ({a.karma:+d})"]
         if a.play is not None and a.play.wound:
-            hurt = "light" if a.play.wound == 1 else "serious"
-            lines.append(f"  wounded ({hurt})")
+            cost = (" — a season's work is worth half until it closes"
+                    if a.play.wound >= 2 else "")
+            lines.append(f"  wounded ({WOUND_WORD[a.play.wound]}, "
+                         f"{self.max_hp(a):.0f} of {ROUND_HP:.0f}){cost}")
         if a.is_ruler():
             polity = self.polities.get(a.ruling)
             if polity is not None:
@@ -6130,8 +6864,15 @@ class World:
             lines.append("  stances: " + ", ".join(
                 f"{k} {v}/{STANCE_RANK_MAX}"
                 for k, v in sorted(st.stances.items())))
-        lines.append("  (wounds, techniques, pills and professions arrive "
-                     "with later sessions; stance ranks are earned in P5)")
+        lines.append(f"  body: {self.max_hp(a):.0f} of {ROUND_HP:.0f} "
+                     f"({WOUND_WORD[st.wound]})")
+        orders = self.orders_of(a)
+        lines.append(f"  orders: {orders['edge']} / {orders['manner']}, "
+                     f"yield at {float(orders['yield']) * 100:.0f}%, "
+                     f"{orders['execute']} the beaten, escape "
+                     f"{orders['escape']} ('orders' for the card)")
+        lines.append("  (techniques, pills and professions arrive with later "
+                     "sessions; stance ranks are earned in P5)")
         return "\n".join(lines)
 
     # -- PC handling --------------------------------------------------------
@@ -6668,6 +7409,9 @@ def interactive(world: World):
     print(world.final_report())
 
 
+# Which of the kernel's questions come from inside a fight, and so want the
+# exchanges so far put on screen before they are asked (VII §5).
+FIGHT_ASKS = ("pause", "advantage", "execute", "edge", "manner")
 PLAY_HELP = """Commands (play mode):
   <enter>            repeat last season's activity
   1-7 or NAME        this season's activity
@@ -6676,7 +7420,7 @@ PLAY_HELP = """Commands (play mode):
                      the season BEFORE anything that matters to you
   agenda             what this year is known to hold
   bag                what you are carrying
-  orders             standing orders (arrives with round combat)
+  orders             the standing orders card; `orders KEY VALUE` sets one
   pc / sheet NAME    a character sheet
   log NAME           a character's whole private history
   map / courts       the nine lands; every ruler and how they rule
@@ -6704,6 +7448,13 @@ class Play:
         self.snapshot: dict = {}
         self.season: Optional[str] = None
         self.hcursor = len(world.pc.history) if world.pc is not None else 0
+        # VII §5: the fight camera. Rounds are buffered rather than printed,
+        # so that a bout which never has to ask the player anything can
+        # collapse into the one chronicle line every other fight in the
+        # world gets (VII §6).
+        self.fight_lines: list = []
+        self.fight_shown = False
+        world.narrate = self.tell
 
     # -- plumbing -------------------------------------------------------
 
@@ -6744,8 +7495,31 @@ class Play:
                 continue        # the chronicle already carried it
             print(f"       . {text}")
 
+    def tell(self, kind: str, text: str):
+        """The kernel's fight camera (World.tell), one line per exchange."""
+        if kind == "open":
+            self.fight_lines = [text]
+            self.fight_shown = False
+        elif kind == "round":
+            if self.fight_shown:
+                print(text)
+            else:
+                self.fight_lines.append(text)
+
+    def show_fight(self):
+        """Something in the fight is about to ask the player a question: put
+        the exchanges that led to it on screen first."""
+        if self.fight_shown:
+            return
+        for line in self.fight_lines:
+            print(line)
+        self.fight_lines = []
+        self.fight_shown = True
+
     def ask(self, kind: str, prompt: str, options: list, default: str) -> str:
         """The kernel's question hook (World.ask_player)."""
+        if kind in FIGHT_ASKS:
+            self.show_fight()
         print()
         print(f"  {prompt}")
         while True:
@@ -6834,8 +7608,13 @@ class Play:
                   or "  Nothing this year that concerns you.")
         elif low == "bag":
             print(w.player_bag())
-        elif low == "orders":
-            print("Standing orders arrive with round combat (session P3).")
+        elif low == "orders" or low.startswith("orders "):
+            parts = cmd.split(None, 2)
+            if len(parts) == 1:
+                print(w.orders_card(w.pc))
+            else:
+                print(w.set_order(w.pc, parts[1],
+                                  parts[2] if len(parts) > 2 else ""))
         elif low == "pc":
             print(w.sheet(w.pc) if w.pc else "No one to show.")
         elif low.startswith("sheet "):
@@ -6968,6 +7747,7 @@ class Play:
 
     def season_turn(self, season: str) -> bool:
         w = self.world
+        self.fight_lines, self.fight_shown = [], False
         pc = w.pc
         if pc is None or not pc.alive:
             w.run_season(season)        # the world does not stop for a death
@@ -7067,6 +7847,206 @@ class Play:
         print(w.final_report())
 
 
+# ---------------------------------------------------------------------------
+# --test-combat: the round model against the one roll (VII §5)
+# ---------------------------------------------------------------------------
+# Everything in the round model is CALIBRATED here rather than guessed: the
+# stop lines, the swing band, the pause thresholds and the patience schedule
+# are all read back out of this harness. It answers four questions:
+#   1. does a fought bout win as often as the one roll says it should
+#      (the invariant, within COMBAT_TEST_BAND);
+#   2. does an even fight take the 3-8 rounds VII §5 asks for;
+#   3. do the two resolutions kill and cripple at the same rates;
+#   4. is that killing and crippling still ordered by edge.
+COMBAT_TEST_BAND = 3.0          # percentage points; VII §5 and §12
+COMBAT_TEST_ROUNDS = (3, 8)     # what an even fight should take
+COMBAT_NEUTRAL = ["Stubborn", "Charming"]   # traits no stance table reads
+# label, realm, talent, qi (each side), the two stances, and the edge the
+# fight was called at.
+COMBAT_CELLS = [
+    ("even, Qi Refining",        (1, 5, 40), (1, 5, 40),
+     ("duelling", None), ("duelling", None)),
+    ("even, Core Formation",     (3, 5, 40), (3, 5, 40),
+     ("duelling", None), ("duelling", None)),
+    ("talent 9 vs 3",            (2, 9, 40), (2, 3, 40),
+     ("duelling", None), ("duelling", None)),
+    ("qi 95 vs 5",               (2, 5, 95), (2, 5, 5),
+     ("duelling", None), ("duelling", None)),
+    ("widest inside one realm",  (1, 10, 95), (1, 1, 0),
+     ("duelling", None), ("duelling", None)),
+    ("even, sparring",           (2, 5, 40), (2, 5, 40),
+     ("sparring", None), ("sparring", None)),
+    ("even, all-out",            (2, 5, 40), (2, 5, 40),
+     ("allout", None), ("allout", None)),
+    ("even, murderous",          (2, 5, 40), (2, 5, 40),
+     ("murderous", None), ("murderous", None)),
+    ("rage vs plain",            (2, 5, 40), (2, 5, 40),
+     ("allout", "rage"), ("allout", None)),
+    ("patience vs plain",        (2, 5, 40), (2, 5, 40),
+     ("duelling", "patience"), ("duelling", None)),
+    ("harmonious vs rage",       (2, 5, 40), (2, 5, 40),
+     ("allout", "harmonious"), ("allout", "rage")),
+    ("showy vs studying",        (2, 5, 40), (2, 5, 40),
+     ("duelling", "showy"), ("duelling", "studying")),
+    ("all-out vs duelling",      (2, 5, 40), (2, 5, 40),
+     ("allout", None), ("duelling", None)),
+    ("murderous vs merciful",    (3, 6, 60), (3, 4, 30),
+     ("murderous", None), ("duelling", "merciful")),
+    ("rage vs patience, Nascent", (4, 7, 70), (4, 5, 20),
+     ("allout", "rage"), ("allout", "patience")),
+]
+
+
+def _test_fighter(world: World, aid: int, name: str, played: bool) -> Agent:
+    a = Agent(aid=aid, name=name, sect="", age=30, talent=5,
+              traits=list(COMBAT_NEUTRAL))
+    a.realm = 2
+    if played:
+        a.play = PlayerState()
+        world._seed_orders(a)
+    world.agents[aid] = a
+    return a
+
+
+def _test_reset(a: Agent, realm: int, talent: int, qi: float,
+                stances=(), wound=0):
+    a.realm, a.talent, a.qi = realm, talent, float(qi)
+    a.traits = list(COMBAT_NEUTRAL)
+    a.alive = True
+    a.epithets, a.rels, a.history, a.deeds = [], {}, [], []
+    a.insight, a.burden, a.standing, a.karma = 0.0, 0, 1, 0
+    a.resources, a.fortune = 0, 0
+    a.death_year = a.death_cause = None
+    if a.play is not None:
+        a.play.wound = wound
+        # A played fighter knows the stance the cell puts them in; an
+        # untrained stance is a different measurement (VII §4), not this one.
+        a.play.stances = {k: STANCE_NPC_RANK for k in stances if k}
+
+
+def test_combat(seed=1, fights=10000) -> bool:
+    """VII §5's Monte Carlo. Prints the whole table and returns pass/fail."""
+    world = World(seed=seed, intake_size=8)
+    world.round_combat = True
+    att = _test_fighter(world, 900001, "Attacker", True)
+    dfn = _test_fighter(world, 900002, "Defender", False)
+    band = COMBAT_TEST_BAND
+    print("=" * 72)
+    print("--test-combat: the round model against the one roll (VII §5)")
+    print(f"seed {seed}, {fights} fights a cell, invariant band {band:.1f}pp")
+    print("=" * 72)
+    print()
+    print("THE INVARIANT — a fought bout against pa/(pa+pb)")
+    print(f"  {'matchup':<28}{'stances':<26}{'one roll':>9}"
+          f"{'fought':>8}{'delta':>9}")
+    worst = 0.0
+    rounds_by_edge: dict = {}
+    for label, (ra, ta, qa), (rb, tb, qb), sa, sb in COMBAT_CELLS:
+        _test_reset(att, ra, ta, qa, stances=sa)
+        _test_reset(dfn, rb, tb, qb)
+        want = world.duel_odds(att, dfn, sa, sb)
+        wins = 0
+        counts: list = []
+        for _ in range(fights):
+            _test_reset(att, ra, ta, qa, stances=sa)
+            _test_reset(dfn, rb, tb, qb)
+            bout = world._bout(att, dfn, sa, sb,
+                               max((sa[0], sb[0]), key=EDGE_ORDER.index), "")
+            wins += 1 if bout["winner"] is att else 0
+            counts.append(bout["rounds"])
+            rounds_by_edge.setdefault(bout["edge"], []).extend(
+                [bout["rounds"]] if (ra, ta, qa) == (rb, tb, qb) else [])
+        got = wins / fights
+        delta = (got - want) * 100.0
+        worst = max(worst, abs(delta))
+        stances = f"{sa[0]}/{sa[1] or '-'} vs {sb[0]}/{sb[1] or '-'}"
+        print(f"  {label:<28}{stances:<26}{want * 100:>8.1f}%"
+              f"{got * 100:>7.1f}%{delta:>+8.2f}pp")
+    invariant_ok = worst <= band
+    print(f"  worst |delta| {worst:.2f}pp over {len(COMBAT_CELLS)} cells "
+          f"-> {'PASS' if invariant_ok else 'FAIL'}")
+    print()
+    print(f"ROUND COUNTS, even fights only (target "
+          f"{COMBAT_TEST_ROUNDS[0]}-{COMBAT_TEST_ROUNDS[1]})")
+    print(f"  {'edge':<12}{'mean':>7}{'median':>8}{'p10':>6}{'p90':>6}"
+          f"{'in band':>10}")
+    rounds_ok = True
+    for edge in EDGE_ORDER:
+        counts = sorted(rounds_by_edge.get(edge, []))
+        if not counts:
+            continue
+        n = len(counts)
+        mean = sum(counts) / n
+        med = counts[n // 2]
+        p10, p90 = counts[int(n * 0.10)], counts[int(n * 0.90)]
+        inband = sum(1 for c in counts
+                     if COMBAT_TEST_ROUNDS[0] <= c <= COMBAT_TEST_ROUNDS[1])
+        ok = COMBAT_TEST_ROUNDS[0] <= med <= COMBAT_TEST_ROUNDS[1]
+        rounds_ok = rounds_ok and ok
+        print(f"  {edge:<12}{mean:>7.1f}{med:>8}{p10:>6}{p90:>6}"
+              f"{100.0 * inband / n:>9.0f}%  {'ok' if ok else 'OUT'}")
+    print(f"  -> {'PASS' if rounds_ok else 'FAIL'} (median inside the band "
+          f"at every edge)")
+    print()
+    # What a wound costs: outside the invariant on purpose (VII §5 — the
+    # calibration is computed for two whole bodies, and the fight is run on
+    # the real ones).
+    print("WHAT A WOUND COSTS (even fight at duelling, the played side hurt)")
+    for wound in (0, 1, 2):
+        wins = 0
+        for _ in range(fights):
+            _test_reset(att, 2, 5, 40, stances=("duelling",), wound=wound)
+            _test_reset(dfn, 2, 5, 40)
+            bout = world._bout(att, dfn, ("duelling", None),
+                               ("duelling", None), "duelling", "")
+            wins += 1 if bout["winner"] is att else 0
+        print(f"  {WOUND_WORD[wound]:<10} win {100.0 * wins / fights:>5.1f}%"
+              f"   body {ROUND_HP - WOUND_MAX_HP[wound]:.0f}")
+    print()
+    # The outcome chain: the same duel, resolved both ways.
+    print(f"DEATH AND MAIM PER EDGE ({fights} duels an edge, both "
+          f"resolutions)")
+    print(f"  {'edge':<12}{'death 1-roll':>14}{'death rounds':>14}"
+          f"{'maim 1-roll':>13}{'maim rounds':>13}")
+    deaths: dict = {}
+    maims: dict = {}
+    for edge in EDGE_ORDER:
+        for mode in ("roll", "rounds"):
+            world.round_combat = (mode == "rounds")
+            played, plain = (att, dfn)
+            dead = hurt = 0
+            for i in range(fights):
+                _test_reset(played, 2, 5, 40, stances=(edge,))
+                _test_reset(plain, 2, 5, 40)
+                world._duel(played, plain, context="", edge=edge)
+                dead += sum(1 for x in (played, plain) if not x.alive)
+                hurt += sum(len(x.epithets) for x in (played, plain))
+                if i % 500 == 0:
+                    world.chronicle.clear()
+                    world.obituaries.clear()
+            deaths[(edge, mode)] = 100.0 * dead / fights
+            maims[(edge, mode)] = 100.0 * hurt / fights
+        print(f"  {edge:<12}{deaths[(edge, 'roll')]:>13.2f}%"
+              f"{deaths[(edge, 'rounds')]:>13.2f}%"
+              f"{maims[(edge, 'roll')]:>12.2f}%"
+              f"{maims[(edge, 'rounds')]:>12.2f}%")
+    world.round_combat = True
+    spar_ok = (deaths[("sparring", "roll")] == 0
+               == deaths[("sparring", "rounds")])
+    duel_ok = max(deaths[("duelling", "roll")],
+                  deaths[("duelling", "rounds")]) < 3.0
+    maim_ok = all(maims[("sparring", m)] < maims[("duelling", m)]
+                  < maims[("allout", m)] for m in ("roll", "rounds"))
+    print(f"  sparring kills nobody: {'PASS' if spar_ok else 'FAIL'}; "
+          f"duel accidents < 3%: {'PASS' if duel_ok else 'FAIL'}; "
+          f"maim ordered sparring < duelling < all-out: "
+          f"{'PASS' if maim_ok else 'FAIL'}")
+    print()
+    ok = invariant_ok and rounds_ok and spar_ok and duel_ok and maim_ok
+    print(f"--test-combat: {'PASS' if ok else 'FAIL'}")
+    return ok
+
+
 def create_character(world: World, play: Play) -> Agent:
     """VII §2: name, sex and homeland. Everything else is rolled."""
     print("=" * 72)
@@ -7107,6 +8087,9 @@ def main():
                    help="RNG seed for a reproducible world")
     p.add_argument("--intake", type=int, default=INTAKE_SIZE,
                    help="students per intake cycle (default %(default)s)")
+    p.add_argument("--test-combat", action="store_true",
+                   help="run VII §5's combat harness (the round model "
+                        "against the one roll) and print the table")
     p.add_argument("--play", action="store_true",
                    help="play agent 65 of the starting intake, one season "
                         "at a time (VII: the playable layer)")
@@ -7115,6 +8098,10 @@ def main():
                         "or leaves the path, then print their whole life "
                         "(--years, if given, caps the run)")
     args = p.parse_args()
+
+    if args.test_combat:
+        sys.exit(0 if test_combat(seed=args.seed if args.seed is not None
+                                  else 1) else 1)
 
     world = World(seed=args.seed, intake_size=args.intake)
 

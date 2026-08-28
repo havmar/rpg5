@@ -22,11 +22,13 @@ python3 cultivation_sim.py --seed 7        # reproducible world
 python3 cultivation_sim.py --intake 32     # smaller recruitment cycles
 python3 cultivation_sim.py --follow-pc     # run until the PC peaks, dies or quits
 python3 cultivation_sim.py --play          # PLAY agent 65, one season at a time
+python3 cultivation_sim.py --test-combat   # VII §5's combat harness (exit 1 = FAIL)
 ```
 
 Play-mode commands: Enter (repeat last season's activity), `1`-`7` or the
 activity's name, `menu`, `skip N doing X` (timeskip, cap 12 seasons),
-`agenda`, `bag`, `orders` (a stub until P3), plus every observer command
+`agenda`, `bag`, `orders` (the standing-orders card; `orders KEY VALUE`
+sets one), plus every observer command
 (`pc`, `sheet`, `log`, `map`, `courts`, `land`, `roster`, `famous`,
 `obits`, `help`, `quit`).
 
@@ -132,7 +134,7 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   or mutate into a vice trait; blocked mutations reroute through
   `CAMERA_REROUTE`. It protects the reader's seat, not the characters.
 
-## The playable layer (Part VII — sessions P1-P2 built)
+## The playable layer (Part VII — sessions P1-P3 built)
 
 - **Two clocks** (§1) — the world thinks in years, the player lives in
   seasons. The agenda (`World.agenda`, a list of `AgendaItem`) is what makes
@@ -145,9 +147,10 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
 - **`--play`** (§2) — `World.begin_play` adds agent 65 to the watched
   intake with everything rolled (no point-buy); the player supplies a name
   and may pick sex and homeland. PC-only state lives on `Agent.play`
-  (`PlayerState`); `stances` is filled by P2, the rest are still
-  placeholders for P3-P7 (hp/wounds, proficiencies, professions,
-  techniques, pills, standing orders).
+  (`PlayerState`); `stances` is filled by P2 and `wound` / `orders` by P3;
+  proficiencies, professions, techniques and pills are still placeholders
+  for P5-P7. There is deliberately no hp field: hp exists only inside a
+  fight.
   The camera constraint (VI §8) is REPEALED for a played PC — vice is
   allowed, karma is the price — while bound companions keep it.
 - **Season activities** (§3, `World.player_season`) — cultivate, retreat,
@@ -187,8 +190,40 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   their own character takes them to and in the one manner their nature
   fights in, a played character's ranks live in `PlayerState.stances`
   (`_seed_stances`), and EARNING ranks is P5's. `World.duel_odds` is the
-  one-roll win probability and the seam P3's round model must hold within
-  3 percentage points of.
+  one-roll win probability, and the invariant the round model below holds
+  within 3 percentage points of.
+- **Round combat** (§5, P3) — ONE DISTRIBUTION, TWO RESOLUTIONS. Fights
+  stay one roll off camera; a fight the PLAYED character is in unfolds into
+  exchanges (`_rounds_wanted` -> `_bout`), and `_duel`'s outcome chain is
+  the same chain either way, so death and maim rates are identical.
+  THE INVARIANT is held by construction, not by tuning: each fighter's blow
+  (`_swing_of`) is rolled once, so the bout is a RACE to a known pair of
+  whole numbers, and `_exchange_chance` INVERTS that binomial tail to find
+  the per-exchange chance whose race lands exactly on `duel_odds`. The
+  calibration is computed for two UNWOUNDED fighters stopping at the edge's
+  own line and the fight is then run on the real geometry — which is how a
+  wound, or a yield line the player moved, costs something without the
+  kernel ever hearing about it. The tyranny of realms is untouched: a gap
+  returns before a bout is ever built. `player_power` is the ONE place
+  VII §5's +4 cap will be enforced (zero for everybody until P5).
+- **Pauses, wounds, standing orders** (§5-6, P3) — a bout stops when a
+  fighter crosses `PAUSE_OWN[0]` (60%) or THE BRINK (one exchange above the
+  line they actually stop at), and again when the one who is AHEAD watches
+  the other cross the same marks: yield / fight on / fight to the last /
+  switch edge or manner / in a killing fight, escape (`_escape_chance`;
+  the Movement term is P7's). ONE prompt per crossing. NPCs cross the same
+  lines and answer with their nature (`NPC_PAUSE_LOSING` /
+  `NPC_PAUSE_WINNING`, `NPC_YIELD_TRAITS`). hp is gone when the fight is:
+  what walks out is a WOUND (`_bout_wounds`) — light under 50%, serious
+  under 25%, costing max hp and (serious) half of every season's payout,
+  healed one level by a restful season (`heal_wound`, the seam P6's healer
+  and healing pill write through). STANDING ORDERS (`ORDERS_DEFAULT`,
+  `orders_of` / `set_order`) are to a played character what traits are to an
+  NPC: default edge and manner (read by `_pick_stance`), the yield line, the
+  execution policy (`_finishes`), the escape policy, and whether crossings
+  ask at all. A bout that never has to ask prints as ONE line, like anybody
+  else's fight. `World.tell` is the fight camera the UI hangs on the kernel
+  — narration only, never the chronicle, and the kernel still never prints.
 - **The question hook** — `World.ask_player` is called wherever the kernel
   would otherwise roll FOR the played character: leaving the path, a throne
   claimed or offered, a rising asking for a champion, a plea assigned. With
@@ -266,6 +301,18 @@ all of these currently hold at, are in parentheses.
   knobs are `STANCE_EDGES`' kill/maim/execute columns,
   `STANCE_EXECUTE_TRAITS`, `STANCE_MURDEROUS_TRAITS` and
   `STANCE_MURDEROUS_PLAIN`.
+- **The combat invariant** (VII §5/§12, P3 — `python3 cultivation_sim.py
+  --test-combat`, ~20s, exit 1 on FAIL): the round model's win% within 3
+  percentage points of `duel_odds` across the matchup grid (worst cell
+  ~1.2pp), even fights 3-8 rounds at every edge (median 3 / 6 / 6 / 7),
+  sparring kills nobody, duel accidents under 3% (~2%), maim rates ordered
+  sparring < duelling < all-out, and the two resolutions killing and
+  crippling at the same rates. The stop lines (`STANCE_EDGES["stop"]`), the
+  swing band (`ROUND_SWING`), the pause thresholds (`PAUSE_OWN` /
+  `PAUSE_FOE` / `PAUSE_BRINK_GAP`) and `ROUND_PATIENCE_ROUNDS` are all
+  tuned against this harness, not guessed. NPC fights stay one roll, so a
+  change here must leave every number above untouched — after P3 a batch
+  run is still BIT-IDENTICAL to P2's.
 - **Distinguishability**: pick five agents — including one ruler and one
   revolt champion — read `log NAME` for each; every life should be
   describable in one sentence, `log <ruler>` should read like a reign, and
@@ -293,18 +340,26 @@ The test for any change: does `log <agent>` still read like a life?
   elder-tempo opportunity injection (dying elders seeking heirs, purges).
 - AI DM as renderer over the logs (chronicles, "state of the world" digests).
 - World-generation mode (run 200 years, freeze, survivors become the setting).
-- The rest of the player layer (**Part VII**, sessions P3-P7): round-based
-  autocombat with hp, pause points and wounds (P2 left `duel_odds` and the
-  stance tables as its seam, and `PlayerState.hp/wound/orders` as its
-  fields), the demon front, masters and proficiencies (which is where
-  stance ranks are earned), professions with toxicity, techniques, and the
-  played throne (P1 offers only hold-or-abdicate). Sessions P1 — two
-  clocks, `--play`, the season menu, the timeskip — and P2 — stances in the
-  kernel — are built; the PC is a player, not only a camera, and there is
-  no player combat UI yet.
+- The rest of the player layer (**Part VII**, sessions P4-P7): the demon
+  front (P3 left `_bout` as the place a front fight would route through);
+  masters and proficiencies, which is where stance ranks are earned and
+  where `player_power`'s +4 cap starts carrying anything; professions with
+  toxicity (`heal_wound` is the healer's and the healing pill's seam);
+  techniques (`_movement_rank` is the escape table's); and the played
+  throne (P1 offers only hold-or-abdicate). Sessions P1 — two clocks,
+  `--play`, the season menu, the timeskip — P2 — stances in the kernel —
+  and P3 — round combat, wounds, standing orders, `--test-combat` — are
+  built.
 
 ## Known deviations from the spec (deliberate, from tuning)
 
+- **The stop lines and the pause thresholds** (VII §4/§5). §4's 75%/50% stop
+  lines are 70%/45%, and §5's 50%/25% pauses are 60% and THE BRINK (one
+  exchange above whatever line the fighter stops at). With a 12-20 point
+  swing the spec's numbers make a duel end on its own first pause and put
+  the second pause inside one exchange of the yield, so neither would ever
+  be a choice; §5 asks for 3-8 round fights and pauses that fire, and these
+  are what `--test-combat` says delivers both.
 - **Prosperity drift** is proportional and asymmetric, not §2's flat
   0.2/year. A flat step made the field bang-bang (every country pinned at
   baseline or run to zero) and the map came out starving-or-golden with
