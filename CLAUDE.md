@@ -23,9 +23,10 @@ python3 cultivation_sim.py --intake 32     # smaller recruitment cycles
 python3 cultivation_sim.py --follow-pc     # run until the PC peaks, dies or quits
 python3 cultivation_sim.py --play          # PLAY agent 65, one season at a time
 python3 cultivation_sim.py --test-combat   # VII §5's combat harness (exit 1 = FAIL)
+python3 cultivation_sim.py --autopilot --years 200   # VII §12's random-hand bot
 ```
 
-Play-mode commands: Enter (repeat last season's activity), `1`-`8` or the
+Play-mode commands: Enter (repeat last season's activity), `1`-`13` or the
 activity's name, `menu`, `skip N doing X` (timeskip, cap 12 seasons),
 `agenda`, `bag`, `orders` (the standing-orders card; `orders KEY VALUE`
 sets one), plus every observer command
@@ -134,7 +135,7 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   or mutate into a vice trait; blocked mutations reroute through
   `CAMERA_REROUTE`. It protects the reader's seat, not the characters.
 
-## The playable layer (Part VII — sessions P1-P3 built)
+## The playable layer (Part VII — sessions P1-P5 built)
 
 - **Two clocks** (§1) — the world thinks in years, the player lives in
   seasons. The agenda (`World.agenda`, a list of `AgendaItem`) is what makes
@@ -147,15 +148,16 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
 - **`--play`** (§2) — `World.begin_play` adds agent 65 to the watched
   intake with everything rolled (no point-buy); the player supplies a name
   and may pick sex and homeland. PC-only state lives on `Agent.play`
-  (`PlayerState`); `stances` is filled by P2 and `wound` / `orders` by P3;
-  proficiencies, professions, techniques and pills are still placeholders
-  for P5-P7. There is deliberately no hp field: hp exists only inside a
-  fight.
+  (`PlayerState`); `stances` is filled by P2, `wound` / `orders` by P3, and
+  `proficiencies` / `drills` by P5; professions, techniques and pills are
+  still placeholders for P6-P7. There is deliberately no hp field: hp
+  exists only inside a fight.
   The camera constraint (VI §8) is REPEALED for a played PC — vice is
   allowed, karma is the price — while bound companions keep it.
 - **Season activities** (§3, `World.player_season`) — cultivate, retreat,
-  fight injustice, hunt spirit beasts, trade run, socialize, join the
-  muster; all reskins of existing machinery, each paying `SEASON_RATE`
+  train the body / a weapon / theory, the sect training hall, seek a
+  master, fight injustice, hunt spirit beasts, trade run, socialize, join
+  the muster, the demon front; each paying `SEASON_RATE`
   (a quarter) of the matching yearly action in gains AND in risk, via
   `_fires` / `_share_int`. At `share=1.0` those two helpers roll no dice at
   all, which is why the NPC year is untouched.
@@ -205,7 +207,13 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   wound, or a yield line the player moved, costs something without the
   kernel ever hearing about it. The tyranny of realms is untouched: a gap
   returns before a bout is ever built. `player_power` is the ONE place
-  VII §5's +4 cap will be enforced (zero for everybody until P5).
+  VII §5's +4 cap is enforced: it sums `player_power_terms` (P5's Weapon
+  proficiency; P6's gear and P7's techniques append there and nowhere else)
+  and clips the total at `PLAYER_POWER_CAP`. `fight_power` is
+  `power() + player_power()` and is read by every contest a character
+  fights with their own hands — `_stance_power`, `_act_front`, `_act_hunt`
+  — and deliberately NOT by the group contests (war, incursion,
+  expedition), which are army arithmetic.
 - **Pauses, wounds, standing orders** (§5-6, P3) — a bout stops when a
   fighter crosses `PAUSE_OWN[0]` (60%) or THE BRINK (one exchange above the
   line they actually stop at), and again when the one who is AHEAD watches
@@ -250,6 +258,38 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   under `PETITION_AT` beg through the EXISTING petition machinery
   (`Petition.front`, `FRONT_PETITION_MISSIONS`): the Waste holds no court,
   so answering one makes no enemy and signs nothing.
+- **Training, masters and the hall** (§8, P5) — ONE RANK MECHANIC with
+  several skins: `RANK_SHAPES` is the shape (max rank, seasons rank N
+  costs), a dict on `PlayerState` is the store, and `World.track_rank` is
+  the only place a rank is computed. `proficiencies` holds Body / Weapon /
+  Theory in SEASONS (rank 0-5, rank N costs N seasons); `drills` holds
+  seasons per stance (rank 0-3, 2 seasons a rank) while `stances` stays the
+  authoritative rank, because a rank can be GIVEN as well as ground out.
+  Effects are deliberately small: Body is `PROFICIENCY_BODY_HP` a rank of
+  body plus `PROFICIENCY_BODY_RESIST` of a wound coming off one level
+  lighter (`_wound_resisted`, read by both wound doors); Weapon is
+  `PROFICIENCY_WEAPON_POWER` a rank inside the +4 cap; Theory is a
+  percentage point a rank on the tribulation plus an insight trickle. Stance
+  ranks are earned three ways — `_drill_stance` (a weapon season, aimed by
+  `_drill_target`, which reads the standing orders and rolls no dice),
+  `_fight_drill` (a stance carried through a real fight, called from
+  `_duel`), and teaching (`_grant_stance` / `_teach_stance`, and
+  `_hall_stance`). A master (`master_of`, bound with `_bind` like any other
+  rel, so grief, grudges, the `[master]` tag and the timeskip's witness
+  alarm all work unchanged) multiplies training seasons by
+  `MASTER_TEACHING` and hands over the stances THEY fight in. The trial
+  (`_master_trial`) is a reading of the record — karma in the master's own
+  direction, insight, epithets, standing, talent — plus one bout at
+  Sparring against a peer, never against the master: a realm gap would make
+  a trial a flight. `_duel` now RETURNS whoever was left standing, which is
+  how the trial knows. The hall (`_act_hall`) gates on `HALL_STANDING` and
+  `HALL_COST` and teaches forms; `_hall_technique` and `_master_technique`
+  are P7's seams and return nothing.
+- **The autopilot** (§12, P5, `--autopilot`) — `Autopilot` picks a legal
+  activity at random every season and answers every `ask_player` question by
+  coin, on its OWN `random.Random` and never on `world.rng`.
+  `World.activity_available` / `activity_refusal` are the one list of legal
+  choices, read by both the terminal and the bot.
 - **The question hook** — `World.ask_player` is called wherever the kernel
   would otherwise roll FOR the played character: leaving the path, a throne
   claimed or offered, a rising asking for a champion, a plea assigned. With
@@ -354,6 +394,24 @@ all of these currently hold at, are in parentheses.
   standard of living. NOTE that `_remember` files incursions too, so a
   cadence instrument must separate them from revolts and wars or it will
   read one upheaval per five years and look broken.
+- **The autopilot funnel** (VII §12, P5 — `--autopilot`, measured with
+  `auto.py` over two 32-seed blocks x 200 years): a PC played by a random
+  legal-choice bot must leave the cohort funnel in band and must not be an
+  outlier itself. It does: the 64 beside the bot come out 36.2/15.5/7.2/1.75
+  and 35.6/14.4/5.2/1.34, and the bot reaches realm 2 in 53% of runs against
+  the cohort's 56% (mean final realm 1.75 / 1.56 against 1.95 / 1.88 — a
+  hand that is not paying attention comes out a shade under an NPC whose
+  traits at least steer it, which is the target said the right way round).
+  It DOES run hotter: 2.3-2.7 deaths per 100 years lived against the
+  cohort's 1.1-1.2, though at realm 1 — where most bot lives end — it dies
+  at the cohort's own age almost exactly (29.5/34.4 against 29.6/29.0).
+  A uniform hand takes the demon front and the harsh road far more often
+  than an NPC's traits do; that is the front's design and the whole content
+  of "the player's edge is judgment", but P7's sweep owns the final call.
+  The lever that keeps this honest is `TRAIN_QI_SHARE`: every activity added
+  to the menu that pays no qi makes the season layer a PENALTY for being
+  played (P5's five new activities cost the bot a fifth of a realm before
+  the trickle was put back). Re-measure whenever the menu grows.
 - **Distinguishability**: pick five agents — including one ruler and one
   revolt champion — read `log NAME` for each; every life should be
   describable in one sentence, `log <ruler>` should read like a reign, and
@@ -381,15 +439,18 @@ The test for any change: does `log <agent>` still read like a life?
   elder-tempo opportunity injection (dying elders seeking heirs, purges).
 - AI DM as renderer over the logs (chronicles, "state of the world" digests).
 - World-generation mode (run 200 years, freeze, survivors become the setting).
-- The rest of the player layer (**Part VII**, sessions P5-P7): masters and
-  proficiencies, which is where stance ranks are earned and where
-  `player_power`'s +4 cap starts carrying anything; professions with
-  toxicity (`heal_wound` is the healer's and the healing pill's seam);
-  techniques (`_movement_rank` is the escape table's); and the played
-  throne (P1 offers only hold-or-abdicate). Sessions P1 — two clocks,
-  `--play`, the season menu, the timeskip — P2 — stances in the kernel —
-  P3 — round combat, wounds, standing orders, `--test-combat` — and P4 —
-  the demon front — are built. Named demon lords as real agents stay out of
+- The rest of the player layer (**Part VII**, sessions P6-P7): professions
+  with toxicity — one more row in `RANK_SHAPES` and one more store on
+  `PlayerState`, since §8's three skins share P5's rank mechanic
+  (`heal_wound` is the healer's and the healing pill's seam, and
+  `player_power_terms` is where forged gear appends); techniques
+  (`_movement_rank` is the escape table's seam, `_hall_technique` and
+  `_master_technique` the acquisition ones); and the played throne (P1
+  offers only hold-or-abdicate). Sessions P1 — two clocks, `--play`, the
+  season menu, the timeskip — P2 — stances in the kernel — P3 — round
+  combat, wounds, standing orders, `--test-combat` — P4 — the demon front
+  — and P5 — proficiencies, the training hall, masters, the autopilot —
+  are built. Named demon lords as real agents stay out of
   scope by decision, not omission (VII's up-front block).
 
 ## Known deviations from the spec (deliberate, from tuning)

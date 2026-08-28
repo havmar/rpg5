@@ -1668,7 +1668,10 @@ WOUND_WORD = {0: "unhurt", 1: "light", 2: "serious"}
 # Seasons that heal one level. The road, the hunt, the front and the muster
 # do not; sitting still does. (A healer or a healing pill closes one
 # instantly — that is P6, and `heal_wound` is the seam it writes through.)
-WOUND_REST = ("cultivate", "retreat", "socialize")
+# P5 adds the two training seasons that are sitting still: the reading room
+# and the sect library. Drilling the body or the sword is not rest, and the
+# front is still not rest at all.
+WOUND_REST = ("cultivate", "retreat", "socialize", "theory", "hall")
 WOUND_LINES = {
     1: "{who} walked out of it carrying a wound that will keep for a season.",
     2: "{who} walked out of it badly hurt; everything will come harder until "
@@ -1925,6 +1928,172 @@ FRONT_PETITION_MISSIONS = [
 FRONT_PETITION_OPPOSITION = 10.0    # the wall, before the pot is counted
 FRONT_PETITION_PER_THREAT = 4.0     # ... and per point of the pot
 
+# --- THE PLAYABLE LAYER: TRAINING, MASTERS AND THE HALL (VII §8) -----------
+# ONE RANK MECHANIC, and this is it. Everything a played character can grind
+# at — the three proficiencies below, the stance ranks P2 left for this
+# session to EARN, and P6's three professions — is the same track: seasons of
+# practice go in, and rank N costs `step` x N of them. A track is a SHAPE
+# (here) and a STORE (a dict on `PlayerState`), and nothing else; adding
+# alchemy is a row in this table and a store, not new code. `World.track_rank`
+# is the only place a rank is ever computed.
+RANK_SHAPES = {
+    #  name          max rank, seasons that rank N costs
+    "proficiency": {"max": 5, "step": 1.0},
+    # A stance is dearer per rank than a drill: it is a way of fighting, not
+    # a habit of the arms. P2 wrote the ranks; this is where they come from.
+    "stance": {"max": STANCE_RANK_MAX, "step": 2.0},
+    # P6: "profession": {"max": 3, "step": 3.0} — §8's three skins on the one
+    # mechanic. Nothing else in this block has to change to carry them.
+}
+# THE EFFECTS ARE DELIBERATELY SMALL (§8). A fifth-rank body is worth about
+# what a light wound costs; a fifth-rank weapon is two and a half points
+# inside a cap of four; a fifth-rank theory is five percentage points on a
+# tribulation and a trickle of insight. They are texture and a PROJECT —
+# something a played life is about between the years the world happens to it
+# — and they are not a way through a realm.
+PROFICIENCIES = {
+    # key: (the activity's label, the one line the menu shows)
+    "body": ("Body", "a harder body, and wounds that come off lighter"),
+    "weapon": ("Weapon", "the blade, and the stance you fight in"),
+    "theory": ("Theory", "the tribulation, and a slow trickle of insight"),
+}
+PROFICIENCY_SHAPE = "proficiency"
+PROFICIENCY_WORDS = ("untrained", "drilled", "practised", "seasoned",
+                     "hardened", "past teaching")
+PROFICIENCY_BODY_HP = 1.0       # points of body a rank is worth. Small on
+                                # purpose and MEASURED small: hp is the one
+                                # thing the one roll never hears about (VII
+                                # §5 — the reference geometry is two whole
+                                # bodies), so a full Body track is worth
+                                # about three points of win rate on an even
+                                # duel, comfortably under what the whole +4
+                                # power cap buys. --test-combat prints it.
+PROFICIENCY_BODY_RESIST = 0.12  # ... and the chance per rank that what walks
+                                # out of a fight walks out one level lighter
+PROFICIENCY_WEAPON_POWER = 0.5  # power a rank is worth, INSIDE the §5 cap
+PROFICIENCY_THEORY_TRIBULATION = 0.01   # per rank, on the breakthrough roll
+PROFICIENCY_THEORY_INSIGHT = 0.4        # what a season of reading pays
+TRAIN_STANCE_SEASONS = 1.0      # a weapon season also drills the stance you
+                                # actually fight in (§3)
+# A season of training is still a season AT THE SECT, and pays a fraction of
+# what sitting in the hall cultivating pays. This is not generosity, it is
+# §12's autopilot target: a random legal-choice hand has to come out of the
+# menu at an ordinary cultivator's pace, and every activity added to the menu
+# that pays no qi at all quietly makes the season layer a PENALTY for being
+# played. The fraction is set where it restores the qi a uniform hand made
+# before this session's five new activities widened the menu — measured, not
+# guessed (see `autocmp.py` in the tuning scratch). Cultivating still pays
+# two and a half times as much, so a rank is bought and not found.
+TRAIN_QI_SHARE = 0.4
+FIGHT_DRILL_SEASONS = 0.5       # ... and §4's other half: a stance carried
+                                # through a real fight is worth half a season
+                                # of drilling it. Ranks come from USE, and
+                                # this is what "use" is worth.
+TRAIN_LINES = {
+    "body": [
+        "{who} spent the season on the practice ground, and on the hill "
+        "above it, and on the hill again.",
+        "{who} carried stone up the mountain all season for no reason "
+        "anybody could see.",
+        "{who} drilled the forms until the forms stopped costing anything.",
+    ],
+    "weapon": [
+        "{who} spent the season at the racks, working {stance} against "
+        "whoever the hall would give them.",
+        "{who} drilled {stance} all season against a post that never "
+        "tired of it.",
+        "{who} took the sword out every morning of the season and put it "
+        "back every night a little better.",
+    ],
+    "theory": [
+        "{who} spent the season in the reading room over the older "
+        "commentaries (+insight).",
+        "{who} read the tribulation records of four dead disciples all "
+        "season and copied out what killed them (+insight).",
+        "{who} argued the theory of the {realm} passage with the "
+        "librarians until the librarians gave up (+insight).",
+    ],
+}
+TRAIN_RANK_LINES = {
+    "body": "{who}'s body has caught up with the drills ({word}: "
+            "Body {rank}/{max}).",
+    "weapon": "{who}'s hands have caught up with the sword ({word}: "
+              "Weapon {rank}/{max}).",
+    "theory": "{who} has read past what the sect bothers to teach ({word}: "
+              "Theory {rank}/{max}).",
+}
+STANCE_RANK_LINE = ("{who} drilled {stance} until it stopped being a "
+                    "decision (rank {rank}/{max}).")
+STANCE_TAUGHT_LINE = "{who} was taught {stance} by {by} (rank {rank}/{max})."
+
+# THE SECT TRAINING HALL (§3). The library and the practice hall are the
+# sect's, not yours: they open for standing and they cost silver, and what
+# they hold is FORMS — the stances everybody in the sect is supposed to know
+# and nobody has bothered to teach you. The other half of the hall is P7's
+# (techniques are cards, and the hall is where the sect sells them); the seam
+# is `_hall_technique` and it is empty until then.
+HALL_STANDING = 4               # the hall does not open for a nobody
+HALL_COST = 3                   # silver a season in it costs
+HALL_TEACHES = 0.60             # ... and the seasons that teach a form
+HALL_STANCE_RANK = 1            # what the hall's teaching is worth: the form
+HALL_THEORY = 0.5               # the reading that comes with it, in seasons
+HALL_STANDING_GAIN = 0.25       # being seen at the right desks
+HALL_LINES = {
+    "taught": "{who} spent the season in the {sect} training hall and came "
+              "out of it knowing {stance} (-silver).",
+    "read": "{who} spent the season in the {sect} training hall, mostly "
+            "reading; nothing in it was new.",
+    "shut": "{who} was turned away from the {sect} training hall: the "
+            "library opens for standing, and pays for its lamps in silver.",
+}
+
+# SEEK A MASTER (§8). A search season turns somebody up; their TRIAL is a
+# scene, and the scene is a reading of the RECORD — what the karma ledger
+# says, what adversity has taught, what name the epithets carry, and one bout
+# at Sparring against somebody of the seeker's own height. A won master is a
+# teaching multiplier, a grant of stances, and (P7) sometimes a technique;
+# and it is a REAL relationship, bound through `_bind` like any other, which
+# the world can kill, betray or avenge with no further help from this table.
+MASTER_MIN_GAP = 1              # §8: realm >= PC + 1
+MASTER_MIN_AGE_GAP = 8          # ... and long enough on the road to teach it
+MASTER_FIND = 0.55              # a season of asking that turns somebody up
+MASTER_POOL = 5                 # the candidates a season weighs
+MASTER_WEIGHT_BASE = 1.0
+MASTER_WEIGHT_TRAIT = 2.0       # a temper the seeker shares
+MASTER_WEIGHT_SECT = 2.5        # their own sect first ...
+MASTER_WEIGHT_LAND = 1.5        # ... then their own country
+MASTER_WEIGHT_KNOWN = 3.0       # somebody who already knows their face
+MASTER_WEIGHT_VICE = -1.5       # ... and what a black ledger costs a teacher
+MASTER_TRIAL_KARMA = 0.20       # the ledger, read in the master's direction
+MASTER_TRIAL_INSIGHT = 0.15
+MASTER_TRIAL_EPITHET = 1.5      # a name is a kind of record
+MASTER_TRIAL_STANDING = 0.25
+MASTER_TRIAL_TALENT = 0.40
+MASTER_TRIAL_WON = 3.0          # the bout at Sparring, taken ...
+MASTER_TRIAL_LOST = 0.5         # ... and lost in front of them
+MASTER_TRIAL_NOISE = 2.0        # what the day itself is worth
+MASTER_TRIAL_NEED = 4.0         # what an ordinary teacher asks
+MASTER_TRIAL_PER_REALM = 2.0    # ... and what each realm of reach adds
+MASTER_INTENSITY = 3            # bound as close as a sworn brother
+MASTER_TEACHING = 1.6           # what a training season is worth under one
+MASTER_STANCE_CHANCE = 0.20     # ... and the seasons they simply teach you
+MASTER_GIFT_RANK = 2            # §4: a parting gift can be Patience at 2
+MASTER_KARMA = 1                # taking a disciple is a kindness
+MASTER_INSIGHT = 2              # being taken is a lesson
+MASTER_LINES = {
+    "none": "{who} spent the season asking after teachers, and was passed "
+            "from one closed door to the next.",
+    "found": "{who} went to {master} and asked to be taught.",
+    "spar": "a master's trial",
+    "passed": "{master} took {who} as a disciple after the trial "
+              "(+insight).",
+    "failed": "{master} heard {who} out, watched them fight, and sent them "
+              "back down the mountain.",
+    "gift": " {master} taught them {stance} on the day of it.",
+    "have": "{who} already has a master, and a second one is not a thing "
+            "the sects would sit still for.",
+}
+
 # --- THE PLAYABLE LAYER: THE PLAYED CHARACTER (VII §2) ---------------------
 PLAYER_AID_NOTE = "agent 65"    # the player joins the watched intake
 # Deeds drive the played character's mutation: the world writes on the
@@ -1947,6 +2116,13 @@ PLAYER_ACTIVITIES = [
      "qi at the sect's rate, and a trickle of silver"),
     ("retreat", "Meditate in retreat",
      "more qi than the sect gives; the world forgets you"),
+    ("body", "Train the body", PROFICIENCIES["body"][1]),
+    ("weapon", "Train a weapon", PROFICIENCIES["weapon"][1]),
+    ("theory", "Study theory", PROFICIENCIES["theory"][1]),
+    ("hall", "Sect training hall",
+     "the sect's forms, for standing and silver"),
+    ("master", "Seek a master",
+     "somebody above you, their trial, and what they teach"),
     ("injustice", "Fight injustice",
      "a misruled land, its roads and its magistrates; karma and grudges"),
     ("hunt", "Hunt spirit beasts",
@@ -1961,6 +2137,20 @@ PLAYER_ACTIVITIES = [
      "the deadliest season there is: cores, standing, and the Waste"),
 ]
 PLAYER_ACTIVITY_KEYS = [k for k, _, _ in PLAYER_ACTIVITIES]
+
+# --- THE AUTOPILOT (VII §12) -----------------------------------------------
+# The played character, played by NOBODY: a bot that takes a legal activity
+# at random every season and answers every question the kernel puts to it the
+# same way. §12's target is that 32 seeded runs of this land inside Part
+# III's funnel and die at ordinary rates — the player's edge is judgment, not
+# existence, and if a random hand comes out ahead of the sim's own agents
+# then the season menu is a cheat and not a game.
+#
+# It rolls on its OWN generator and never on `world.rng`, exactly like the
+# human it stands in for (VII §1), so a bot run is a seeded world played by a
+# seeded hand and reproduces exactly.
+AUTOPILOT_SEED_OFFSET = 90001
+AUTOPILOT_NAME = "Nobody"
 
 
 # ---------------------------------------------------------------------------
@@ -2182,10 +2372,17 @@ class AgendaItem:
 class PlayerState:
     """What a PLAYED character carries that NPCs abstract into one number.
 
-    Proficiencies and masters are P5, professions and pills P6, techniques
-    P7; the fields exist so later sessions have one place to put them, and
-    so the shape of a played sheet stops changing underneath the save
-    format.
+    Professions and pills are P6 and techniques P7; the fields exist so
+    later sessions have one place to put them, and so the shape of a played
+    sheet stops changing underneath the save format.
+
+    P5: `proficiencies` and `drills` are both SEASONS OF PRACTICE, not
+    ranks — the one rank mechanic (`RANK_SHAPES`, `World.track_rank`) turns
+    seasons into a rank wherever one is read, so a teaching multiplier can
+    credit a season and a half without anything else in the sim knowing.
+    `stances` stays what P2 made it, the authoritative stance RANK, because
+    a rank can also be given (a master's gift, the training hall) and not
+    only ground out.
 
     There is deliberately no hp here. VII §5: hp exists ONLY inside a fight,
     where `_bout` holds it on the stack; what a character carries between
@@ -2194,7 +2391,10 @@ class PlayerState:
     activity: str = "cultivate"     # the last chosen season activity
     seasons: int = 0                # seasons actually played
     wound: int = 0                  # P3: 0 none, 1 light, 2 serious
-    proficiencies: dict = field(default_factory=dict)   # P5: Body/Weapon/Theory
+    proficiencies: dict = field(default_factory=dict)   # P5: Body/Weapon/
+                                                        # Theory, in seasons
+    drills: dict = field(default_factory=dict)          # P5: seasons drilled
+                                                        # into each stance
     stances: dict = field(default_factory=dict)         # P2: stance ranks 0-3
     professions: dict = field(default_factory=dict)     # P6: alchemy/forge/heal
     techniques: list = field(default_factory=list)      # P7
@@ -3448,7 +3648,8 @@ class World:
         where = self._adventure_destination(a)   # the roads they know, mostly
         land = where.land
         beast = r.uniform(*HUNT_POWER) + HUNT_POWER_PER_REALM * (a.realm - 1)
-        power = a.power()
+        power = self.fight_power(a)     # P5: a trained weapon is worth its
+                                        # half-points here too
         odds = max(HUNT_ODDS[0], min(HUNT_ODDS[1], power / (power + beast)))
         fields = dict(who=a.display(), land=land.name, where=where.name)
 
@@ -3628,7 +3829,10 @@ class World:
         """The front's real cost, for whoever is played: hp lives only inside
         a fight, and there is no fight here — but a body carried off the line
         is carried off it the same way."""
-        if a.play is None or level <= a.play.wound or not a.alive:
+        if a.play is None or not a.alive:
+            return
+        level = self._wound_resisted(a, level)
+        if level <= a.play.wound:
             return
         a.play.wound = level
         self.log(WOUND_LINES[level].format(who=a.display()), [a])
@@ -3658,7 +3862,12 @@ class World:
         foe = (r.uniform(*FRONT_POWER)
                + FRONT_POWER_PER_REALM * (a.realm - 1)
                + FRONT_POWER_PER_THREAT * self.demon_threat)
-        power = a.power()
+        # P5: the front is a contest against a NUMBER (P4: it never enters
+        # `_bout`), but it is still a season of fighting with your own hands,
+        # so it reads the same clipped bonus a duel does. The §5 cap cannot
+        # leak here: `player_power` is where it is enforced, and an NPC's is
+        # zero without a die being rolled for it.
+        power = self.fight_power(a)
         odds = max(FRONT_ODDS[0], min(FRONT_ODDS[1], power / (power + foe)))
         self._front_served(a, share)
         fields = dict(who=a.display(), land=land.name, where=where.name,
@@ -4043,25 +4252,57 @@ class World:
     def _has_vice(a: Optional[Agent]) -> bool:
         return a is not None and any(a.has_trait(t) for t in VICE_TRAITS)
 
+    def player_power_terms(self, a: Agent) -> list:
+        """Every point the player layer adds to a fighter, itemised.
+
+        P5 fills in the first line of it: Weapon proficiency, half a point a
+        rank, two and a half at the top of the track. P6's forged gear and
+        P7's techniques append here and NOWHERE ELSE — one list in, one
+        clamp out.
+        """
+        if a is None or a.play is None:
+            return []
+        terms = []
+        weapon = self.proficiency_rank(a, "weapon")
+        if weapon:
+            terms.append(("weapon", PROFICIENCY_WEAPON_POWER * weapon))
+        # P6: ("gear", forged +1/+2). P7: ("technique", elemental arts +1).
+        return terms
+
     def player_power(self, a: Agent) -> float:
-        """What the PLAYER LAYER adds to a fighter, and the one place the
+        """What the PLAYER LAYER adds to a fighter, and THE ONE PLACE the
         VII §5 cap is enforced.
 
-        Zero for everybody in P3 — proficiencies are P5, gear P6, techniques
-        P7 — so this changes nothing yet. It exists now so that when those
-        land there is exactly one line to clip them at, and no combination of
-        them can ever add up to a realm.
+        Nothing this layer ever builds — proficiencies, gear, techniques,
+        all of them stacked together on the same character — may add up to
+        more than PLAYER_POWER_CAP, which is less than half a realm's ten
+        points. That is not a guideline the individual tables are asked to
+        respect; it is this `min`. Every table above is free to be generous
+        because this line is not.
         """
-        if a.play is None:
+        if a is None or a.play is None:
             return 0.0
-        bonus = 0.0
-        return min(PLAYER_POWER_CAP, bonus)
+        return min(PLAYER_POWER_CAP,
+                   sum(v for _, v in self.player_power_terms(a)))
+
+    def fight_power(self, a: Agent) -> float:
+        """What a character is worth in a contest of arms they fight WITH
+        THEIR OWN HANDS: a duel, a bout, a season in the wilds, a season on
+        the line. Identical to `Agent.power` for everyone who is not played.
+
+        Deliberately NOT read by the group contests — a war, an incursion,
+        an expedition. Those are scored on realms and numbers because they
+        are army arithmetic, and one player's sword-work is not what carries
+        a wall. It is also why the front's own contest (`_act_front`) reads
+        this and the incursion's does not.
+        """
+        return a.power() + self.player_power(a)
 
     def _stance_power(self, a: Agent, mine: tuple, theirs: tuple,
                       foe: Optional[Agent] = None,
                       phase: Optional[int] = None) -> float:
         """What a fighter is worth in this fight, in this stance."""
-        return max(1.0, (a.power() + self.player_power(a))
+        return max(1.0, self.fight_power(a)
                    * (1.0 + self._stance_weight(a, mine, theirs, foe, phase)))
 
     def duel_odds(self, att: Agent, dfn: Agent, sa: tuple, sb: tuple,
@@ -4146,13 +4387,17 @@ class World:
     def max_hp(self, a: Agent) -> float:
         """The body a fighter brings to a bout.
 
-        In P3 only a wound takes points off it; P5's Body proficiency is the
-        thing that puts them back on.
+        A wound takes points off it and P5's Body proficiency puts them back
+        on — at rank 5, half of what a light wound costs, and no more. That
+        is a bonus the one roll never hears about, the mirror image of the
+        wound it also never hears about (VII §5): the reference geometry is
+        two WHOLE bodies, and the fight is run on the real ones.
         """
         if a.play is None:
             return ROUND_HP
+        trained = PROFICIENCY_BODY_HP * self.proficiency_rank(a, "body")
         return max(ROUND_HP * 0.4,
-                   ROUND_HP - WOUND_MAX_HP.get(a.play.wound, 0.0))
+                   ROUND_HP + trained - WOUND_MAX_HP.get(a.play.wound, 0.0))
 
     def orders_of(self, a: Agent) -> dict:
         """A played character's standing orders (VII §6), defaults filled."""
@@ -4529,6 +4774,17 @@ class World:
         self.tell("close", "")
         return bout
 
+    def _wound_resisted(self, a: Agent, level: int) -> int:
+        """P5, §8: a trained body carries it off one level lighter, some of
+        the time. The one place wound resistance is read, and both wound
+        doors — the bout's and the front's — go through it."""
+        if level <= 0 or a is None or a.play is None:
+            return level
+        rank = self.proficiency_rank(a, "body")
+        if rank and self.rng.random() < PROFICIENCY_BODY_RESIST * rank:
+            return level - 1
+        return level
+
     def _bout_wounds(self, bout: dict):
         """VII §5: hp is gone when the fight is. What walks out is a wound —
         and only a played character carries one, because an NPC's whole body
@@ -4539,6 +4795,7 @@ class World:
             frac = bout["hp"][i] / max(1.0, bout["top"][i])
             level = (2 if frac < WOUND_SERIOUS_AT
                      else 1 if frac < WOUND_LIGHT_AT else 0)
+            level = self._wound_resisted(a, level)
             if level <= a.play.wound:
                 continue
             a.play.wound = level
@@ -4554,7 +4811,8 @@ class World:
         self.log(WOUND_HEALED.format(who=a.display(), what=word), [a])
         return True
 
-    def _duel(self, att: Agent, dfn: Agent, context="", edge="duelling"):
+    def _duel(self, att: Agent, dfn: Agent, context="",
+              edge="duelling") -> Optional[Agent]:
         """One formula, with the tyranny of realms — fought in stance.
 
         `edge` is what the CONTEXT called the fight at: a tournament bout is
@@ -4562,6 +4820,10 @@ class World:
         match. Each fighter brings their own stance to it (`_pick_stance`),
         and every death, maiming, yield, spare and execution below is read
         out of the stance tables instead of a ladder of trait checks.
+
+        Returns WHO WAS LEFT STANDING (P5), or None if nobody was. Nothing
+        in the kernel reads it; a scene that has to know how a fight went —
+        a master's trial, and whatever P6 and P7 stage — does.
         """
         r = self.rng
         gap = att.realm - dfn.realm
@@ -4606,7 +4868,7 @@ class World:
                          f"{ctx}; the humiliation cuts deep (+insight).",
                          [strong, weak])
                 self._mutate(weak, "humiliated")
-            return
+            return strong
 
         # VII §5: a fight the PLAYED character is in unfolds into exchanges;
         # every other fight in the world is still settled with the one roll,
@@ -4625,7 +4887,9 @@ class World:
                  if st[0] == "murderous" and st[1]])
             if bout["how"] == "fled":
                 self._broke_off(bout, ctx)
-                return
+                self._fight_drill(att, sa)
+                self._fight_drill(dfn, sb)
+                return bout["winner"]
             att_wins = bout["winner"] is att
         else:
             att_wins = r.random() < self.duel_odds(att, dfn, sa, sb)
@@ -4642,6 +4906,10 @@ class World:
             winner.standing += STANCE_MANNERS["showy"]["standing"]
         self._stance_seen(att, sa)
         self._stance_seen(dfn, sb)
+        # §4: ranks come from USE. Whatever stance they actually carried
+        # through it is a little more theirs afterwards.
+        self._fight_drill(att, sa)
+        self._fight_drill(dfn, sb)
         merciful = win_st[1] == "merciful"
 
         # 1. The accident: a death nobody in the ring intended.
@@ -4691,6 +4959,7 @@ class World:
         # it is a wound, and only by whoever was played.
         if bout is not None:
             self._bout_wounds(bout)
+        return winner
 
     def _finishes(self, winner: Agent, win_st: tuple, lose_st: tuple,
                   loser: Agent) -> bool:
@@ -7002,6 +7271,11 @@ class World:
         # enough to carry a life on its own.
         chance += max(-KARMA_TRIBULATION_CAP,
                       min(KARMA_TRIBULATION_CAP, a.karma * KARMA_TRIBULATION))
+        # §8: what the reading room is worth — a percentage point a rank, on
+        # the one roll a cultivation career is actually decided by. Zero for
+        # everybody who is not played, and rolled for nobody.
+        chance += (PROFICIENCY_THEORY_TRIBULATION
+                   * self.proficiency_rank(a, "theory"))
         # Talent soft-caps the realm: reaching far above your talent is hard.
         if a.realm + 1 > a.talent // 2 + 2:
             chance -= 0.15
@@ -7363,7 +7637,8 @@ class World:
     def _seed_stances(self, a: Agent) -> None:
         """VII §4: a played character starts trained in the one stance their
         own character already fights in, exactly like an NPC, and untrained
-        in everything else. Raising the rest is P5's training hall.
+        in everything else. Raising the rest is the drill, the training
+        hall, and whatever a master is willing to teach (P5).
         """
         if a.play is None:
             return
@@ -7374,6 +7649,10 @@ class World:
         for key in keys:
             a.play.stances[key] = max(a.play.stances.get(key, 0),
                                       STANCE_NPC_RANK)
+            # P5: what nature already taught is practice already done, so
+            # the first drill goes toward the SECOND rank and not the first.
+            a.play.drills[key] = max(a.play.drills.get(key, 0.0),
+                                     self._stance_seasons(STANCE_NPC_RANK))
 
     def _seed_orders(self, a: Agent) -> None:
         """VII §6: a played character starts under the default orders, not a
@@ -7383,6 +7662,396 @@ class World:
             return
         for key, value in ORDERS_DEFAULT.items():
             a.play.orders.setdefault(key, value)
+
+    # -- training, masters and the hall (VII §8) ----------------------------
+
+    @staticmethod
+    def track_rank(seasons: float, shape: str) -> int:
+        """THE ONE RANK MECHANIC (§8). Seasons of practice in, rank out.
+
+        Rank N costs `step` x N seasons, so the whole track costs a
+        triangular number of them and the last rank costs as much as the
+        first three. Every ranked thing the player layer has — the three
+        proficiencies, the stances, P6's professions — is read here and
+        nowhere else.
+        """
+        spec = RANK_SHAPES[shape]
+        rank, need = 0, 0.0
+        while rank < spec["max"]:
+            need += spec["step"] * (rank + 1)
+            if seasons + 1e-9 < need:
+                break
+            rank += 1
+        return rank
+
+    @staticmethod
+    def track_progress(seasons: float, shape: str) -> tuple:
+        """(rank, seasons done toward the next, seasons the next one costs).
+        The card reads this; nothing in the simulation does."""
+        spec = RANK_SHAPES[shape]
+        rank = World.track_rank(seasons, shape)
+        done = sum(spec["step"] * (i + 1) for i in range(rank))
+        if rank >= spec["max"]:
+            return (rank, 0.0, 0.0)
+        return (rank, seasons - done, spec["step"] * (rank + 1))
+
+    def proficiency_rank(self, a: Agent, key: str) -> int:
+        """Body / Weapon / Theory, rank 0-5. Zero for everybody who is not
+        played, and — this matters for the batch stream — WITHOUT a die."""
+        if a is None or a.play is None:
+            return 0
+        return self.track_rank(a.play.proficiencies.get(key, 0.0),
+                               PROFICIENCY_SHAPE)
+
+    def master_of(self, a: Agent) -> Optional[Agent]:
+        """The living teacher a character is bound to, if any."""
+        if a is None:
+            return None
+        for aid, rel in a.rels.items():
+            if rel.kind != "master":
+                continue
+            other = self.agents.get(aid)
+            if other is not None and other.alive:
+                return other
+        return None
+
+    def teaching(self, a: Agent) -> float:
+        """§8: what a season of training is worth. A master multiplies it —
+        that is the whole mechanical content of having one, and it is why a
+        master is worth a season of asking and a trial."""
+        return MASTER_TEACHING if self.master_of(a) is not None else 1.0
+
+    def _practice(self, a: Agent, store: dict, key: str, shape: str,
+                  seasons: float) -> tuple:
+        """Put seasons into one track. Returns (old rank, new rank).
+
+        The single door P6's professions write through as well: everything
+        that can be ground at is ground at here, so a teaching multiplier, a
+        manual or a pill only ever has to move the number going in.
+        """
+        was = self.track_rank(store.get(key, 0.0), shape)
+        store[key] = store.get(key, 0.0) + seasons
+        return (was, self.track_rank(store[key], shape))
+
+    @staticmethod
+    def _stance_seasons(rank: int) -> float:
+        """The practice a granted stance rank is worth, so that a gift and a
+        drill never pay for the same rank twice."""
+        spec = RANK_SHAPES["stance"]
+        return sum(spec["step"] * (i + 1)
+                   for i in range(min(rank, spec["max"])))
+
+    def _grant_stance(self, a: Agent, key: str, rank: int, by: str) -> bool:
+        """A stance TAUGHT rather than drilled (§4: a master's parting gift
+        can be Patience at rank 2). Returns whether it was worth anything."""
+        if a.play is None or (key not in STANCE_EDGES
+                              and key not in STANCE_MANNERS):
+            return False
+        rank = max(0, min(STANCE_RANK_MAX, rank))
+        if a.play.stances.get(key, 0) >= rank:
+            return False
+        a.play.stances[key] = rank
+        a.play.drills[key] = max(a.play.drills.get(key, 0.0),
+                                 self._stance_seasons(rank))
+        self.log(STANCE_TAUGHT_LINE.format(who=a.display(), stance=key,
+                                           by=by, rank=rank,
+                                           max=STANCE_RANK_MAX), [a])
+        return True
+
+    def _drill_target(self, a: Agent) -> str:
+        """Which stance a weapon season drills (§3).
+
+        You train what you fight in: the edge and the manner the standing
+        orders put you in, or your own nature's when the orders leave it to
+        you — and of those, whichever is the weaker. No die is rolled, so
+        the player chooses this through `orders` and nothing else.
+        """
+        orders = self.orders_of(a)
+        edge, manner = self._native_stance(a)
+        want = [orders["edge"] if orders["edge"] in STANCE_EDGES else edge]
+        told = orders["manner"]
+        if told in STANCE_MANNERS:
+            want.append(told)
+        elif told != "none" and manner:
+            want.append(manner)
+        return min(want, key=lambda k: (self.stance_rank(a, k), want.index(k)))
+
+    def _act_train(self, a: Agent, key: str, share=1.0):
+        """A season on the practice ground, at the racks, or in the reading
+        room (§3, §8). One quarter of a year like everything else — which is
+        why a rank is a project and not a purchase."""
+        r = self.rng
+        seasons = share * len(SEASONS) * self.teaching(a)
+        was, now = self._practice(a, a.play.proficiencies, key,
+                                  PROFICIENCY_SHAPE, seasons)
+        self._act_cultivate(a, share * TRAIN_QI_SHARE)   # still at the sect
+        stance = self._drill_target(a) if key == "weapon" else ""
+        text = r.choice(TRAIN_LINES[key]).format(
+            who=a.display(), stance=stance, realm=a.realm_name)
+        a.history.append((self.year, text))
+        if key == "theory":
+            a.insight += PROFICIENCY_THEORY_INSIGHT * share * len(SEASONS)
+        if key == "weapon":
+            self._drill_stance(a, stance, TRAIN_STANCE_SEASONS * share
+                               * len(SEASONS) * self.teaching(a))
+        if now > was:
+            self.log(TRAIN_RANK_LINES[key].format(
+                who=a.display(), word=PROFICIENCY_WORDS[now], rank=now,
+                max=RANK_SHAPES[PROFICIENCY_SHAPE]["max"]), [a])
+        # §8: what a teacher is FOR. Now and then they simply hand a form
+        # over instead of watching the drill.
+        master = self.master_of(a)
+        if master is not None and r.random() < MASTER_STANCE_CHANCE * share:
+            self._teach_stance(a, master)
+
+    def _drill_stance(self, a: Agent, key: str, seasons: float):
+        """Stance proficiency EARNED THROUGH USE (§4) — the drill half. The
+        other half is `_fight_drill`, which is the same door from a fight."""
+        if a.play is None or not key:
+            return
+        was, now = self._practice(a, a.play.drills, key, "stance", seasons)
+        if now > was:
+            a.play.stances[key] = max(a.play.stances.get(key, 0), now)
+            self.log(STANCE_RANK_LINE.format(
+                who=a.display(), stance=key, rank=now,
+                max=STANCE_RANK_MAX), [a])
+
+    def _fight_drill(self, a: Agent, st: tuple):
+        """§4: ranks come from USE. A stance carried through a real fight is
+        worth a fraction of a season drilling it — which is what makes a
+        fighter good at the way they actually fight, and leaves the edge
+        somebody else forced on them expensive."""
+        if a is None or a.play is None:
+            return
+        for key in st:
+            if key:
+                self._drill_stance(a, key, FIGHT_DRILL_SEASONS)
+
+    def _act_hall(self, a: Agent, share=1.0):
+        """The sect training hall (§3): the forms, for standing and silver.
+
+        The hall's other half — techniques off the library shelves — is P7's;
+        `_hall_technique` is the seam and returns nothing until then.
+        """
+        r = self.rng
+        if a.standing < HALL_STANDING or a.resources < HALL_COST:
+            a.history.append((self.year, HALL_LINES["shut"].format(
+                who=a.display(), sect=a.sect)))
+            return
+        a.resources -= HALL_COST
+        self._practice(a, a.play.proficiencies, "theory", PROFICIENCY_SHAPE,
+                       HALL_THEORY * share * len(SEASONS) * self.teaching(a))
+        if r.random() < HALL_STANDING_GAIN * share * len(SEASONS):
+            a.standing += 1
+        self._hall_technique(a)         # P7
+        taught = ""
+        if r.random() < HALL_TEACHES * share * len(SEASONS):
+            taught = self._hall_stance(a)
+        if taught:
+            self.log(HALL_LINES["taught"].format(
+                who=a.display(), sect=a.sect, stance=taught), [a])
+        else:
+            a.history.append((self.year, HALL_LINES["read"].format(
+                who=a.display(), sect=a.sect)))
+
+    def _hall_stance(self, a: Agent) -> str:
+        """What the hall can teach: a form nobody has shown this disciple
+        yet. The hall gives the FORM (rank 1); the drill gives the rest."""
+        unknown = [k for k in list(STANCE_MANNERS) + list(EDGE_ORDER)
+                   if self.stance_rank(a, k) < HALL_STANCE_RANK]
+        if not unknown:
+            return ""
+        key = self.rng.choice(unknown)
+        a.play.stances[key] = max(a.play.stances.get(key, 0),
+                                  HALL_STANCE_RANK)
+        a.play.drills[key] = max(a.play.drills.get(key, 0.0),
+                                 self._stance_seasons(HALL_STANCE_RANK))
+        return key
+
+    def _hall_technique(self, a: Agent):
+        """P7's seam: the sect library sells technique cards for standing and
+        silver (VII §9). Nothing here yet, and deliberately nothing — a
+        technique is a card with a school and a realm gate, and neither
+        exists until P7 writes them."""
+        return None
+
+    def _master_technique(self, a: Agent, master: Agent):
+        """P7's other seam: §8's "occasionally a technique". The master rel
+        and the trial are P5's; what a teacher can hand over beyond a stance
+        is P7's, and this is where it goes."""
+        return None
+
+    # -- seek a master (VII §8) ---------------------------------------------
+
+    def _master_weight(self, a: Agent, cand: Agent) -> float:
+        """How likely this one is to be the one the season turns up."""
+        w = MASTER_WEIGHT_BASE
+        w += MASTER_WEIGHT_TRAIT * sum(1 for t in cand.traits
+                                       if a.has_trait(t))
+        if cand.sect == a.sect:
+            w += MASTER_WEIGHT_SECT
+        if (a.home is not None and cand.home is not None
+                and cand.home.land is a.home.land):
+            w += MASTER_WEIGHT_LAND
+        if cand.aid in a.rels:
+            w += MASTER_WEIGHT_KNOWN
+        if self._has_vice(cand):
+            w += MASTER_WEIGHT_VICE
+        return max(0.1, w)
+
+    def _master_candidate(self, a: Agent) -> Optional[Agent]:
+        """§8: realm >= PC + 1, compatible traits weighted."""
+        pool = [o for o in self.cultivators()
+                if o.aid != a.aid and o.alive
+                and o.realm >= a.realm + MASTER_MIN_GAP
+                and o.age >= a.age + MASTER_MIN_AGE_GAP]
+        if not pool:
+            return None
+        shortlist = pool if len(pool) <= MASTER_POOL else self.rng.sample(
+            pool, MASTER_POOL)
+        weights = [self._master_weight(a, o) for o in shortlist]
+        return self.rng.choices(shortlist, weights=weights)[0]
+
+    def _act_seek_master(self, a: Agent, share=1.0):
+        """A season of asking, and if somebody answers, their trial (§8)."""
+        r = self.rng
+        if self.master_of(a) is not None:
+            a.history.append((self.year, MASTER_LINES["have"].format(
+                who=a.display())))
+            return
+        cand = None
+        if r.random() < MASTER_FIND * share * len(SEASONS):
+            cand = self._master_candidate(a)
+        if cand is None:
+            a.history.append((self.year, MASTER_LINES["none"].format(
+                who=a.display())))
+            return
+        self.log(MASTER_LINES["found"].format(
+            who=a.display(), master=cand.display()), [a, cand])
+        self._master_trial(a, cand)
+
+    def _trial_partner(self, a: Agent, cand: Agent) -> Optional[Agent]:
+        """Who the trial is fought against.
+
+        NOT the master: §5's tyranny of realms settles a fight across a realm
+        before a stance is worth anything, and a candidate is a realm above
+        by construction — a bout with them would be a flight, not a test. So
+        the master sets somebody of the seeker's own height on them, which is
+        what a trial has always been anyway.
+        """
+        peers = [o for o in self.cultivators()
+                 if o.aid != a.aid and o.aid != cand.aid and o.alive
+                 and o.realm == a.realm and o.age >= 14]
+        if not peers:
+            return None
+        theirs = [o for o in peers if o.sect == cand.sect]
+        return self.rng.choice(theirs or peers)
+
+    def _master_trial(self, a: Agent, cand: Agent):
+        """THE TRIAL (§8): a test of the RECORD, and one bout at Sparring.
+
+        Karma is read in the candidate's own direction — a teacher who keeps
+        a clean ledger wants one, and one who does not wants nerve — so the
+        trial is a reading of the life the player has actually led, not a
+        die dressed up as a scene.
+        """
+        r = self.rng
+        score = (a.insight * MASTER_TRIAL_INSIGHT
+                 + len(a.epithets) * MASTER_TRIAL_EPITHET
+                 + a.standing * MASTER_TRIAL_STANDING
+                 + a.talent * MASTER_TRIAL_TALENT)
+        direction = -1.0 if self._has_vice(cand) else 1.0
+        score += a.karma * MASTER_TRIAL_KARMA * direction
+        partner = self._trial_partner(a, cand)
+        if partner is not None:
+            winner = self._duel(partner, a, context=MASTER_LINES["spar"],
+                                edge="sparring")
+            score += MASTER_TRIAL_WON if winner is a else MASTER_TRIAL_LOST
+        if not a.alive:
+            # Sparring kills nobody — but the edge a fight is CALLED at is
+            # not the edge everybody brings to it, and a trial partner who
+            # came to kill is a trial that ends differently (VII §4).
+            return
+        score += r.uniform(-MASTER_TRIAL_NOISE, MASTER_TRIAL_NOISE)
+        need = MASTER_TRIAL_NEED + MASTER_TRIAL_PER_REALM * (cand.realm
+                                                             - a.realm)
+        if score < need:
+            self.log(MASTER_LINES["failed"].format(
+                who=a.display(), master=cand.display()), [a, cand])
+            return
+        self._bind(a, cand, "master", MASTER_INTENSITY)
+        a.insight += MASTER_INSIGHT
+        cand.karma += MASTER_KARMA
+        gift = ""
+        stance = self._teach_stance(a, cand, rank=MASTER_GIFT_RANK,
+                                    quiet=True)
+        if stance:
+            gift = MASTER_LINES["gift"].format(master=cand.display(),
+                                               stance=stance)
+        self._master_technique(a, cand)         # P7
+        self.log(MASTER_LINES["passed"].format(
+            who=a.display(), master=cand.display()) + gift, [a, cand],
+            dramatic=True)
+
+    def _teach_stance(self, a: Agent, master: Agent, rank=0,
+                      quiet=False) -> str:
+        """What a master hands over.
+
+        Only what they themselves fight in (§4): the manner their own nature
+        takes, and the edges up to the one they are willing to take a fight
+        to. A teacher who has never come to kill cannot teach you how, and
+        breadth is what the training hall is for.
+        """
+        if a.play is None:
+            return ""
+        edge, manner = self._native_stance(master)
+        want = [k for k in (manner,) if k]
+        want += list(EDGE_ORDER[:EDGE_ORDER.index(edge) + 1])[::-1]
+        for key in want:
+            target = max(rank, self.stance_rank(a, key) + 1)
+            target = min(STANCE_RANK_MAX, target)
+            if self.stance_rank(a, key) >= target:
+                continue
+            if quiet:
+                a.play.stances[key] = target
+                a.play.drills[key] = max(a.play.drills.get(key, 0.0),
+                                         self._stance_seasons(target))
+            else:
+                self._grant_stance(a, key, target, master.display())
+            return key
+        return ""
+
+    # -- what the player layer is worth in a fight (VII §5) ------------------
+
+    def activity_available(self, key: str) -> bool:
+        """Is this season's activity even on the table? The kernel owns the
+        answer so that the terminal front end and the autopilot (§12) read
+        exactly one list of legal choices."""
+        pc = self.pc
+        if pc is None:
+            return False
+        if key == "muster":
+            return any(i.kind == "muster" for i in self.agenda)
+        if key == "front":
+            return bool(self.march_lands) and pc.realm >= FRONT_MIN_REALM \
+                and pc.age >= FRONT_MIN_AGE
+        if key == "hall":
+            return bool(pc.sect) and pc.standing >= HALL_STANDING \
+                and pc.resources >= HALL_COST
+        if key == "master":
+            return self.master_of(pc) is None and pc.realm < MAX_REALM
+        return True
+
+    def activity_refusal(self, key: str) -> str:
+        if key == "front":
+            return ("The marches take neither children nor "
+                    f"{REALM_NAMES[1]} disciples.")
+        if key == "hall":
+            return (f"The hall opens at standing {HALL_STANDING} and costs "
+                    f"{HALL_COST} silver a season.")
+        if key == "master":
+            return "You have a master already."
+        return "There is no muster to join this year."
 
     def player_season(self, activity: str) -> None:
         """The played character's ONE activity for this season (VII §3).
@@ -7413,6 +8082,12 @@ class World:
             self._act_trade(a, share)
         elif activity == "socialize":
             self._act_socialize(a, share)
+        elif activity in PROFICIENCIES:
+            self._act_train(a, activity, share)
+        elif activity == "hall":
+            self._act_hall(a, share)
+        elif activity == "master":
+            self._act_seek_master(a, share)
         elif activity == "front":
             if not self._take_front(a, forced=True, share=share):
                 self.log(f"{a.display()} went looking for a place on the "
@@ -7505,10 +8180,34 @@ class World:
                 tally[k] = tally.get(k, 0) + 1
             lines.append("  recent deeds: "
                          + ", ".join(f"{k} x{n}" for k, n in tally.items()))
+        # P5: the three tracks, with what the next rank still costs.
+        prof = []
+        for key, (label, _) in PROFICIENCIES.items():
+            rank, done, need = self.track_progress(
+                st.proficiencies.get(key, 0.0), PROFICIENCY_SHAPE)
+            toward = (f" ({done:.1f}/{need:.0f} toward {rank + 1})"
+                      if need else "")
+            prof.append(f"{label} {rank}/"
+                        f"{RANK_SHAPES[PROFICIENCY_SHAPE]['max']}"
+                        f" — {PROFICIENCY_WORDS[rank]}{toward}")
+        lines.append("  training: " + "; ".join(prof))
         if st.stances:
             lines.append("  stances: " + ", ".join(
                 f"{k} {v}/{STANCE_RANK_MAX}"
                 for k, v in sorted(st.stances.items())))
+        master = self.master_of(a)
+        if master is not None:
+            lines.append(f"  master: {master.display()} "
+                         f"({master.realm_name}) — a training season is "
+                         f"worth x{MASTER_TEACHING:.1f} under them")
+        # VII §5: the whole player-layer combat bonus, and the one clamp.
+        terms = self.player_power_terms(a)
+        raw = sum(v for _, v in terms)
+        capped = self.player_power(a)
+        detail = ", ".join(f"{k} +{v:.1f}" for k, v in terms) or "nothing yet"
+        clip = " (CAPPED)" if raw > capped + 1e-9 else ""
+        lines.append(f"  in a fight: {detail} = +{capped:.1f} power "
+                     f"of a possible +{PLAYER_POWER_CAP:.0f}{clip}")
         lines.append(f"  body: {self.max_hp(a):.0f} of {ROUND_HP:.0f} "
                      f"({WOUND_WORD[st.wound]})")
         if a.front_seasons:
@@ -7520,7 +8219,7 @@ class World:
                      f"{orders['execute']} the beaten, escape "
                      f"{orders['escape']} ('orders' for the card)")
         lines.append("  (techniques, pills and professions arrive with later "
-                     "sessions; stance ranks are earned in P5)")
+                     "sessions)")
         return "\n".join(lines)
 
     # -- PC handling --------------------------------------------------------
@@ -8093,7 +8792,7 @@ def interactive(world: World):
 FIGHT_ASKS = ("pause", "advantage", "execute", "edge", "manner")
 PLAY_HELP = """Commands (play mode):
   <enter>            repeat last season's activity
-  1-7 or NAME        this season's activity
+  1-%d or NAME       this season's activity
   menu               show the activity menu again
   skip N doing X     keep doing X for up to %d seasons; the engine wakes you
                      the season BEFORE anything that matters to you
@@ -8106,7 +8805,7 @@ PLAY_HELP = """Commands (play mode):
   land NAME          one land's polities, rulers, edicts, prosperity
   roster / famous / obits
   help / quit
-""" % TIMESKIP_CAP
+""" % (len(PLAYER_ACTIVITIES), TIMESKIP_CAP)
 
 
 class Play:
@@ -8218,26 +8917,18 @@ class Play:
         lines = ["What will you do with the season?"]
         for i, (key, label, pays) in enumerate(PLAYER_ACTIVITIES, 1):
             mark = " " if self._available(key) else "-"
-            lines.append(f" {mark}{i}. {label:<24} {pays}")
+            lines.append(f" {mark}{i:>2}. {label:<24} {pays}")
         lines.append("   (a season pays a quarter of a year's work; "
                      "'skip N doing X' runs several)")
         return "\n".join(lines)
 
     def _available(self, key: str) -> bool:
-        w = self.world
-        if key == "muster":
-            return any(i.kind == "muster" for i in w.agenda)
-        if key == "front":
-            pc = w.pc
-            return bool(w.march_lands) and pc is not None \
-                and pc.realm >= FRONT_MIN_REALM and pc.age >= FRONT_MIN_AGE
-        return True
+        # The kernel owns the list of legal choices, so that the terminal
+        # and the autopilot (VII §12) can never disagree about it.
+        return self.world.activity_available(key)
 
     def _refusal(self, key: str) -> str:
-        if key == "front":
-            return ("The marches take neither children nor "
-                    f"{REALM_NAMES[1]} disciples.")
-        return "There is no muster to join this year."
+        return self.world.activity_refusal(key)
 
     def match_activity(self, text: str) -> Optional[str]:
         text = text.strip().lower()
@@ -8458,6 +9149,11 @@ class Play:
 
         if self.skip_left > 0:
             reason = self.eve_reason(season)
+            if reason is None and not self._available(self.skip_activity):
+                # P5: a skip whose activity has stopped being legal — the
+                # hall shut for want of silver, the muster stood down — is a
+                # skip spending seasons on nothing. Wake, and ask again.
+                reason = self._refusal(self.skip_activity).rstrip(".")
             if reason is not None:
                 self.wake(reason)       # stop the season BEFORE it
                 if pc.is_ruler():
@@ -8551,8 +9247,10 @@ class Play:
 COMBAT_TEST_BAND = 3.0          # percentage points; VII §5 and §12
 COMBAT_TEST_ROUNDS = (3, 8)     # what an even fight should take
 COMBAT_NEUTRAL = ["Stubborn", "Charming"]   # traits no stance table reads
-# label, realm, talent, qi (each side), the two stances, and the edge the
-# fight was called at.
+# label, then each side as (realm, talent, qi) — or (realm, talent, qi,
+# weapon rank), P5's proficiency, which is the only player-layer term in a
+# fight until P6 — then the two stances. The edge the fight is called at is
+# the harsher of the two.
 COMBAT_CELLS = [
     ("even, Qi Refining",        (1, 5, 40), (1, 5, 40),
      ("duelling", None), ("duelling", None)),
@@ -8584,6 +9282,13 @@ COMBAT_CELLS = [
      ("murderous", None), ("duelling", "merciful")),
     ("rage vs patience, Nascent", (4, 7, 70), (4, 5, 20),
      ("allout", "rage"), ("allout", "patience")),
+    # P5: the +4 cap's only tenant so far. Both resolutions read
+    # `player_power`, so a trained weapon must move the fought bout by
+    # exactly as much as it moves the one roll and no more.
+    ("weapon 5 vs untrained",    (2, 5, 40, 5), (2, 5, 40),
+     ("duelling", None), ("duelling", None)),
+    ("weapon 5, murderous",      (2, 5, 40, 5), (2, 5, 40),
+     ("murderous", None), ("murderous", None)),
 ]
 
 
@@ -8598,8 +9303,16 @@ def _test_fighter(world: World, aid: int, name: str, played: bool) -> Agent:
     return a
 
 
-def _test_reset(a: Agent, realm: int, talent: int, qi: float,
-                stances=(), wound=0):
+def _seasons_for_rank(rank: int, shape: str) -> float:
+    """The practice a given rank costs, for the harness and for anything
+    else that has to put a character at a rank rather than earn one."""
+    spec = RANK_SHAPES[shape]
+    return sum(spec["step"] * (i + 1)
+               for i in range(min(rank, spec["max"])))
+
+
+def _test_reset(a: Agent, realm: int, talent: int, qi: float, weapon=0,
+                stances=(), wound=0, body=0):
     a.realm, a.talent, a.qi = realm, talent, float(qi)
     a.traits = list(COMBAT_NEUTRAL)
     a.alive = True
@@ -8612,6 +9325,14 @@ def _test_reset(a: Agent, realm: int, talent: int, qi: float,
         # A played fighter knows the stance the cell puts them in; an
         # untrained stance is a different measurement (VII §4), not this one.
         a.play.stances = {k: STANCE_NPC_RANK for k in stances if k}
+        # P5: the ranks the cell asks for, and NOTHING carried over from the
+        # last ten thousand fights — a bout drills the stance it was fought
+        # in, and the harness must measure a fixed fighter.
+        a.play.drills = {k: _seasons_for_rank(STANCE_NPC_RANK, "stance")
+                         for k in stances if k}
+        a.play.proficiencies = {
+            "weapon": _seasons_for_rank(weapon, PROFICIENCY_SHAPE),
+            "body": _seasons_for_rank(body, PROFICIENCY_SHAPE)}
 
 
 def test_combat(seed=1, fights=10000) -> bool:
@@ -8631,21 +9352,21 @@ def test_combat(seed=1, fights=10000) -> bool:
           f"{'fought':>8}{'delta':>9}")
     worst = 0.0
     rounds_by_edge: dict = {}
-    for label, (ra, ta, qa), (rb, tb, qb), sa, sb in COMBAT_CELLS:
-        _test_reset(att, ra, ta, qa, stances=sa)
-        _test_reset(dfn, rb, tb, qb)
+    for label, side_a, side_b, sa, sb in COMBAT_CELLS:
+        _test_reset(att, *side_a, stances=sa)
+        _test_reset(dfn, *side_b)
         want = world.duel_odds(att, dfn, sa, sb)
         wins = 0
         counts: list = []
         for _ in range(fights):
-            _test_reset(att, ra, ta, qa, stances=sa)
-            _test_reset(dfn, rb, tb, qb)
+            _test_reset(att, *side_a, stances=sa)
+            _test_reset(dfn, *side_b)
             bout = world._bout(att, dfn, sa, sb,
                                max((sa[0], sb[0]), key=EDGE_ORDER.index), "")
             wins += 1 if bout["winner"] is att else 0
             counts.append(bout["rounds"])
             rounds_by_edge.setdefault(bout["edge"], []).extend(
-                [bout["rounds"]] if (ra, ta, qa) == (rb, tb, qb) else [])
+                [bout["rounds"]] if side_a == side_b else [])
         got = wins / fights
         delta = (got - want) * 100.0
         worst = max(worst, abs(delta))
@@ -8681,17 +9402,27 @@ def test_combat(seed=1, fights=10000) -> bool:
     # What a wound costs: outside the invariant on purpose (VII §5 — the
     # calibration is computed for two whole bodies, and the fight is run on
     # the real ones).
-    print("WHAT A WOUND COSTS (even fight at duelling, the played side hurt)")
-    for wound in (0, 1, 2):
+    # P5's Body proficiency is the same axis read the other way: the one
+    # roll never hears about either, and at rank 5 a trained body is worth
+    # about what a light wound costs. Both are printed together because
+    # they are the same measurement.
+    print("WHAT A BODY IS WORTH (even fight at duelling, the played side "
+          "hurt or trained)")
+    for label, wound, body in (("serious", 2, 0), ("light", 1, 0),
+                               ("whole", 0, 0), ("Body 3", 0, 3),
+                               ("Body 5", 0, 5)):
         wins = 0
         for _ in range(fights):
-            _test_reset(att, 2, 5, 40, stances=("duelling",), wound=wound)
+            _test_reset(att, 2, 5, 40, stances=("duelling",), wound=wound,
+                        body=body)
             _test_reset(dfn, 2, 5, 40)
             bout = world._bout(att, dfn, ("duelling", None),
                                ("duelling", None), "duelling", "")
             wins += 1 if bout["winner"] is att else 0
-        print(f"  {WOUND_WORD[wound]:<10} win {100.0 * wins / fights:>5.1f}%"
-              f"   body {ROUND_HP - WOUND_MAX_HP[wound]:.0f}")
+        _test_reset(att, 2, 5, 40, stances=("duelling",), wound=wound,
+                    body=body)
+        print(f"  {label:<10} win {100.0 * wins / fights:>5.1f}%"
+              f"   body {world.max_hp(att):.0f}")
     print()
     # The outcome chain: the same duel, resolved both ways.
     print(f"DEATH AND MAIM PER EDGE ({fights} duels an edge, both "
@@ -8737,6 +9468,49 @@ def test_combat(seed=1, fights=10000) -> bool:
     return ok
 
 
+class Autopilot:
+    """VII §12: a random legal-choice hand at the season menu.
+
+    Not a strategy and deliberately not one — it does not read the agenda,
+    does not save for the hall, does not train what it fights in. It is the
+    control group for the whole playable layer: whatever the menu is worth,
+    it is worth it to somebody who is paying attention, and this one is not.
+    """
+
+    def __init__(self, world: World, seed: int):
+        self.world = world
+        self.rng = random.Random(seed)      # NEVER world.rng
+
+    def choose(self) -> str:
+        legal = [k for k in PLAYER_ACTIVITY_KEYS
+                 if self.world.activity_available(k)]
+        return self.rng.choice(legal) if legal else "cultivate"
+
+    def ask(self, kind: str, prompt: str, options: list, default: str) -> str:
+        """Every question the kernel can put to a player, answered by coin."""
+        return self.rng.choice(list(options)) if options else default
+
+
+def autopilot_run(world: World, years: int, bot_seed: int) -> Optional[Agent]:
+    """Play a whole world with the bot at the menu. Returns the FIRST played
+    character — the clean sample §12's funnel is read off — while the bot
+    goes on playing whoever the chronicle turns to after them."""
+    bot = Autopilot(world, bot_seed)
+    first = world.begin_play(AUTOPILOT_NAME, ask=bot.ask)
+    for _ in range(years):
+        world.begin_year()
+        for season in SEASONS:
+            pc = world.pc
+            if (pc is not None and pc.alive and pc.play is not None
+                    and not pc.is_ruler()):
+                world.player_season(bot.choose())
+            world.run_season(season)
+        world.end_year()
+        if world.pc is not None and world.pc.play is None:
+            world.take_over_pc()        # the bot picks the story back up
+    return first
+
+
 def create_character(world: World, play: Play) -> Agent:
     """VII §2: name, sex and homeland. Everything else is rolled."""
     print("=" * 72)
@@ -8780,6 +9554,9 @@ def main():
     p.add_argument("--test-combat", action="store_true",
                    help="run VII §5's combat harness (the round model "
                         "against the one roll) and print the table")
+    p.add_argument("--autopilot", action="store_true",
+                   help="play the PC with VII §12's random legal-choice bot "
+                        "(with --years) and print the report")
     p.add_argument("--play", action="store_true",
                    help="play agent 65 of the starting intake, one season "
                         "at a time (VII: the playable layer)")
@@ -8795,7 +9572,15 @@ def main():
 
     world = World(seed=args.seed, intake_size=args.intake)
 
-    if args.play:
+    if args.autopilot:
+        years = args.years if args.years is not None else 200
+        hero = autopilot_run(world, years,
+                             (args.seed or 0) + AUTOPILOT_SEED_OFFSET)
+        if hero is not None:
+            print(world.life_report(hero))
+            print()
+        print(world.final_report())
+    elif args.play:
         play_mode(world)
     elif args.follow_pc:
         print(world.pc_intro())
