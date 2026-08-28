@@ -207,8 +207,11 @@ The test for any change: does `log <agent>` still read like a life?
   elder-tempo opportunity injection (dying elders seeking heirs, purges).
 - AI DM as renderer over the logs (chronicles, "state of the world" digests).
 - World-generation mode (run 200 years, freeze, survivors become the setting).
-- The player layer (Part IV): real inventory, techniques, explicit dao,
-  scene-level tribulations. The PC here is only a *camera*, not a player.
+- The player layer: fully specced as **Part VII** of the design doc
+  (sessions P1–P7) — season-resolution play over the year kernel, timeskips
+  with an interrupt table, edge×manner stances, round-based autocombat with
+  pause points, the demon front, masters/professions/techniques, played
+  thrones. Until P1 lands, the PC here is only a *camera*, not a player.
 
 ## Known deviations from the spec (deliberate, from tuning)
 
