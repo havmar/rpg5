@@ -468,6 +468,15 @@ KARMA_PER_MORAL_TRAIT = 2       # karma is SEEDED 2*(virtue) - 2*(vice)...
 
 # ... and then moved by DEEDS, which dominate disposition over a long life.
 KARMA_KILL_DEFENSELESS = -2     # a killing where the realms left no contest
+KARMA_EXECUTE_YIELDED = -2      # VII §4: ... and one where the man on the
+                                # ground had already yielded. P2 found this
+                                # missing: `_karma_kill`'s own rule is a
+                                # REALM GAP, so between equals the spare
+                                # below paid +1 and the execution cost
+                                # nothing, which made mercy free money and
+                                # the fork one-sided. The two are now priced
+                                # against each other, and a killing across a
+                                # gap is still charged once and not twice.
 KARMA_SPARE = 1                 # a beaten foe let up off the ground
 KARMA_RESCUE = 2                # rescue or liberation
 KARMA_DIED_DEFENDING = 3        # posthumous: the obituary and the grief
@@ -1694,8 +1703,8 @@ WOUND_HEALED = {
 # --- THE PLAYABLE LAYER: BREAKING OFF (VII §5) -----------------------------
 # The door out of a killing matter. Base one in two; the realm gap term is
 # the hook for the fights this layer never sees (a gap is settled before
-# rounds are reached at all), and the Movement term is P7's technique
-# school reaching back for it.
+# rounds are reached at all), and the Movement term is §9's technique
+# school read here (`_movement_rank`), with FLIGHT's floor below it.
 ESCAPE_BASE = 0.50
 ESCAPE_CAUTIOUS = 0.15
 ESCAPE_PER_REALM = 0.25
@@ -2044,9 +2053,9 @@ STANCE_TAUGHT_LINE = "{who} was taught {stance} by {by} (rank {rank}/{max})."
 # THE SECT TRAINING HALL (§3). The library and the practice hall are the
 # sect's, not yours: they open for standing and they cost silver, and what
 # they hold is FORMS — the stances everybody in the sect is supposed to know
-# and nobody has bothered to teach you. The other half of the hall is P7's
-# (techniques are cards, and the hall is where the sect sells them); the seam
-# is `_hall_technique` and it is empty until then.
+# and nobody has bothered to teach you. The other half of the hall is §9's:
+# techniques are cards, and this is where the sect sells them
+# (`_hall_technique`, gated on HALL_TECHNIQUE_STANDING and its own price).
 HALL_STANDING = 4               # the hall does not open for a nobody
 HALL_COST = 3                   # silver a season in it costs
 HALL_TEACHES = 0.60             # ... and the seasons that teach a form
@@ -2348,6 +2357,184 @@ PROFITEER_LINES = {
             "had cost them.",
 }
 
+# --- THE PLAYABLE LAYER: TECHNIQUES (VII §9) -------------------------------
+# A TECHNIQUE IS A CARD: a school, a realm gate, one effect. Known or not —
+# comprehension levels are deferred (§9), so a card has no level, no upkeep
+# and no mastery track. It is in the hand or it is somebody else's.
+#
+# The LADDER is the one concession to depth, and it is §9's own: a school
+# may have more than one rung, and each rung is another card of that school.
+# Movement is three ("+15% escape per rank of the school's ladder"),
+# Elemental Arts two, and the rest are a single card.
+#
+# WHAT THEY ARE FOR. Four of the five schools deliberately do NOT add power:
+# they add DOORS. Movement and Flight are ways out of a fight, Missiles is a
+# fight begun before the swords touch, Pressure is a fight that does not
+# happen. Only Elemental Arts is worth a point of power, and it is worth it
+# through `player_power_terms` like everything else, under the one cap.
+#
+# THE ONE NPC-FACING EXCEPTION IN THE LAYER (§9). Famous NPCs — realm >=
+# FAME_REALM, or standing >= 10 — roll cards when they break through, so the
+# arms race is symmetric and the played character is not the only person
+# alive who fights with more than a sword. It is the one place in the whole
+# player layer where a die is rolled on an NPC path, which is why it lives
+# in one method (`_famous_techniques`) behind one constant: turn
+# FAMOUS_TECHNIQUE_CHANCE to zero and the batch stream is P6's, bit for bit.
+#
+# WHAT REACHES AN NPC'S FIGHT, and what does not: Elemental Arts is a power
+# term and the one roll reads it wherever it is fought. The other four are
+# SCENES — breaking off, an opening volley, a foe who backs down — and a
+# scene needs a camera, so they are read only in a fight the played
+# character is in (`_bout`, `_escape_chance`, `_pressure_backs_down`). Off
+# camera the kernel's own tyranny of realms already prices what Pressure
+# says out loud, and nothing about the world's arithmetic changes.
+TECHNIQUE_SCHOOLS = {
+    "movement": {
+        "name": "Movement", "realm": 1, "rungs": 3,
+        "effect": "a step nobody can close: +15% to breaking off, a rung",
+        "cards": ["the Wind-Chasing Step", "the Hundred-Li Stride",
+                  "the Shadow-Skipping Step"],
+    },
+    "missiles": {
+        "name": "Missiles", "realm": 2, "rungs": 1,
+        "effect": "the first exchange, taken at range and for nothing",
+        "cards": ["the Flying Needle Rain"],
+    },
+    "pressure": {
+        "name": "Pressure", "realm": 3, "rungs": 1,
+        "effect": "mortals and lesser men back down without a fight",
+        "cards": ["the Weight of the Mountain"],
+    },
+    "flight": {
+        "name": "Flight", "realm": 3, "rungs": 1,
+        "effect": "the road holds nothing, and almost nothing holds you",
+        "cards": ["Riding the Sword"],
+    },
+    "elemental": {
+        "name": "Elemental arts", "realm": 2, "rungs": 2,
+        "effect": "+1 power a rung, and a name that carries it",
+        "cards": ["the Kindled Palm", "the Frost Vein", "the Thunder Hand",
+                  "the Stone Cloak"],
+    },
+}
+TECHNIQUE_ORDER = tuple(TECHNIQUE_SCHOOLS)
+TECHNIQUE_ELEMENTAL_POWER = 1.0     # per rung, INSIDE the §5 cap
+TECHNIQUE_MISSILE_OPENER = 0.2      # of one exchange's swing, landed before
+                                    # the fight starts, and MEASURED against
+                                    # the cap rather than guessed: a whole
+                                    # free exchange is worth +14pp on an even
+                                    # duel and half of one +7pp, where the
+                                    # entire +4 power cap buys +4pp and a
+                                    # rung of elemental arts buys +1.2pp
+                                    # (--test-combat prints all four). A
+                                    # fifth of an exchange is worth about
+                                    # two points of power: dearer than the
+                                    # one card that adds power, cheaper than
+                                    # everything this layer can stack.
+TECHNIQUE_FLIGHT_ESCAPE = 0.90      # §9's "escape almost anything": a floor
+                                    # under the escape chance, gap and all
+TECHNIQUE_PRESSURE_GAP = 1          # realms below you a foe backs down from
+TECHNIQUE_PRESSURE_STANDING = 1     # ... and what being seen to do it pays
+TECHNIQUE_PRESSURE_TILT = 0.06      # the road, read by somebody who can
+                                    # stand on the air: the same axis
+                                    # `_karma_tilt` moves, and a third of
+                                    # what a black ledger is worth
+TECHNIQUE_EPITHETS = {              # §9: elemental arts, and the names
+    "the Kindled Palm": "Flame-Handed",
+    "the Frost Vein": "Winter-Veined",
+    "the Thunder Hand": "Thunder-Palmed",
+    "the Stone Cloak": "Stone-Cloaked",
+}
+# ACQUISITION (§9). Four doors: the sect library, a master, the treasure
+# slots of the road and the secret realms, and the manuals looted out of
+# them — of which ONE IN FIVE IS FLAWED. A flawed manual's technique works
+# exactly as well as anybody else's; what is wrong with it is in the reader,
+# and it is not discovered until the next tribulation, when the burden it
+# has been quietly adding is standing there in the lightning with them.
+HALL_TECHNIQUE = 0.20           # of a year in the hall: a card off the shelf
+HALL_TECHNIQUE_STANDING = 8     # ... which the sect does not open to anyone
+HALL_TECHNIQUE_COST = 8         # ... and does not copy out for free
+MASTER_TECHNIQUE_TRIAL = 0.35   # a card handed over on the day of the trial
+MASTER_TECHNIQUE_CHANCE = 0.06  # ... and the seasons of teaching after it
+MANUAL_FIND = 0.20              # of a treasure slot, for a played character.
+                                # Measured on a hand that spent a century on
+                                # the road: at a third of the slots that
+                                # hand came home with the WHOLE deck, which
+                                # is no deck at all. At a fifth, a long
+                                # adventuring life ends with four or five
+                                # cards and a school it never found.
+MANUAL_FLAWED = 0.20            # §9: one book in five is wrong somewhere
+MANUAL_FLAW_BURDEN = 1          # ... and this is what it costs, once, at
+                                # the tribulation that finds it
+FAMOUS_TECHNIQUE_CHANCE = 0.45  # §9: a famous name comes up out of a
+FAMOUS_TECHNIQUE_SECOND = 0.25  # breakthrough with 0-2 more cards in hand
+TECHNIQUE_LINES = {
+    "hall": "{who} paid the {sect} library to copy out {card} and spent the "
+            "season learning it ({school}, -silver).",
+    "master": "{master} taught {who} {card} ({school}).",
+    "found": "{who} came out of it with a hand-copied manual and read it "
+             "through: {card} ({school}).",
+    "famous": "They came down off the tribulation ground carrying {card} "
+              "as well.",
+    "epithet": " [epithet: {ep}]",
+    "flaw": "{who}'s tribulation found what was wrong with the manual of "
+            "{card}: a copyist's line, read and practised for years "
+            "(+burden).",
+    "none": "{who} read in the {sect} library all season; there was nothing "
+            "on the shelves their realm could hold.",
+}
+# What the schools DO, said where the fight can be seen.
+TECHNIQUE_SCENES = {
+    "missile": "   0. {who} opened it at twenty paces, and {foe} closed the "
+               "ground carrying it.",
+    "pressure": "{who} let {foe} feel the whole weight of the realm between "
+                "them, and {foe} backed off the road without a blow struck.",
+    "flight": "{who} went over the bandit road on a sword and never saw it.",
+    "escape": "{who} took the sky and was gone.",
+}
+
+# --- THE PLAYABLE LAYER: A PLAYED THRONE (VII §10) -------------------------
+# RULERSHIP STAYS RULERSHIP-SHAPED. Everything VI §4 does to a cultivator on
+# a seat is done to the played one: the RULE action replaces the year,
+# cultivation is locked, qi is frozen, the only insight is governance
+# adversity, and the corruption roll is not modified by so much as a
+# percentage point. What a played reign adds is exactly two decisions a
+# year, and neither of them is a way out of any of that.
+#
+#   1. THE EMPHASIS: one facet, chosen from the top three the ruler's own
+#      traits score, fired ALONGSIDE what the situation forces. A king may
+#      lean on what he already is; he may not become someone else.
+#   2. THE EDICT: proclaim the one the court has drawn, or let it lie; let
+#      an old one lapse, or keep it — and only in the years the engine's own
+#      rules would have allowed either. The player does not get a lever the
+#      engine does not have.
+#
+# Playing a king should feel like holding a job that is slowly eating your
+# cultivation, because it is: the seat pays a decision a year and takes a
+# decade of qi for it, and abdication is on the menu every single year.
+PLAYED_FACET_CHOICES = 3        # §10: the top three the traits score
+PLAYED_FACET_HOLD = "hold"      # ... and the option to lean on nothing
+# What each facet is, said in the one line the seat is asked to choose by.
+RULE_FACET_GLOSS = {
+    "BENEVOLENT": "the granaries, the dikes and the assizes",
+    "EXTRACTIVE": "the tax farm, and a treasury that fills",
+    "CRUEL": "the headsman, and a country that learns not to speak",
+    "NEGLECTFUL": "the capital, the court, and nothing beyond either",
+    "CONSCRIPTION": "the levies, and an army worth the name",
+}
+REIGN_LINES = {
+    "emphasis": "{ruler} spent the year on it: {what}.",
+    "card": "  the court: treasury {silver}, unrest {unrest}, {domain} is "
+            "{word}",
+    "facets": "  what your temper is good for this year: {facets}",
+    "edicts": "  standing orders of the crown: {edicts}",
+    "quiet": "  nothing of the crown's is in force.",
+    "locked": "  a crown freezes the dantian: no qi, and no insight but "
+              "what governing badly teaches",
+    "declined": "{ruler} was handed an order to seal, and left it lying on "
+                "the table.",
+}
+
 # --- THE PLAYABLE LAYER: THE PLAYED CHARACTER (VII §2) ---------------------
 PLAYER_AID_NOTE = "agent 65"    # the player joins the watched intake
 # Deeds drive the played character's mutation: the world writes on the
@@ -2629,9 +2816,11 @@ class AgendaItem:
 class PlayerState:
     """What a PLAYED character carries that NPCs abstract into one number.
 
-    Techniques are P7; the field exists so that session has one place to put
-    them, and so the shape of a played sheet stops changing underneath the
-    save format.
+    P7: the CARDS are not here. A technique is carried on the `Agent`
+    itself, because famous NPCs carry them too (VII §9's one NPC-facing
+    exception), and a thing two kinds of character own belongs on the sheet
+    both kinds have. What is here is `flaw`: the burden a flawed manual has
+    been adding for years, which nobody finds until the next tribulation.
 
     P6: `professions` is SEASONS OF PRACTICE like the rest of the tracks;
     `pills`, `gear`, `toxicity` and `clarity` are the only INVENTORY in the
@@ -2662,7 +2851,11 @@ class PlayerState:
                                                         # healing, in seasons
     manuals: list = field(default_factory=list)         # P6: the crafts a
                                                         # book has unlocked
-    techniques: list = field(default_factory=list)      # P7
+    flaw: int = 0                                       # P7: burden a flawed
+                                                        # manual has been
+                                                        # quietly adding,
+                                                        # unread until the
+                                                        # next tribulation
     pills: dict = field(default_factory=dict)           # P6: kind -> how many
     brew: str = "qi"                                    # P6: what the
                                                         # furnace is set up
@@ -2726,6 +2919,15 @@ class Agent:
     front_seasons: int = 0            # VII §7: seasons stood on the marches
     front_last: Optional[int] = None  # ... and the last year they stood one
     front_stands: int = 0             # incursions they were on the line for
+    techniques: list = field(default_factory=list)   # VII §9: the cards, as
+                                      # {"school", "name", "flawed"} dicts.
+                                      # On the AGENT and not on `play`: the
+                                      # famous carry them too.
+    tech_power: float = 0.0           # ... and what they are worth to an
+                                      # NPC's arm. A played character's
+                                      # cards are worth the same point, but
+                                      # counted in `player_power_terms`
+                                      # where the one cap can see them.
     deeds: list = field(default_factory=list)    # VII §2: (year, kind) — the
                                       # record the played character mutates off
     play: Optional[PlayerState] = None   # set only on a PLAYED character
@@ -2749,7 +2951,7 @@ class Agent:
         return self.name
 
     def power(self) -> float:
-        p = self.realm * 10 + self.qi / 10 + self.talent
+        p = self.realm * 10 + self.qi / 10 + self.talent + self.tech_power
         if "Proud" in self.traits:
             p += 1
         if "Ruthless" in self.traits:
@@ -3106,14 +3308,23 @@ class World:
         """§7: vice takes a cut of every win. Evil is the fast lane."""
         return VICE_SPOILS if any(t in VICE_TRAITS for t in a.traits) else 0
 
-    def _karma_kill(self, killer: Optional[Agent], victim: Agent):
-        """§7: killing the DEFENSELESS. A duel between equals is a duel; a
-        killing across a realm gap is a killing, and the ledger says so."""
+    def _karma_kill(self, killer: Optional[Agent], victim: Agent,
+                    yielded=False):
+        """§7: killing the DEFENSELESS — and VII §4: killing the YIELDED.
+
+        A realm gap leaves no contest and the ledger says so. A man who has
+        put his sword down is defenseless in the other way there is, and
+        from P7 the ledger says that too — once, never both, and the gap is
+        the dearer reading where it applies.
+        """
         if killer is None or not killer.alive:
             return
         if victim.realm < killer.realm:
             killer.karma += KARMA_KILL_DEFENSELESS
             self._record_deed(killer, "cruelty")    # VII §2: the ledger
+        elif yielded:
+            killer.karma += KARMA_EXECUTE_YIELDED
+            self._record_deed(killer, "cruelty")
 
     def _fell_defending(self, a: Agent, whom: str):
         """§7: dying in defence of others. Posthumous — it buys the dead
@@ -3433,6 +3644,12 @@ class World:
             return False
         return place.land is pc.home.land
 
+    @staticmethod
+    def is_famous(a: Agent) -> bool:
+        """A household name: the chronicle's [famous] tag and VII §9's
+        technique roll read the same line, so they are the same line."""
+        return a.realm >= FAME_REALM or a.standing >= 10
+
     def log(self, text, actors, dramatic=False, world_event=False,
             place=None):
         """Record an event. Always private to actors; printed selectively.
@@ -3458,7 +3675,7 @@ class World:
         if tag is None and world_event:
             tag = "world"
         if tag is None and dramatic:
-            if any(a.realm >= FAME_REALM or a.standing >= 10 for a in actors):
+            if any(self.is_famous(a) for a in actors):
                 tag = "famous"
         if tag is not None:
             line = f"Y{self.year:>4} [{tag:^6}] {text}"
@@ -3792,6 +4009,12 @@ class World:
         # golden one.
         roll = (r.random() + a.fortune * FORTUNE_WEIGHT
                 + self._karma_tilt(a) + ADVENTURE_RISK_SHIFT[condition])
+        # §9: PRESSURE overawes MORTALS, and the men on a bad road are all
+        # mortals. No die of its own — it moves the road's own roll, on the
+        # same axis a black ledger moves it, and only for the played
+        # character who is carrying the school.
+        if a.play is not None and self.has_technique(a, "pressure"):
+            roll += TECHNIQUE_PRESSURE_TILT
         if roll < ADVENTURE_DEATH / a.realm and self._fires(share):
             self.kill(a, scene("death"))
         elif roll < ADVENTURE_NEAR_DEATH and self._fires(share):
@@ -3834,6 +4057,7 @@ class World:
                 a.fortune = min(FORTUNE_CAP, a.fortune + 2)
             self.log(scene("treasure"), [a], dramatic=(a.realm >= 3),
                      place=where)
+            self._maybe_manual(a, where)        # §9: and sometimes a book
         elif self._fires(share):
             others = [o for o in self.cultivators()
                       if o.aid != a.aid and abs(o.realm - a.realm) <= 1]
@@ -3977,7 +4201,13 @@ class World:
         gap = abs(home.wealth() - other.wealth())
         fields = dict(who=a.display(), a=home.name, b=other.name,
                       goods=r.choice(TRADE_GOODS))
-        if r.random() < TRADE_RISK * share:
+        robbed = r.random() < TRADE_RISK * share
+        if robbed and self.has_technique(a, "flight"):
+            # §9: the road holds nothing for somebody who is not on it.
+            a.history.append((self.year, TECHNIQUE_SCENES["flight"].format(
+                who=a.display())))
+            robbed = False
+        if robbed:
             lost = min(a.resources, r.randint(*TRADE_LOSS))
             a.resources -= lost
             a.history.append((self.year,
@@ -4576,10 +4806,16 @@ class World:
         if weapon:
             terms.append(("weapon", PROFICIENCY_WEAPON_POWER * weapon))
         # P6: what came off the anvil — the best piece on the rack, never a
-        # stack of them. P7: ("technique", elemental arts +1).
+        # stack of them.
         gear = self.gear_power(a)
         if gear:
             terms.append(("gear", gear))
+        # P7 §9: the elemental arts, the one school worth power. An NPC
+        # carries the same point in `Agent.tech_power`; a played character
+        # carries it HERE, because this is the list the cap is taken over.
+        arts = self.technique_rank(a, "elemental")
+        if arts:
+            terms.append(("technique", TECHNIQUE_ELEMENTAL_POWER * arts))
         return terms
 
     def player_power(self, a: Agent) -> float:
@@ -4834,12 +5070,8 @@ class World:
         return max(1.0, swing)
 
     def _movement_rank(self, a: Agent) -> int:
-        """P7's Movement school, read early. Techniques do not exist yet, so
-        this is zero for everybody and the escape table already has its
-        term."""
-        if a.play is None:
-            return 0
-        return sum(1 for t in a.play.techniques if t == "movement")
+        """P7's Movement school: a rung of it is worth ESCAPE_MOVEMENT."""
+        return self.technique_rank(a, "movement")
 
     def _escape_chance(self, a: Agent, foe: Agent) -> float:
         """Breaking off a killing fight (VII §5)."""
@@ -4850,6 +5082,11 @@ class World:
         gap = foe.realm - a.realm
         if gap > 0:
             chance -= ESCAPE_PER_REALM * gap
+        # §9: FLIGHT escapes almost anything, and a realm gap is part of
+        # anything. A floor, not a bonus — the sky is the same height above
+        # everybody.
+        if self.has_technique(a, "flight"):
+            chance = max(chance, TECHNIQUE_FLIGHT_ESCAPE)
         return max(ESCAPE_CLAMP[0], min(ESCAPE_CLAMP[1], chance))
 
     def _pause_switch(self, a: Agent, which: str, mine: tuple) -> tuple:
@@ -4997,6 +5234,14 @@ class World:
                 return True
             return False
 
+        # §9: MISSILES — the exchange taken before the swords touch.
+        # `TECHNIQUE_MISSILE_OPENER` of a swing, once, to whichever of them
+        # opened at range; both armed with it and neither gets the ground. It is deliberately
+        # NOT a power term: the one roll never hears about it, exactly like
+        # a wound or a trained body, and --test-combat prints what it is
+        # worth beside them.
+        opener = [self.has_technique(att, "missiles"),
+                  self.has_technique(dfn, "missiles")]
         while n < ROUND_CAP:
             if stale:
                 fight = max((st[0][0], st[1][0]), key=EDGE_ORDER.index)
@@ -5025,6 +5270,13 @@ class World:
                         into[i] = [table[0]]
                         if second <= table[0] - PAUSE_BRINK_GAP:
                             into[i].append(second)
+                if opener[0] != opener[1]:
+                    i = 0 if opener[0] else 1
+                    hp[1 - i] = max(1.0, hp[1 - i]
+                                    - swing[i] * TECHNIQUE_MISSILE_OPENER)
+                    self.tell("round", TECHNIQUE_SCENES["missile"].format(
+                        who=who[i].display(), foe=who[1 - i].name))
+                    opener = [False, False]
                 stale = False
             n += 1
             q = self._exchange_chance(
@@ -5160,6 +5412,10 @@ class World:
             [x for x, st in ((att, sa), (dfn, sb))
              if st[0] == "murderous" and st[1]])
 
+        backed = self._pressure_backs_down(att, dfn, gap, ctx)
+        if backed is not None:
+            return backed
+
         if abs(gap) >= 1:
             # VII §5: the realms settle it before a stance is worth anything.
             strong, weak = (att, dfn) if gap > 0 else (dfn, att)
@@ -5238,10 +5494,11 @@ class World:
         # 2. The yield, and what the victor does with it.
         elif lethal and not merciful \
                 and self._finishes(winner, win_st, lose_st, loser):
-            # §7 prices the killing: across a realm gap it is a killing
-            # and costs the ledger, between equals a duel is a duel and the
-            # spare below is the whole moral asymmetry.
-            self._karma_kill(winner, loser)
+            # §7 and VII §4 price the killing: across a realm gap it is a
+            # killing, and between equals a yield taken and refused is the
+            # same thing said a different way. The spare below is what it is
+            # weighed against.
+            self._karma_kill(winner, loser, yielded=True)
             self._record_deed(winner, "blood")
             self.log(f"{winner.display()} beat {loser.display()} down{ctx} "
                      f"and finished it where they lay{tail}{killer_named}.",
@@ -5563,6 +5820,7 @@ class World:
         return {"alive": {aid: a.alive for aid, a in close.items()},
                 "marks": {aid: len(a.epithets) for aid, a in close.items()},
                 "ruler": ruler.aid if ruler is not None else None,
+                "ruling": pc.ruling,        # §10: the seat, if they hold one
                 "home": pc.home.prosperity if pc.home is not None else 10.0}
 
     def pc_alarms(self, before: dict) -> list:
@@ -5588,6 +5846,17 @@ class World:
             where = pc.home.land.name if pc.home is not None else "their land"
             out.append(f"{old.display() if old else 'the ruler'} no longer "
                        f"holds the seat over {where}")
+        # §10: a crown taken or lost is the hardest interrupt there is —
+        # the clock itself changes. A skip that ran through it would spend
+        # the reign's decisions on nobody.
+        if before.get("ruling") != pc.ruling:
+            polity = self.polities.get(pc.ruling)
+            if pc.ruling is not None and polity is not None:
+                out.insert(0, f"you hold the seat of the {polity.name} now, "
+                              f"and a court runs at year tempo")
+            else:
+                out.insert(0, "you are off the seat, and the path is open "
+                              "again")
         home_now = pc.home.prosperity if pc.home is not None else 10.0
         if home_now < HOME_DESPERATE <= before.get("home", 10.0):
             out.append(f"{pc.home.name} has fallen below desperate")
@@ -5604,7 +5873,11 @@ class World:
         for item in self.agenda:
             if not item.notice:
                 continue
-            if season is not None and SEASONS.index(item.season) \
+            # §10: a reign is read at YEAR tempo and asks for the whole
+            # year's notices, which is why the season here may not be one
+            # (`player_status("the year")`). Anything that is not one of
+            # the four filters nothing out.
+            if season in SEASONS and SEASONS.index(item.season) \
                     < SEASONS.index(season):
                 continue        # already happened
             if item.hard or item.kind in AGENDA_PUBLIC:
@@ -5723,6 +5996,14 @@ class World:
         best = max(scores.values())
         fired = [f for f in RULE_FACETS if scores[f] == best and best > 0]
         fired = fired[:MAX_FACETS_PER_YEAR]
+        # §10: a PLAYED reign leans on one of the three things its own
+        # temper is good for. It goes to the front of the year and the
+        # situation keeps whatever else it forces — a king may choose what
+        # to spend the year on, not what the year is.
+        chosen = self._player_emphasis(polity, leader, scores)
+        if chosen:
+            fired = ([chosen] + [f for f in fired
+                                 if f != chosen])[:MAX_FACETS_PER_YEAR]
 
         for facet in fired:
             eff = RULE_FACET_EFFECTS[facet]
@@ -5802,7 +6083,9 @@ class World:
         if points and len(polity.edicts) < EDICT_MAX_ACTIVE \
                 and r.random() < EDICT_CHANCE_PER_POINT * points:
             edict = self._draw_edict(polity)
-            if edict is not None:
+            if edict is not None and self._player_proclaims(polity=polity,
+                                                            leader=leader,
+                                                            edict=edict):
                 polity.edicts.append(edict)
                 self.log(f"{self.ruler_ref(leader)} decreed {edict.clause}; "
                          f"heralds carried the order into every village of "
@@ -5815,7 +6098,10 @@ class World:
         old = [e for e in polity.edicts if e.year < self.year]
         if (old and good_year and not leader.has_trait("Stubborn")
                 and r.random() < EDICT_REPEAL_CHANCE):
-            edict = r.choice(old)
+            edict = self._player_repeals(leader, polity, old, r.choice(old))
+        else:
+            edict = None
+        if edict is not None:
             polity.edicts.remove(edict)
             self.log(f"{self.ruler_ref(leader)} let {edict.label} lapse after "
                      f"{self.years_phrase(self.year - edict.year)}.", [leader],
@@ -7405,6 +7691,7 @@ class World:
             elif roll < 0.5:
                 a.resources += r.randint(4, 10) + self._vice_spoils(a)
                 a.fortune = min(FORTUNE_CAP, a.fortune + 1)
+                self._maybe_manual(a)           # §9: the other treasure slot
             elif roll < 0.7:
                 a.insight += 4
         for a in deaths:
@@ -7580,6 +7867,22 @@ class World:
         req = INSIGHT_REQ[a.realm]
         if a.insight < req:
             return  # stalled; the action phase already biases them to adventure
+        # §9: THE FLAWED MANUAL, found at last. A copyist's error practised
+        # for years is a burden, and the lightning is where it is read —
+        # BEFORE the chance below, so the tribulation that finds it is the
+        # tribulation that pays for it. It sits BESIDE the clarity pill and
+        # not inside it: one is a thing you took and the other a thing you
+        # were taught, and the sim keeps its pending effects apart.
+        if a.play is not None and a.play.flaw:
+            bad = next((c["name"] for c in a.techniques if c["flawed"]),
+                       "the art")
+            a.burden += a.play.flaw
+            a.play.flaw = 0
+            for card in a.techniques:
+                card["flawed"] = False
+            self.log(TECHNIQUE_LINES["flaw"].format(who=a.display(),
+                                                    card=bad),
+                     [a], dramatic=True)
         chance = 0.35 + a.talent * 0.03 + (a.insight - req) * 0.01 \
             - a.burden * 0.05
         # §7: the tribulation reads the ledger — karma/4 percentage points,
@@ -7608,10 +7911,14 @@ class World:
             a.insight -= req
             a.standing += 2
             a.burden = max(0, a.burden - 1)
+            # §9's one NPC-facing exception, rolled at realm-up and hung off
+            # this line rather than given one of its own: a name is news and
+            # its homework is not.
+            arts = self._famous_techniques(a)
             # A cultivator-king can still break through on the seat: qi is
             # frozen, but governance adversity keeps handing them insight.
             self.log(f"{self.ruler_ref(a)} broke through to {a.realm_name} "
-                     f"(age {a.age}).", [a], dramatic=(a.realm >= 3))
+                     f"(age {a.age}).{arts}", [a], dramatic=(a.realm >= 3))
             if a.realm >= FAME_REALM and "Ascendant" not in a.epithets:
                 a.epithets.append("Ascendant")
             self._update_sect_heads()
@@ -7954,6 +8261,10 @@ class World:
             self.pc.play = PlayerState()
             self._seed_stances(self.pc)
             self._seed_orders(self.pc)
+            # §9: whatever cards they already had are now counted under the
+            # §5 cap (`player_power_terms`) instead of in the one number an
+            # NPC fights with. Never both.
+            self.pc.tech_power = 0.0
         return self.pc
 
     def _seed_stances(self, a: Agent) -> None:
@@ -8125,6 +8436,10 @@ class World:
         master = self.master_of(a)
         if master is not None and r.random() < MASTER_STANCE_CHANCE * share:
             self._teach_stance(a, master)
+        # §9: and now and then what they hand over is a card, not a form.
+        if master is not None:
+            self._master_technique(a, master,
+                                   MASTER_TECHNIQUE_CHANCE * share)
 
     def _drill_stance(self, a: Agent, key: str, seasons: float):
         """Stance proficiency EARNED THROUGH USE (§4) — the drill half. The
@@ -8152,8 +8467,9 @@ class World:
     def _act_hall(self, a: Agent, share=1.0):
         """The sect training hall (§3): the forms, for standing and silver.
 
-        The hall's other half — techniques off the library shelves — is P7's;
-        `_hall_technique` is the seam and returns nothing until then.
+        Three shelves, one season: the forms (`_hall_stance`), a craft
+        manual (`_hall_manual`, P6 §8) and the arts themselves
+        (`_hall_technique`, P7 §9).
         """
         r = self.rng
         if a.standing < HALL_STANDING or a.resources < HALL_COST:
@@ -8165,7 +8481,7 @@ class World:
                        HALL_THEORY * share * len(SEASONS) * self.teaching(a))
         if r.random() < HALL_STANDING_GAIN * share * len(SEASONS):
             a.standing += 1
-        self._hall_technique(a)         # P7
+        self._hall_technique(a, share)  # P7 §9: the arts themselves
         self._hall_manual(a, share)     # P6 §8: the other door past rank 1
         taught = ""
         if r.random() < HALL_TEACHES * share * len(SEASONS):
@@ -8208,18 +8524,199 @@ class World:
                                          craft=key), [a])
         return key
 
-    def _hall_technique(self, a: Agent):
-        """P7's seam: the sect library sells technique cards for standing and
-        silver (VII §9). Nothing here yet, and deliberately nothing — a
-        technique is a card with a school and a realm gate, and neither
-        exists until P7 writes them."""
-        return None
+    # -- techniques: the cards (VII §9) -------------------------------------
+    #
+    # A card is a school, a realm gate and one effect (TECHNIQUE_SCHOOLS).
+    # `technique_rank` is the only place a school's ladder is counted, and
+    # `_grant_technique` the only place a card is ever handed over — the
+    # library, a master, a manual off the road and the famous NPCs' own
+    # breakthroughs all come through that one door, which is why the flawed
+    # book and the cap and the epithets each have exactly one implementation.
 
-    def _master_technique(self, a: Agent, master: Agent):
-        """P7's other seam: §8's "occasionally a technique". The master rel
-        and the trial are P5's; what a teacher can hand over beyond a stance
-        is P7's, and this is where it goes."""
-        return None
+    def technique_rank(self, a: Optional[Agent], school: str) -> int:
+        """How many rungs of one school a character holds."""
+        if a is None:
+            return 0
+        return sum(1 for c in a.techniques if c["school"] == school)
+
+    def has_technique(self, a: Optional[Agent], school: str) -> bool:
+        return self.technique_rank(a, school) > 0
+
+    def _learnable(self, a: Agent) -> list:
+        """The schools this realm can hold and this hand has room in."""
+        return [k for k, spec in TECHNIQUE_SCHOOLS.items()
+                if a.realm >= spec["realm"]
+                and self.technique_rank(a, k) < spec["rungs"]]
+
+    def _grant_technique(self, a: Agent, source: str, school=None,
+                         flawed=False, master: Optional[Agent] = None,
+                         place: Optional[Place] = None,
+                         quiet=False) -> Optional[dict]:
+        """Hand over one card. THE one door (§9).
+
+        Everything a technique costs and everything it is worth is decided
+        here: the realm gate, the ladder's room, the elemental epithet, the
+        power an NPC's arm gets out of it (a played character's goes through
+        `player_power_terms`, where the cap can see it), and the burden a
+        flawed manual starts quietly adding.
+        """
+        r = self.rng
+        want = self._learnable(a)
+        if school is not None and school not in want:
+            return None
+        if not want:
+            return None
+        school = school if school is not None else r.choice(want)
+        spec = TECHNIQUE_SCHOOLS[school]
+        known = {c["name"] for c in a.techniques}
+        cards = [c for c in spec["cards"] if c not in known] or spec["cards"]
+        card = {"school": school, "name": r.choice(cards), "flawed": flawed}
+        who = a.display()               # ... before the epithet lands
+        a.techniques.append(card)
+        if a.play is None:
+            # An NPC's arm carries it in the one number the kernel fights
+            # with. A played character's is counted under the §5 cap instead.
+            if school == "elemental":
+                a.tech_power += TECHNIQUE_ELEMENTAL_POWER
+        elif flawed:
+            a.play.flaw += MANUAL_FLAW_BURDEN
+        tail = ""
+        ep = TECHNIQUE_EPITHETS.get(card["name"])
+        if ep is not None and ep not in a.epithets and len(a.epithets) < 3:
+            a.epithets.append(ep)
+            tail = TECHNIQUE_LINES["epithet"].format(ep=ep)
+        if quiet:
+            return card
+        self.log(TECHNIQUE_LINES[source].format(
+            who=who, card=card["name"], school=spec["name"].lower(),
+            sect=a.sect or "the sect",
+            master=master.display() if master is not None else "") + tail,
+            [a] if master is None else [a, master], place=place)
+        return card
+
+    def _famous_techniques(self, a: Agent) -> str:
+        """§9's ONE NPC-FACING EXCEPTION, and the only die this layer rolls
+        on an NPC path: a famous name comes down off a tribulation with 0-2
+        cards it did not have going up.
+
+        Returns the clause to hang off the breakthrough line — one line for
+        the whole event, because a name is news and its homework is not.
+        Isolated behind FAMOUS_TECHNIQUE_CHANCE so the cost of it to the
+        batch stream can be measured by turning it off.
+        """
+        if a.play is not None or not self.is_famous(a):
+            return ""
+        r = self.rng
+        got = []
+        if r.random() < FAMOUS_TECHNIQUE_CHANCE:
+            card = self._grant_technique(a, "famous", quiet=True)
+            if card is not None:
+                got.append(card)
+                if r.random() < FAMOUS_TECHNIQUE_SECOND:
+                    more = self._grant_technique(a, "famous", quiet=True)
+                    if more is not None:
+                        got.append(more)
+        if not got:
+            return ""
+        names = " and ".join(
+            f"{c['name']} ({TECHNIQUE_SCHOOLS[c['school']]['name'].lower()})"
+            for c in got)
+        return " " + TECHNIQUE_LINES["famous"].format(card=names)
+
+    def _maybe_manual(self, a: Agent, place: Optional[Place] = None) -> bool:
+        """§9: what a treasure slot can turn out to be — a book, and one in
+        five of those is wrong somewhere.
+
+        PLAYED CHARACTERS ONLY: an NPC's `resources` is already the
+        abstraction of every chest on every road, and nothing here may roll
+        a die on an NPC path.
+        """
+        if a is None or a.play is None or not a.alive:
+            return False
+        if not self._learnable(a):
+            return False
+        r = self.rng
+        if r.random() >= MANUAL_FIND:
+            return False
+        flawed = r.random() < MANUAL_FLAWED
+        return self._grant_technique(a, "found", flawed=flawed,
+                                     place=place) is not None
+
+    def _hall_technique(self, a: Agent, share=1.0):
+        """The other half of the sect library (§3, §9): the arts themselves,
+        copied out for standing and silver.
+
+        The hall is where a technique is BOUGHT rather than found, which is
+        why it is the only door that lets the disciple say which shelf —
+        with nobody at the keyboard the roll stands, exactly as everywhere
+        else the kernel asks a question.
+        """
+        if a.play is None or not a.alive:
+            return
+        r = self.rng
+        if a.standing < HALL_TECHNIQUE_STANDING \
+                or a.resources < HALL_TECHNIQUE_COST:
+            return
+        if r.random() >= HALL_TECHNIQUE * share * len(SEASONS):
+            return
+        want = self._learnable(a)
+        if not want:
+            a.history.append((self.year, TECHNIQUE_LINES["none"].format(
+                who=a.display(), sect=a.sect or "the sect")))
+            return
+        pick = r.choice(want)
+        if len(want) > 1:
+            shelf = "; ".join(f"{k} — {TECHNIQUE_SCHOOLS[k]['effect']}"
+                              for k in want)
+            pick = self.ask_player(
+                "technique",
+                f"The library will copy out one of the sect's own arts for "
+                f"you, at a price. {shelf}.", want, pick)
+        a.resources -= HALL_TECHNIQUE_COST
+        self._grant_technique(a, "hall", school=pick)
+
+    def _master_technique(self, a: Agent, master: Agent,
+                          chance=MASTER_TECHNIQUE_TRIAL):
+        """§8's "occasionally a technique", and §9's second door.
+
+        A teacher hands over WHAT THEY THEMSELVES CARRY where the disciple's
+        realm can hold it, and one of the sect's ordinary arts otherwise —
+        the same rule `_teach_stance` follows, for the same reason.
+        """
+        if a is None or a.play is None or master is None or not a.alive:
+            return None
+        r = self.rng
+        if r.random() >= chance:
+            return None
+        want = self._learnable(a)
+        if not want:
+            return None
+        theirs = [c["school"] for c in master.techniques if c["school"] in want]
+        pick = r.choice(theirs) if theirs else r.choice(want)
+        return self._grant_technique(a, "master", school=pick, master=master)
+
+    def _pressure_backs_down(self, att: Agent, dfn: Agent, gap: int,
+                             ctx: str) -> Optional[Agent]:
+        """PRESSURE (§9): a fight that does not happen.
+
+        A SCENE, and a scene needs a camera — this is read only in a fight
+        the played character is in, on either side of it. Off camera the
+        kernel's own tyranny of realms already says what Pressure says out
+        loud, and the world's arithmetic is left exactly as it was.
+        """
+        if att.play is None and dfn.play is None:
+            return None
+        if abs(gap) < TECHNIQUE_PRESSURE_GAP:
+            return None
+        strong, weak = (att, dfn) if gap > 0 else (dfn, att)
+        if not self.has_technique(strong, "pressure"):
+            return None
+        strong.standing += TECHNIQUE_PRESSURE_STANDING
+        self._add_grudge(weak, strong, 1)
+        self.log(TECHNIQUE_SCENES["pressure"].format(
+            who=strong.display(), foe=weak.display()) + ctx,
+            [strong, weak])
+        return strong
 
     # -- professions: the furnace, the forge, the infirmary (VII §8) --------
     #
@@ -8791,6 +9288,96 @@ class World:
         if activity in WOUND_REST and a.play.wound and a.play.wound <= carried:
             self.heal_wound(a)
 
+    # -- a played throne (VII §10) ------------------------------------------
+    #
+    # TWO DECISIONS A YEAR, and not one of them is a way around VI §4. The
+    # emphasis is read out of the ruler's own facet scores, so a played king
+    # can lean on what he is and never on what he is not; the edict fork is
+    # offered only in the years the engine's own rules would have proclaimed
+    # or repealed one anyway. Everything else about a reign — the frozen qi,
+    # the locked cultivation, the corruption ladder, the risings — is
+    # exactly what it is for every other ruler in the world.
+
+    def _played_ruler(self, leader: Agent) -> bool:
+        return (self.playing and leader is self.pc
+                and leader.play is not None and leader.is_ruler())
+
+    def _facet_options(self, scores: dict) -> list:
+        """The top three a ruler's own temper is good for (§10)."""
+        ranked = sorted([f for f in RULE_FACETS if scores.get(f, 0) > 0],
+                        key=lambda f: (-scores[f], RULE_FACETS.index(f)))
+        return ranked[:PLAYED_FACET_CHOICES]
+
+    def _player_emphasis(self, polity: Polity, leader: Agent,
+                         scores: dict) -> str:
+        """§10's one policy decision. Returns the facet to fire, or ""."""
+        if not self._played_ruler(leader):
+            return ""
+        opts = self._facet_options(scores)
+        if not opts:
+            return ""
+        words = {STYLE_WORDS[f]: f for f in opts}
+        gloss = "; ".join(f"{STYLE_WORDS[f]} — {RULE_FACET_GLOSS[f]}"
+                          for f in opts)
+        pick = self.ask_player(
+            "emphasis",
+            f"The year of the {polity.name} is yours to spend. {gloss}.",
+            list(words) + [PLAYED_FACET_HOLD], STYLE_WORDS[opts[0]])
+        return words.get(pick, "")
+
+    def _player_proclaims(self, leader: Agent, polity: Polity,
+                          edict: Edict) -> bool:
+        """The court has drawn a decree and wants a seal on it (§10)."""
+        if not self._played_ruler(leader):
+            return True
+        answer = self.ask_player(
+            "edict",
+            f"The court has drawn up an order: {edict.clause}. Sealed, it "
+            f"stands until it is repealed, and it grinds on {polity.domain} "
+            f"every year it does.",
+            ["proclaim", "leave it"], "proclaim")
+        if answer == "proclaim":
+            return True
+        self.log(REIGN_LINES["declined"].format(
+            ruler=self.ruler_ref(leader)), [leader], place=polity.seat)
+        return False
+
+    def _player_repeals(self, leader: Agent, polity: Polity, old: list,
+                        rolled: Edict) -> Optional[Edict]:
+        """A good year, and a ruler who could be talked out of an old rule
+        (§10). The player says WHICH — or that they will keep them all."""
+        if not self._played_ruler(leader):
+            return rolled
+        short = {e.label.replace("the ", "", 1): e for e in old}
+        default = rolled.label.replace("the ", "", 1)
+        pick = self.ask_player(
+            "repeal",
+            "The year has gone well enough that an old order could be let "
+            "lapse without looking weak.",
+            list(short) + ["keep them"], default)
+        return short.get(pick)
+
+    def reign_card(self) -> str:
+        """VII §11: what a played ruler sees before the year is spent."""
+        a = self.pc
+        polity = self.polities.get(a.ruling) if a is not None else None
+        if a is None or polity is None:
+            return ""
+        lines = [REIGN_LINES["card"].format(
+            silver=a.resources, unrest=self.unrest_word(polity.unrest),
+            domain=polity.domain, word=polity.word())]
+        opts = self._facet_options(self._facet_scores(polity, a))
+        lines.append(REIGN_LINES["facets"].format(
+            facets=", ".join(STYLE_WORDS[f] for f in opts)
+            or "nothing your temper is good for"))
+        if polity.edicts:
+            lines.append(REIGN_LINES["edicts"].format(
+                edicts="; ".join(e.label for e in polity.edicts)))
+        else:
+            lines.append(REIGN_LINES["quiet"])
+        lines.append(REIGN_LINES["locked"])
+        return "\n".join(lines)
+
     def player_abdicate(self) -> bool:
         """§4/§10: the played ruler lays the seat down. Always on the menu."""
         a = self.pc
@@ -8921,8 +9508,11 @@ class World:
                          + (f", and {spare} more piece"
                             f"{'s' if spare != 1 else ''} to sell"
                             if spare else ""))
-        lines.append("  techniques: none — the schools arrive with the next "
-                     "session")
+        lines.append(f"  techniques: {self.technique_list(a) or 'none yet'}")
+        for school in TECHNIQUE_ORDER:
+            if self.technique_rank(a, school):
+                lines.append(f"      {TECHNIQUE_SCHOOLS[school]['name']} — "
+                             f"{TECHNIQUE_SCHOOLS[school]['effect']}")
         master = self.master_of(a)
         if master is not None:
             lines.append(f"  master: {master.display()} "
@@ -8949,6 +9539,23 @@ class World:
         return "\n".join(lines)
 
     # -- PC handling --------------------------------------------------------
+
+    def technique_list(self, a: Agent) -> str:
+        """The cards in hand, by school (VII §9). A flawed manual reads
+        exactly like a sound one: that is the whole point of it."""
+        if not a.techniques:
+            return ""
+        out = []
+        for school in TECHNIQUE_ORDER:
+            cards = [c["name"] for c in a.techniques if c["school"] == school]
+            if not cards:
+                continue
+            spec = TECHNIQUE_SCHOOLS[school]
+            rungs = (f" {len(cards)}/{spec['rungs']}"
+                     if spec["rungs"] > 1 else "")
+            out.append(f"{spec['name'].lower()}{rungs} "
+                       f"({', '.join(cards)})")
+        return "; ".join(out)
 
     def _succeed_pc(self):
         """The camera moves on when the protagonist DIES — never when they
@@ -9057,6 +9664,8 @@ class World:
                          f"wars lost {a.wars_lost}")
         if a.thrones_refused:
             lines.append(f"  thrones refused: {a.thrones_refused}")
+        if a.techniques:
+            lines.append(f"  techniques: {self.technique_list(a)}")
         if a.front_seasons:
             stands = (f", and stood on the line through {a.front_stands} "
                       f"incursions" if a.front_stands else "")
@@ -9528,6 +10137,7 @@ PLAY_HELP = """Commands (play mode):
   take KIND          swallow a pill: qi, healing or clarity
   sell KIND | gear   sell a pill, or the worst piece off the rack
   orders             the standing orders card; `orders KEY VALUE` sets one
+  hold / abdicate    on a throne: take the year, or lay the seat down
   pc / sheet NAME    a character sheet
   log NAME           a character's whole private history
   map / courts       the nine lands; every ruler and how they rule
@@ -9689,7 +10299,13 @@ class Play:
                 self.quit = True
                 return None
             if cmd == "":
-                return w.pc.play.activity
+                # Enter repeats — but not into a door that has closed since
+                # (the hall shut for want of silver, the muster stood down).
+                repeat = w.pc.play.activity
+                if not self._available(repeat):
+                    print(self._refusal(repeat))
+                    continue
+                return repeat
             if low.startswith("skip"):
                 if self.start_skip(low):
                     return self.skip_activity
@@ -9839,14 +10455,18 @@ class Play:
         if reason:
             print(f"  YOU WAKE: {reason}.")
 
-    # -- a played throne (VII §10 is P7; P1 offers the door out) ----------
+    # -- a played throne (VII §10) ---------------------------------------
 
     def reign_turn(self) -> bool:
+        """The year, from the seat. A court runs at YEAR tempo (§10): the
+        four seasons are the court's, and what the crown offers instead is
+        the emphasis, the edict fork, and the door."""
         w = self.world
         print()
         print(w.player_status("the year"))
-        print("  A court runs at year tempo: one decision a year, and no qi "
-              "while it lasts.")
+        print(w.reign_card())
+        print("  ('hold' to take the year as it comes — the court will ask "
+              "what you spend it on; 'abdicate' to lay the seat down)")
         while True:
             cmd = self.read(f"[year {w.year}, on the seat] > ").strip()
             if self.quit:
@@ -9855,7 +10475,7 @@ class Play:
             if low in ("quit", "exit", "q"):
                 self.quit = True
                 return False
-            if low in ("", "hold", "rule", "keep"):
+            if low in ("", "hold", "rule", "keep", "court"):
                 return True
             if low in ("abdicate", "lay down", "step down"):
                 if w.player_abdicate():
@@ -9900,7 +10520,11 @@ class Play:
             if reason is not None:
                 self.wake(reason)       # stop the season BEFORE it
                 if pc.is_ruler():
+                    # §10: the crown came down mid-skip. The year is the
+                    # court's from here, and it wants its decision.
                     activity = None
+                    if season == NPC_ACTION_SEASON and not self.reign_turn():
+                        return False
                 else:
                     activity = self.prompt(season)
                     if self.quit:
@@ -10025,6 +10649,13 @@ COMBAT_CELLS = [
      ("murderous", None), ("duelling", "merciful")),
     ("rage vs patience, Nascent", (4, 7, 70), (4, 5, 20),
      ("allout", "rage"), ("allout", "patience")),
+    # P7 §9: the elemental arts are a POWER term, so the one roll reads them
+    # too and the invariant must hold with them on the table. A cell's
+    # optional sixth field is the played side's cards.
+    ("one elemental art",        (2, 5, 40), (2, 5, 40),
+     ("duelling", None), ("duelling", None), ("elemental",)),
+    ("both arts, all-out",       (2, 5, 40), (2, 5, 40),
+     ("allout", None), ("allout", None), ("elemental", "elemental")),
     # P5: the +4 cap's only tenant so far. Both resolutions read
     # `player_power`, so a trained weapon must move the fought bout by
     # exactly as much as it moves the one roll and no more.
@@ -10061,10 +10692,20 @@ def _seasons_for_rank(rank: int, shape: str) -> float:
 
 
 def _test_reset(a: Agent, realm: int, talent: int, qi: float, weapon=0,
-                gear=0, stances=(), wound=0, body=0):
+                gear=0, stances=(), wound=0, body=0, techniques=()):
     a.realm, a.talent, a.qi = realm, talent, float(qi)
     a.traits = list(COMBAT_NEUTRAL)
     a.alive = True
+    # P7 §9: the cards, and the point of power the elemental ones carry.
+    # A played fighter's is counted in `player_power_terms` under the cap;
+    # `tech_power` is the unplayed side of the same point and must be reset
+    # with everything else, or ten thousand fights would stack it.
+    a.tech_power = 0.0
+    a.techniques = [{"school": k, "name": TECHNIQUE_SCHOOLS[k]["cards"][0],
+                     "flawed": False} for k in techniques]
+    if a.play is None:
+        a.tech_power = sum(TECHNIQUE_ELEMENTAL_POWER for k in techniques
+                           if k == "elemental")
     a.epithets, a.rels, a.history, a.deeds = [], {}, [], []
     a.insight, a.burden, a.standing, a.karma = 0.0, 0, 1, 0
     a.resources, a.fortune = 0, 0
@@ -10105,14 +10746,16 @@ def test_combat(seed=1, fights=10000) -> bool:
           f"{'fought':>8}{'delta':>9}")
     worst = 0.0
     rounds_by_edge: dict = {}
-    for label, side_a, side_b, sa, sb in COMBAT_CELLS:
-        _test_reset(att, *side_a, stances=sa)
+    for cell in COMBAT_CELLS:
+        label, side_a, side_b, sa, sb = cell[:5]
+        tech = cell[5] if len(cell) > 5 else ()
+        _test_reset(att, *side_a, stances=sa, techniques=tech)
         _test_reset(dfn, *side_b)
         want = world.duel_odds(att, dfn, sa, sb)
         wins = 0
         counts: list = []
         for _ in range(fights):
-            _test_reset(att, *side_a, stances=sa)
+            _test_reset(att, *side_a, stances=sa, techniques=tech)
             _test_reset(dfn, *side_b)
             bout = world._bout(att, dfn, sa, sb,
                                max((sa[0], sb[0]), key=EDGE_ORDER.index), "")
@@ -10159,21 +10802,30 @@ def test_combat(seed=1, fights=10000) -> bool:
     # roll never hears about either, and at rank 5 a trained body is worth
     # about what a light wound costs. Both are printed together because
     # they are the same measurement.
+    # P7 §9: MISSILES is the third thing on this axis — a free half
+    # exchange the one roll never hears about, printed here beside the wound
+    # and the trained body so the three can be read against each other. The
+    # elemental arts are NOT here: they are a power term, so they move the
+    # one roll too and are measured in the invariant table above.
     print("WHAT A BODY IS WORTH (even fight at duelling, the played side "
-          "hurt or trained)")
-    for label, wound, body in (("serious", 2, 0), ("light", 1, 0),
-                               ("whole", 0, 0), ("Body 3", 0, 3),
-                               ("Body 5", 0, 5)):
+          "hurt, trained or armed)")
+    for label, wound, body, tech in (("serious", 2, 0, ()),
+                                     ("light", 1, 0, ()),
+                                     ("whole", 0, 0, ()),
+                                     ("Body 3", 0, 3, ()),
+                                     ("Body 5", 0, 5, ()),
+                                     ("missiles", 0, 0, ("missiles",)),
+                                     ("movement", 0, 0, ("movement",))):
         wins = 0
         for _ in range(fights):
             _test_reset(att, 2, 5, 40, stances=("duelling",), wound=wound,
-                        body=body)
+                        body=body, techniques=tech)
             _test_reset(dfn, 2, 5, 40)
             bout = world._bout(att, dfn, ("duelling", None),
                                ("duelling", None), "duelling", "")
             wins += 1 if bout["winner"] is att else 0
         _test_reset(att, 2, 5, 40, stances=("duelling",), wound=wound,
-                    body=body)
+                    body=body, techniques=tech)
         print(f"  {label:<10} win {100.0 * wins / fights:>5.1f}%"
               f"   body {world.max_hp(att):.0f}")
     print()

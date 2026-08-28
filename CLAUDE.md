@@ -5,7 +5,8 @@ event logs are the product. The design philosophy is **SIM FIRST, CHEAT
 LATER** — no plot armor, no dramaturgy; if raw agent logs already read like
 lives, the kernel is right. The full design is in `cultivation_sim_design.txt`
 (read it before making non-trivial changes; the code implements Part III, the
-"toy version", plus the whole politics layer of Part VI).
+"toy version", plus the whole politics layer of Part VI and the whole
+playable layer of Part VII — sessions P1-P7, all built).
 
 ## Files
 
@@ -26,10 +27,13 @@ python3 cultivation_sim.py --test-combat   # VII §5's combat harness (exit 1 = 
 python3 cultivation_sim.py --autopilot --years 200   # VII §12's random-hand bot
 ```
 
-Play-mode commands: Enter (repeat last season's activity), `1`-`13` or the
+Play-mode commands: Enter (repeat last season's activity), `1`-`16` or the
 activity's name, `menu`, `skip N doing X` (timeskip, cap 12 seasons),
-`agenda`, `bag`, `orders` (the standing-orders card; `orders KEY VALUE`
-sets one), plus every observer command
+`agenda`, `bag` (crafts, manuals, pills, toxicity, the rack, techniques,
+proficiencies, the combat total against the +4 cap), `brew KIND` (what the
+furnace is set up for), `take KIND` (swallow a pill), `sell KIND|gear`,
+`orders` (the standing-orders card; `orders KEY VALUE` sets one), and on a
+throne `hold` / `abdicate` — plus every observer command
 (`pc`, `sheet`, `log`, `map`, `courts`, `land`, `roster`, `famous`,
 `obits`, `help`, `quit`).
 
@@ -56,8 +60,10 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   contact surface, and the adventure scene tables.
 - **`Agent`** — the uniform agent sheet from the design doc: age, realm, qi,
   talent, insight, burden, resources, standing, traits, relationships
-  (`rels: {aid: Rel(kind, intensity)}`), epithets, private `history`, and a
-  small `fortune` counter (streaky luck) — plus the politics fields:
+  (`rels: {aid: Rel(kind, intensity)}`), epithets, private `history`, a
+  small `fortune` counter (streaky luck) and VII §9's `techniques` /
+  `tech_power` (cards are on the AGENT, because the famous carry them too)
+  — plus the politics fields:
   `home` (a real settlement), `karma`, `ruling`/`reign_start`/`reign_came`,
   `past_reigns`, `thrones_refused`, `revolts_survived`, `wars_won/lost`.
 - **`World`** — owns agents, sects, sect heads, the chronicle, and the year
@@ -135,7 +141,7 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   or mutate into a vice trait; blocked mutations reroute through
   `CAMERA_REROUTE`. It protects the reader's seat, not the characters.
 
-## The playable layer (Part VII — sessions P1-P5 built)
+## The playable layer (Part VII — all seven sessions built)
 
 - **Two clocks** (§1) — the world thinks in years, the player lives in
   seasons. The agenda (`World.agenda`, a list of `AgendaItem`) is what makes
@@ -148,16 +154,19 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
 - **`--play`** (§2) — `World.begin_play` adds agent 65 to the watched
   intake with everything rolled (no point-buy); the player supplies a name
   and may pick sex and homeland. PC-only state lives on `Agent.play`
-  (`PlayerState`); `stances` is filled by P2, `wound` / `orders` by P3, and
-  `proficiencies` / `drills` by P5; professions, techniques and pills are
-  still placeholders for P6-P7. There is deliberately no hp field: hp
+  (`PlayerState`): `stances` (P2), `wound` / `orders` (P3),
+  `proficiencies` / `drills` (P5), `professions` / `manuals` / `pills` /
+  `brew` / `gear` / `toxicity` / `clarity` (P6) and `flaw` (P7's hidden
+  burden). The technique CARDS are not there — they are on the `Agent`,
+  because famous NPCs carry them too. There is deliberately no hp field: hp
   exists only inside a fight.
   The camera constraint (VI §8) is REPEALED for a played PC — vice is
   allowed, karma is the price — while bound companions keep it.
 - **Season activities** (§3, `World.player_season`) — cultivate, retreat,
   train the body / a weapon / theory, the sect training hall, seek a
-  master, fight injustice, hunt spirit beasts, trade run, socialize, join
-  the muster, the demon front; each paying `SEASON_RATE`
+  master, the furnace / the forge / the infirmary (P6), fight injustice,
+  hunt spirit beasts, trade run, socialize, join the muster, the demon
+  front — sixteen in `PLAYER_ACTIVITIES`; each paying `SEASON_RATE`
   (a quarter) of the matching yearly action in gains AND in risk, via
   `_fires` / `_share_int`. At `share=1.0` those two helpers roll no dice at
   all, which is why the NPC year is untouched.
@@ -165,13 +174,14 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   `TIMESKIP_CAP`. HARD interrupts split in two: FORESEEN ones sit on the
   agenda (`_foreseen_hard`) and stop the skip on the EVE, the season before;
   the ones nothing can foresee (a close rel dead or maimed, the home seat
-  changing hands, home below desperate, a breakthrough ready) are caught at
-  the season boundary by `pc_watch` / `pc_alarms`. Waking prints a DIGEST.
+  changing hands, home below desperate, a breakthrough ready, and P7's
+  crown taken or lost) are caught at the season boundary by `pc_watch` /
+  `pc_alarms`. Waking prints a DIGEST.
 - **Deeds, not dice** (§2) — `_record_deed` files every agent's killings,
   cruelties and mercies; `_deed_mutation` turns three of a kind inside
-  `DEED_WINDOW` into a trait, and in P1 only the PLAYED character mutates
-  off it (NPC mutation stays trigger-driven, and the session-7 aggregates
-  with it).
+  `DEED_WINDOW` into a trait, and only the PLAYED character mutates off it
+  (NPC mutation stays trigger-driven, and the session-7 aggregates with
+  it). It is what turns a profiteer Cruel by his own ledger.
 - **Stances: edge x manner** (§4, P2) — a stance is one EDGE
   (`STANCE_EDGES`: sparring / duelling / all-out / murderous — the stop
   line, the accidental kill, the maim chance, the exchange weight and the
@@ -283,8 +293,90 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   Sparring against a peer, never against the master: a realm gap would make
   a trial a flight. `_duel` now RETURNS whoever was left standing, which is
   how the trial knows. The hall (`_act_hall`) gates on `HALL_STANDING` and
-  `HALL_COST` and teaches forms; `_hall_technique` and `_master_technique`
-  are P7's seams and return nothing.
+  `HALL_COST` and teaches forms; `_hall_manual` (P6) and `_hall_technique`
+  (P7) are the other two shelves in the same library season.
+- **Professions** (§8, P6) — ONE RANK MECHANIC, THREE SKINS: `PROFESSIONS`
+  (alchemy / forging / healing) is one more row in `RANK_SHAPES`
+  (`{"max": 3, "step": 3.0}` — eighteen seasons for the whole ladder) and
+  one more store on `PlayerState`. §8's WALL is `profession_taught`: past
+  `PROFESSION_TEACHER_RANK` the seasons still bank but the rank stops
+  rising until a teacher (a master) or a manual (`_hall_manual`, off the
+  sect's own shelves) turns up — a wall, not a hole in the floor, so the
+  day the book arrives the hands already know it. A craft season also
+  cultivates at `PROFESSION_QI_SHARE` and carries `CRAFT_ACCIDENT` (a
+  furnace, a billet, a fever taken off a patient; `CRAFT_ACCIDENT_DEATH`
+  fatal, `CRAFT_ACCIDENT_SERIOUS` leaving burden) — without it three
+  activities on the menu carried no risk at all and the autopilot came out
+  ahead of the cohort simply by having safe places to spend a season.
+  ALCHEMY brews qi / healing / clarity pills on a STANDING recipe
+  (`set_brew` — deliberately not a question a season, or a timeskip would
+  stop four times a year to ask); `take_pill` spends a pill where it is
+  swallowed, because nothing in the layer carries a pending effect between
+  seasons except `play.clarity` (one tribulation) and P7's `play.flaw`.
+  TOXICITY is the bill: every pill is a point, and past
+  `PILL_TOXICITY_FREE` every further pill is a point of permanent BURDEN
+  (`PILL_DECAY` shed per pill-free year) — Part I §3's promise made
+  mechanical, and the thing the pill wall measures. FORGING makes gear at
+  +1/+2 power (through `player_power_terms`, under the one cap) and
+  `sell_item` sells the worst piece off an uncapped rack; a sale melts into
+  the buyer's `resources` without deducting their silver, a small
+  deliberate faucet. HEALING closes your own wounds through `heal_wound`
+  and other people's for karma, gratitude, a fee — and at `LIFEDEBT_RANK`,
+  when the patient WOULD have died, a LIFE-DEBT rel, the strongest coin in
+  the social ledger. A dire patient lost is a real NPC death, so a played
+  healer is a small NPC mortality source in play mode (rulers are excluded
+  from the patient pool). The trade run's PROFITEER fork (§3) runs grain
+  into a starving land at famine prices for `PROFITEER_MULT` and
+  `PROFITEER_KARMA`: vice is still the fast lane.
+- **Techniques** (§9, P7) — A TECHNIQUE IS A CARD: a school, a realm gate,
+  one effect, known or not (comprehension levels are deferred). The five
+  schools and their ladders are `TECHNIQUE_SCHOOLS`: MOVEMENT (3 rungs,
+  realm 1+, `ESCAPE_MOVEMENT` a rung on `_escape_chance`), MISSILES (realm
+  2+, a free `TECHNIQUE_MISSILE_OPENER` of an exchange at the top of
+  `_bout`), PRESSURE (realm 3+, a fight that does not happen —
+  `_pressure_backs_down` — plus `TECHNIQUE_PRESSURE_TILT` on the harsh
+  road, where the men are mortals), FLIGHT (realm 3+, a floor of
+  `TECHNIQUE_FLIGHT_ESCAPE` under any escape, and the bandit road on a
+  trade run), ELEMENTAL ARTS (2 rungs, realm 2+, +1 power a rung and an
+  epithet). Cards live on `Agent.techniques`, not on `play`, because the
+  famous carry them too; `technique_rank` is the only place a ladder is
+  counted and `_grant_technique` the ONE door they come through. Four doors
+  open onto it: the sect library (`_hall_technique`, gated on
+  `HALL_TECHNIQUE_STANDING` and `HALL_TECHNIQUE_COST` — the only one that
+  lets the player choose the shelf, through `ask_player`), a master
+  (`_master_technique`, at the trial and now and then in a training season,
+  teaching from their OWN hand where the disciple's realm can hold it), and
+  MANUALS looted out of the treasure slots of the road and the secret
+  realms (`_maybe_manual` at `MANUAL_FIND`) — of which `MANUAL_FLAWED`, one
+  in five, are FLAWED: the technique works, and the +1 burden it has been
+  quietly adding is only discovered at the next tribulation, where it is
+  read BESIDE `play.clarity` and never inside it. §9's ONE NPC-FACING
+  EXCEPTION is `_famous_techniques`: a famous name (`is_famous` — realm >=
+  `FAME_REALM` or standing >= 10) rolls 0-2 cards at realm-up, hung off the
+  breakthrough line so a name is news and its homework is not. That is the
+  only die the player layer rolls on an NPC path — remove it and a batch
+  run is BIT-IDENTICAL to P6's, which is how its cost was measured. What
+  reaches an NPC's fight is the elemental point alone (`Agent.tech_power`,
+  which the one roll reads); the other four schools are SCENES and are read
+  only in a fight the played character is in, because off camera the
+  tyranny of realms already says what Pressure says out loud.
+- **A played throne** (§10, P7) — throne paths reach the player as choices
+  (P1 wired the offers: `_throne_claim`, `_throne_invitation`, the revolt
+  championship), and a played REIGN runs at YEAR tempo: `Play.reign_turn`
+  prints `World.reign_card` once a year and the court then asks for exactly
+  two decisions. THE EMPHASIS (`_player_emphasis`): one facet chosen from
+  the top three the ruler's own traits score (`_facet_options`), fired
+  ALONGSIDE what the situation forces — a king may lean on what he is, not
+  become someone else. THE EDICT (`_player_proclaims` / `_player_repeals`):
+  seal the order the court has drawn, or leave it lying; let an old one
+  lapse, or keep it — and only in the years the engine's own rules would
+  have proclaimed or repealed one anyway, so the player holds no lever the
+  engine does not. Everything else is VI §4 unchanged: cultivation locked,
+  qi frozen, insight only from governance adversity, `_maybe_corrupt`
+  unmodified, and `player_abdicate` on the menu every single year. Being
+  crowned or thrown down is a HARD interrupt (`pc_watch` / `pc_alarms`
+  carry `ruling`), because the CLOCK changes: a timeskip that ran through a
+  coronation would spend the reign's decisions on nobody.
 - **The autopilot** (§12, P5, `--autopilot`) — `Autopilot` picks a legal
   activity at random every season and answers every `ask_player` question by
   coin, on its OWN `random.Random` and never on `world.rng`.
@@ -329,36 +421,76 @@ lost, thrones thrown down and thrones refused. The final report opens with
 prosperity in words, who holds what and how they rule it, the edicts still
 in force, and what each land has not finished talking about.
 
-## Tuning targets (Part III + Part VI §13 — check these after changing rates)
+## Tuning targets (Part III + VI §13 + VII §12 — check these after changing rates)
 
-Measured over 200-year runs across 16–32 seeds. Session 7's numbers, which
-all of these currently hold at, are in parentheses.
+Measured over 200-year runs on TWO INDEPENDENT 32-seed blocks (seeds 1-32 and
+101-132) with `tune4.py` in the tuning scratch — NOT the older `tune.py`,
+which counts incursions as upheavals and misreads the political cadence.
+P7's numbers, which all of these currently hold at, are in parentheses as
+(block 1-32 / block 101-132).
 
-- **Funnel**: per intake of 64 over ~a century: ~35–45 reach realm 2, ~15
-  reach realm 3, ~4–6 reach realm 4, 0–2 touch the top. (36.0 / 15.1 / 4.2
-  / 0.25.) The knobs are `INSIGHT_REQ` (the first gate is deliberately
-  wide), `ADVENTURE_DEATH` / `ADVENTURE_NEAR_DEATH`, and the breakthrough
-  chance in `_try_breakthrough`.
+- **Funnel** (Part III §4): per intake of 64 — ~35-45 reach realm 2, ~15
+  reach realm 3, ~4-6 reach realm 4, 0-2 ever touch the top.
+  (36.8/15.2/6.5/1.62 and 35.7/15.1/6.2/1.78.) The knobs are `INSIGHT_REQ`
+  (the first gate is deliberately wide), `ADVENTURE_DEATH` /
+  `ADVENTURE_NEAR_DEATH`, and the breakthrough chance in
+  `_try_breakthrough`.
+  **THE HORIZON IS PART OF THE TARGET.** Realm 2 and 3 saturate inside 120
+  years and never move again; realm 4 and above keep climbing for as long as
+  the cohort is alive to climb. One seed block, one build, five horizons:
+
+  | years | >=2 | >=3 | >=4 | >=5 | >=6 |
+  |------:|----:|----:|----:|-----:|----:|
+  | 100 | 35.7 | 13.6 | 1.5 | 0.00 | 0 |
+  | 130 | 35.7 | 14.6 | 4.4 | 0.09 | 0 |
+  | 150 | 35.7 | 14.6 | 5.9 | 0.28 | 0 |
+  | 200 | 35.7 | 14.6 | 6.6 | 1.59 | 0 |
+  | 280 | 35.7 | 14.6 | 6.6 | 1.66 | 0 |
+
+  Session 7's documented 36.0 / 15.1 / 4.2 / 0.25 is a ~130-year reading of
+  exactly this curve; every session since P1 has measured at 200 and read
+  6.0-7.0 at realm 4, and so does the PRE-P1 build (6.4). Nothing drifted
+  and no knob was moved: the band holds at the design's own "century-plus"
+  horizon, and ~6.5 is the LIFETIME number (the cohort dead, 280 years).
+  Quote the horizon whenever you quote the funnel — everything on this page
+  is measured at 200 years. Nobody has ever reached Dao Seeking (realm 6) in
+  any measured run.
 - **Talent vs luck**: final realm should correlate with talent, with famous
   exceptions. Monotone = luck too weak; uncorrelated = talent is decoration.
-  (Pearson r ≈ 0.32.)
-- **Bad lands**: 2–4 of the nine under visibly bad rule at any moment, and
+  (Pearson r 0.283 / 0.292.)
+- **Bad lands**: 2-4 of the nine under visibly bad rule at any moment, and
   at least one prosperous-to-golden. Misery is common, not universal.
-  (3.4 bad, 1.4 good.) Knobs: `PROSPERITY_RECOVERY` / `PROSPERITY_SETTLING`,
-  `RULE_FACET_EFFECTS`, `COURT_TRAIT_WEIGHTS`, `NEGLECT_AGE_SCORE`.
-- **Rulership is a real exit, not a common one**: 2–5% of a cohort ends its
-  story on a throne. (2.2%; ~4.7% ever rule.) Knobs: the `ABDICATE_*` rates,
-  `INVITE_CHANCE` / `INVITE_REFUSE_BASE`, `CLAIM_*`, `REVOLT_REFUSE_BASE`.
-- **Cadence**: a revolt or war somewhere every 8–15 years; assassinations
-  rarer. (One per 10.5 years; assassinations one per ~100.)
+  (3.41 bad / 1.00 good, and 3.41 / 1.12.) Knobs: `PROSPERITY_RECOVERY` /
+  `PROSPERITY_SETTLING`, `RULE_FACET_EFFECTS`, `COURT_TRAIT_WEIGHTS`,
+  `NEGLECT_AGE_SCORE`.
+- **Rulership is a real exit, not a common one**: 2-5% of a cohort ends its
+  story on a throne. (5.5% / 4.7% ending on one; 9.3% ever ruling.) This
+  reads high against session 7's 2.2% for the same reason the funnel does —
+  it is a 200-year reading of a number session 7 took at ~130 — and it has
+  sat at 4.5-5.7% through every session of the playable layer, which did not
+  touch a throne knob. Knobs: the `ABDICATE_*` rates, `INVITE_CHANCE` /
+  `INVITE_REFUSE_BASE`, `CLAIM_*`, `REVOLT_REFUSE_BASE`.
+- **Cadence**: a revolt or war somewhere every 8-15 years; assassinations
+  rarer. (One per 9.6 / 10.1 years; assassinations one per ~122.)
   `REVOLT_CHANCE_PER_UNREST` and `WAR_CHANCE` move as a pair.
-- **Karma check**: sort the dead by karma. High karma should show slightly
-  better realms and kinder deaths, low karma more wealth and more violent
-  ends — and NEITHER monotone, or the karma system has become dramaturgy.
-  (Currently U-shaped: both extremes outlive and outearn the middle; saints
-  still die young and tyrants still die old and rich.)
+- **Karma check**: sort the dead by karma into quintiles. High karma should
+  show slightly better realms and kinder deaths, low karma more wealth and
+  more violent ends — and NEITHER monotone, or the karma system has become
+  dramaturgy. Still U-shaped after P7 put VII §4's missing price on the
+  ledger (realm / age at death / silver, block 1-32): q1 (karma -10.2)
+  1.49 / 52.3 / 48.3, q2 1.35 / 40.8 / 28.9, q3 1.43 / 50.2 / 38.5,
+  q4 1.52 / 59.3 / 46.8, q5 (karma +7.4) 2.21 / 88.4 / 78.2. Both extremes
+  outlive and outearn the middle; saints still die young and tyrants still
+  die old and rich.
+  THE PRICE P7 ADDED (`KARMA_EXECUTE_YIELDED = -2`): `_karma_kill`'s own
+  rule is a REALM GAP, so between equals the spare paid +1 and the execution
+  cost nothing — mercy was free money and the yield fork was one-sided.
+  A yielded foe finished off now costs -2, charged in `_karma_kill` and only
+  when the gap has not already charged for it. It moves the stream (karma
+  feeds luck, the tribulation, grudges and the assassin's list) but not the
+  shape: every band above holds with it in.
 - **Chronicle balance**: political lines at most ~30% of the chronicle.
-  (20.6%.)
+  (24.7% / 24.1%.)
 - **Duel aggregates** (P2's retune target, measured over 32 seeds x 200
   years with a scratch instrument on `_duel`/`_maim`/`kill`): ~777 duels a
   run, ~245 dead in them (~47 across a realm gap, ~186 executed or killed
@@ -368,50 +500,93 @@ all of these currently hold at, are in parentheses.
   `STANCE_EXECUTE_TRAITS`, `STANCE_MURDEROUS_TRAITS` and
   `STANCE_MURDEROUS_PLAIN`.
 - **The combat invariant** (VII §5/§12, P3 — `python3 cultivation_sim.py
-  --test-combat`, ~20s, exit 1 on FAIL): the round model's win% within 3
-  percentage points of `duel_odds` across the matchup grid (worst cell
-  ~1.2pp), even fights 3-8 rounds at every edge (median 3 / 6 / 6 / 7),
+  --test-combat`, ~40s, exit 1 on FAIL): the round model's win% within 3
+  percentage points of `duel_odds` across the matchup grid (21 cells, worst
+  ~1.2pp), even fights 3-8 rounds at every edge (median 3 / 6 / 7 / 7),
   sparring kills nobody, duel accidents under 3% (~2%), maim rates ordered
   sparring < duelling < all-out, and the two resolutions killing and
-  crippling at the same rates. The stop lines (`STANCE_EDGES["stop"]`), the
-  swing band (`ROUND_SWING`), the pause thresholds (`PAUSE_OWN` /
-  `PAUSE_FOE` / `PAUSE_BRINK_GAP`) and `ROUND_PATIENCE_ROUNDS` are all
-  tuned against this harness, not guessed. NPC fights stay one roll, so a
-  change here must leave every number above untouched — after P3 a batch
-  run is still BIT-IDENTICAL to P2's.
-- **Front cadence** (VII §12, P4 — measured with a scratch instrument over
-  16-32 seeds x 200 years): an incursion every 8-15 years (9.8 / 10.2 on two
-  independent seed blocks), settlements swallowed ~3 per 200 years (defeat
-  is rare), the front the deadliest lane per season (~2x the harsh road, and
-  ~110 NPC deaths a run against a secret realm's ~28), and march-lands
-  running 1-2 under their own baseline temper (mean ~1.1, and the spread is
-  wide because one land's rule style moves it further than the Waste does).
-  Knobs: `FRONT_CHANCE` / `FRONT_CHANCE_PER_THREAT` / `FRONT_RETURN` for the
-  volume, `FRONT_DEATH` / `FRONT_MAUL` for the lethality,
-  `DEMON_THREAT_DRIFT` and `DEMON_RELIEF_CAP` for the cadence,
-  `INCURSION_WALL_BASE` / `INCURSION_THREAT_SCORE` for how often the line
-  breaks, and `MARCH_BASELINE` / `MARCH_DRAG_PER_THREAT` for the marches'
-  standard of living. NOTE that `_remember` files incursions too, so a
-  cadence instrument must separate them from revolts and wars or it will
-  read one upheaval per five years and look broken.
-- **The autopilot funnel** (VII §12, P5 — `--autopilot`, measured with
+  crippling at the same rates. P7 added two cells carrying elemental arts
+  (a POWER term, so the one roll sees it and the invariant must hold with
+  it on) and two rows to the body table for the schools the one roll cannot
+  see. What things are worth on an even duel, all measured there: a serious
+  wound -12.5pp, a light one -5.7pp, Body 5 +3.3pp, MISSILES +2.8pp, the
+  whole +4 power cap +4pp, one rung of elemental arts +1.2pp. The stop
+  lines (`STANCE_EDGES["stop"]`), the swing band (`ROUND_SWING`), the pause
+  thresholds and `TECHNIQUE_MISSILE_OPENER` are all set against this
+  harness, not guessed.
+- **Techniques** (VII §9, P7): the deck is scarce, symmetric and small.
+  Over a 200-year world ~13% of the sect population ends up holding a card
+  (0% of Qi Condensation, 11% of Foundation, 47% of Core Formation, 76% of
+  Nascent Soul), 1.5 cards each — the arms race is real at the top and
+  invisible at the bottom, which is where the funnel lives. A century of
+  full-time adventuring is what it takes to collect most of the eight rungs
+  (`MANUAL_FIND` is the knob; at a third of treasure slots one hand came
+  home with the whole deck, which is no deck at all). The famous-NPC roll
+  is the ONLY die the player layer rolls on an NPC path: with
+  `_famous_techniques` removed the batch is BIT-IDENTICAL to P6's
+  (35.7/14.6/6.6/1.59 and 35.0/14.8/6.3/1.78, exactly), and switched on it
+  moves the funnel by less than a stream reshuffle does (zeroing the chance
+  but leaving the die in the stream moves realm 4 by 0.6 all by itself).
+- **The pill wall** (VII §12, P6 — `wall.py`, three scripted hands over 32
+  seeds x 200 years): a pill-stacking bot must reach realm 3 unusually fast
+  and STALL at the realm-4 tribulation on burden. It does. GREEDY (fills
+  the dantian from the shelf whenever the mind is ready, 33.7 pills a life)
+  reaches realm 2 by year 8 and realm 3 by year 35 — against CONTROL's
+  (brews the same pills and sells every one) year 31 and year 74 — and then
+  reaches realm 4 in 0 of 32 runs, standing at the tribulation with burden
+  38 and an 8.4% chance, at the 5% floor in 87% of its attempts. PACED
+  (never past `PILL_TOXICITY_FREE`) is the one that gets through: realm 4
+  in 3 of 32, burden 6. Toxicity is not decoration.
+- **Front cadence** (VII §12, P4 — `front.py` over 16 seeds x 200 years on
+  each block): an incursion every 8-15 years (9.3 / 9.2 measured on the
+  agenda, 9.8 / 10.2 off the upheaval file), settlements swallowed 3.5 a run
+  (defeat is rare), the front the deadliest lane there is (110.9 / 114.9 NPC
+  deaths a run against a secret realm's 28.6 / 25.7), and march-lands
+  running 1.34 / 1.53 under their own baseline temper against the rest of
+  the map's ~0. Knobs: `FRONT_CHANCE` /
+  `FRONT_CHANCE_PER_THREAT` / `FRONT_RETURN` for the volume, `FRONT_DEATH` /
+  `FRONT_MAUL` for the lethality, `DEMON_THREAT_DRIFT` and
+  `DEMON_RELIEF_CAP` for the cadence, `INCURSION_WALL_BASE` /
+  `INCURSION_THREAT_SCORE` for how often the line breaks, and
+  `MARCH_BASELINE` / `MARCH_DRAG_PER_THREAT` for the marches' standard of
+  living. NOTE that `_remember` files incursions too, so a cadence
+  instrument must separate them from revolts and wars or it will read one
+  upheaval per five years and look broken.
+- **The autopilot funnel** (VII §12, P5-P7 — `--autopilot`, measured with
   `auto.py` over two 32-seed blocks x 200 years): a PC played by a random
-  legal-choice bot must leave the cohort funnel in band and must not be an
-  outlier itself. It does: the 64 beside the bot come out 36.2/15.5/7.2/1.75
-  and 35.6/14.4/5.2/1.34, and the bot reaches realm 2 in 53% of runs against
-  the cohort's 56% (mean final realm 1.75 / 1.56 against 1.95 / 1.88 — a
-  hand that is not paying attention comes out a shade under an NPC whose
-  traits at least steer it, which is the target said the right way round).
-  It DOES run hotter: 2.3-2.7 deaths per 100 years lived against the
-  cohort's 1.1-1.2, though at realm 1 — where most bot lives end — it dies
-  at the cohort's own age almost exactly (29.5/34.4 against 29.6/29.0).
-  A uniform hand takes the demon front and the harsh road far more often
-  than an NPC's traits do; that is the front's design and the whole content
-  of "the player's edge is judgment", but P7's sweep owns the final call.
-  The lever that keeps this honest is `TRAIN_QI_SHARE`: every activity added
-  to the menu that pays no qi makes the season layer a PENALTY for being
-  played (P5's five new activities cost the bot a fifth of a realm before
-  the trickle was put back). Re-measure whenever the menu grows.
+  legal-choice bot must land inside the Part III funnel and must not be an
+  outlier itself. It does: the 64 beside the bot come out 36.4/15.6/6.2/1.69
+  and 35.3/14.4/5.8/1.44, and the bot itself ends a shade BEHIND them (mean
+  final realm 1.59 / 1.62 against the cohort's 1.93 / 1.89; realm 2 in
+  50% / 44% of runs against 57% / 55%) — a hand that is not paying
+  attention comes out under an NPC whose traits at least steer it, which is
+  the target said the right way round. It runs hotter: 2.39 / 2.38 deaths
+  per 100 years lived against the cohort's 1.20 / 1.22, because a uniform
+  hand takes the demon front and the harsh road far more often than traits
+  do; at realm 1, where most bot lives end, it dies at about the cohort's
+  own age. `CRAFT_ACCIDENT` is the lever that moves this (P6 put it in
+  because three professions with no risk at all had quietly made the bot
+  SAFER than the cohort); it is where P6 set it and P7 measured it there
+  and left it. `TRAIN_QI_SHARE` / `PROFESSION_QI_SHARE` are the other lever:
+  every activity added to the menu that pays no qi makes the season layer a
+  PENALTY for being played. Re-measure both whenever the menu grows.
+- **The archetype bar** (VII §13, P7's own): one hand-played life per
+  archetype — sword saint, poison merchant, front veteran, tyrant king —
+  each describable in one sentence, played non-interactively by piping a
+  scripted stdin into `--play`. The four that closed the layer:
+  a Righteous swordsman taken as a disciple in his first year, maimed twice
+  in duels he refused to escalate, who found a second master at 96, reached
+  Nascent Soul at 113 and bought the Weight of the Mountain out of his own
+  sect's library at 123; an apothecary who ran grain into starving countries
+  at famine prices forty times, was turned Cruel by his own deed ledger
+  (karma -78, 298 silver, never past the first realm) and died at 61 testing
+  a batch on himself; a disciple who served 31 seasons on the eastern
+  marches, stood once in the breaking of the line, took the name Wastewalker
+  and was pulled down at 51 defending the villages behind it; and a
+  cultivator who stalled at Foundation Establishment, claimed a vacant
+  khanate at 101, spent 24 years taxing and terrorising the Sky Steppe under
+  three edicts of his own, and died on the seat at 126 with his qi exactly
+  where he had left it.
 - **Distinguishability**: pick five agents — including one ruler and one
   revolt champion — read `log NAME` for each; every life should be
   describable in one sentence, `log <ruler>` should read like a reign, and
@@ -439,21 +614,42 @@ The test for any change: does `log <agent>` still read like a life?
   elder-tempo opportunity injection (dying elders seeking heirs, purges).
 - AI DM as renderer over the logs (chronicles, "state of the world" digests).
 - World-generation mode (run 200 years, freeze, survivors become the setting).
-- The rest of the player layer (**Part VII**, sessions P6-P7): professions
-  with toxicity — one more row in `RANK_SHAPES` and one more store on
-  `PlayerState`, since §8's three skins share P5's rank mechanic
-  (`heal_wound` is the healer's and the healing pill's seam, and
-  `player_power_terms` is where forged gear appends); techniques
-  (`_movement_rank` is the escape table's seam, `_hall_technique` and
-  `_master_technique` the acquisition ones); and the played throne (P1
-  offers only hold-or-abdicate). Sessions P1 — two clocks, `--play`, the
-  season menu, the timeskip — P2 — stances in the kernel — P3 — round
-  combat, wounds, standing orders, `--test-combat` — P4 — the demon front
-  — and P5 — proficiencies, the training hall, masters, the autopilot —
-  are built. Named demon lords as real agents stay out of
-  scope by decision, not omission (VII's up-front block).
+- What Part VII deliberately left for later, having built P1-P7:
+  **named demon lords as real agents** (out of scope by decision, not
+  omission — the Waste is a field and a scene table, VII's up-front block);
+  **technique comprehension levels** (§9 defers them: a card is known or it
+  is not, and the ladder is the whole depth there is); **a played reign
+  deeper than §10's two decisions a year** (the emphasis and the edict fork
+  — v1 keeps rulership rulership-shaped rather than opening a strategy
+  game); **NPC professions** (§8: an NPC's single `resources` number is
+  already the abstraction of every pill, blade and physician, and
+  `profession_taught` therefore accepts ANY master rel — a cultivation
+  teacher stands in for an alchemy one, which is the seam to fix first if
+  crafts ever reach NPCs); the front as a technique door (§9 gives the
+  cards four doors and the marches is not one of them); and saves, multiple
+  played characters, and anything resembling a UI that is not a terminal.
 
 ## Known deviations from the spec (deliberate, from tuning)
+
+- **`TECHNIQUE_MISSILE_OPENER = 0.2`** (VII §9). §9 asks for "a free
+  first-round hit at range" and does not price it; a whole free exchange is
+  worth +14pp on an even duel — more than the entire +4 power cap buys —
+  so the opener is a FIFTH of one, measured in `--test-combat` against the
+  cap and against a rung of elemental arts, and worth about two points of
+  power.
+- **Four of the five schools are read only ON CAMERA** (VII §9): Movement,
+  Missiles, Pressure and Flight are scenes, and `_pressure_backs_down`,
+  `_bout` and `_escape_chance` are only ever reached in a fight the played
+  character is in. Elemental arts, being a power term, is read everywhere.
+  §9 does not draw this line; without it a famous NPC's Pressure would
+  quietly convert a large share of the world's realm-gap killings into
+  back-downs, which is a funnel change dressed as flavour. Off camera the
+  kernel's own tyranny of realms already says what Pressure says out loud.
+- **`FAMOUS_TECHNIQUE_CHANCE` / `_SECOND` (0.45 / 0.25)** are not in the
+  spec; §9 says famous NPCs roll "0-2 techniques at realm-up" and these are
+  the two numbers that make that sentence true. They are the only dice the
+  player layer rolls on an NPC path, kept in one method so the cost to the
+  batch stream can be measured by deleting them.
 
 - **The stop lines and the pause thresholds** (VII §4/§5). §4's 75%/50% stop
   lines are 70%/45%, and §5's 50%/25% pauses are 60% and THE BRINK (one
