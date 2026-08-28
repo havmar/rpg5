@@ -1287,13 +1287,17 @@ SECT_SPECS = [
     ("Silent River Monastery", 1.0),
 ]
 
-FRIENDLY_KINDS = {"friend", "sworn", "ally", "master", "disciple", "lover"}
+# VII §8: a LIFE-DEBT is friendly the way a sworn brother is — the holder
+# grieves, the obituary names them — and it is the one bond `_add_grudge`
+# will not write over. Only a played healer ever mints one.
+FRIENDLY_KINDS = {"friend", "sworn", "ally", "master", "disciple", "lover",
+                  "life-debt"}
 HOSTILE_KINDS = {"rival", "grudge"}
 
 REL_DISPLAY = {
     "friend": "friend", "sworn": "sworn", "ally": "ally",
     "master": "master", "disciple": "disciple", "lover": "lover",
-    "rival": "rival", "grudge": "enemy",
+    "rival": "rival", "grudge": "enemy", "life-debt": "life-debt",
 }
 
 # --- THE PLAYABLE LAYER (VII): TWO CLOCKS ----------------------------------
@@ -1677,7 +1681,15 @@ WOUND_LINES = {
     2: "{who} walked out of it badly hurt; everything will come harder until "
        "it closes.",
 }
-WOUND_HEALED = "{who} rested, and the {what} wound closed."
+# ... and the one line it writes, in whichever hand closed it (P6 §8: a
+# healer and a healing pill go through the same door, and say so).
+WOUND_HEALED = {
+    "rest": "{who} rested, and the {what} wound closed.",
+    "pill": "{who} swallowed a healing pill, and the {what} wound closed "
+            "over inside the hour.",
+    "craft": "{who} closed their own {what} wound in the infirmary, which "
+             "is a good deal of what the craft is for.",
+}
 
 # --- THE PLAYABLE LAYER: BREAKING OFF (VII §5) -----------------------------
 # The door out of a killing matter. Base one in two; the realm gap term is
@@ -1942,8 +1954,11 @@ RANK_SHAPES = {
     # A stance is dearer per rank than a drill: it is a way of fighting, not
     # a habit of the arms. P2 wrote the ranks; this is where they come from.
     "stance": {"max": STANCE_RANK_MAX, "step": 2.0},
-    # P6: "profession": {"max": 3, "step": 3.0} — §8's three skins on the one
-    # mechanic. Nothing else in this block has to change to carry them.
+    # P6: §8's three skins on the one mechanic — alchemy, forging, healing.
+    # Three seasons for the first rank, six for the second, nine for the
+    # third: a craft is the longest project a played life has, and nothing
+    # else in this block had to change to carry it.
+    "profession": {"max": 3, "step": 3.0},
 }
 # THE EFFECTS ARE DELIBERATELY SMALL (§8). A fifth-rank body is worth about
 # what a light wound costs; a fifth-rank weapon is two and a half points
@@ -2094,6 +2109,245 @@ MASTER_LINES = {
             "the sects would sit still for.",
 }
 
+# --- THE PLAYABLE LAYER: PROFESSIONS (VII §8) ------------------------------
+# ONE RANK MECHANIC, THREE SKINS. A profession is a row in `RANK_SHAPES`
+# (`{"max": 3, "step": 3.0}` — three seasons for the first rank, eighteen for
+# the whole ladder) and a store on `PlayerState`, and that is the entire
+# machinery: `World._practice` is the same dumb accumulator P5's drills go
+# through, and `World.track_rank` is still the only place a rank is computed.
+#
+# What the three skins are FOR: a profession is the player's answer to a
+# world that hands out nothing on request. Alchemy buys SPEED and charges
+# for it at the ceiling; forging buys a point of power and silver; healing
+# buys the one currency the kernel has never sold — other people's debt.
+#
+# NPCs DO NOT PRACTISE PROFESSIONS (v1, §8). Their single `resources` number
+# is already the abstraction of every pill, blade and physician in the world,
+# and nothing below is ever reached from an NPC path: no die is rolled here
+# for anyone whose `play` is None, which is why the batch stream is
+# bit-identical across this session.
+PROFESSION_SHAPE = "profession"
+PROFESSIONS = {
+    # key: (the menu's label, the one line the menu shows)
+    "alchemy": ("The furnace (alchemy)",
+                "pills — qi, healing, clarity — and the poison they leave"),
+    "forging": ("The forge",
+                "gear worth a point or two of power, and sellable"),
+    "healing": ("The infirmary (healing)",
+                "your own wounds free, and other people's at a price"),
+}
+PROFESSION_WORDS = ("unlearned", "apprentice", "journeyman", "master")
+# §8: rank 2+ NEEDS A TEACHER OR A MANUAL. The seasons still go in — a wall
+# is not a hole in the floor — but the hands stop learning from them until
+# somebody who knows the craft is standing there or has written it down.
+PROFESSION_TEACHER_RANK = 2
+PROFESSION_QI_SHARE = 0.4       # the furnace and the forge are AT THE SECT,
+                                # and a season at them pays the same fraction
+                                # of a cultivation season that P5's training
+                                # does (TRAIN_QI_SHARE, and measured with it):
+                                # every activity on the menu that pays no qi
+                                # at all quietly makes being played a penalty.
+CRAFT_SPOIL = {0: 1.0, 1: 0.35, 2: 0.15, 3: 0.0}    # the season's work,
+                                                    # ruined, by rank
+# A CRAFT IS NOT A SAFE ROOM. Furnaces go up, billets go through a hand, and
+# the fever the patient was carried in with turns out to be catching. This
+# is not decoration: without it, three whole activities on the season menu
+# carried NO risk at all, and §12's autopilot — which picks by coin — quietly
+# came out ahead of the sixty-four beside it purely by having safer places to
+# spend a season in. Measured against P5's bot (2.32 deaths per 100 years) and
+# set to put the hazard back where it was.
+CRAFT_ACCIDENT = {"alchemy": 0.04, "forging": 0.03, "healing": 0.03}
+CRAFT_ACCIDENT_DEATH = 0.10     # ... of which this many do not get up
+CRAFT_ACCIDENT_SERIOUS = 0.25   # ... and this many of the rest are bad
+                                # enough to leave a mark on the heart as
+                                # well as the arm. Only the bad ones pay
+                                # BURDEN: a ceiling eaten a point at a time
+                                # is the PILL's signature in this session,
+                                # and a trade should not quietly counterfeit
+                                # it — what a craft costs is a season and a
+                                # body.
+CRAFT_ACCIDENT_LINES = {
+    "alchemy": "{who}'s furnace went up in their face; they came out of the "
+               "room on their hands and knees.",
+    "forging": "{who} took a white billet across the forearm at the forge "
+               "and lost the rest of the season to it.",
+    "healing": "{who} took the fever off their own patient and spent the "
+               "back half of the season on the infirmary floor.",
+}
+CRAFT_ACCIDENT_BAD = " They were a long time coming right again (+burden)."
+CRAFT_DEATHS = {
+    "alchemy": ["killed when a furnace went up in a sect workshop",
+                "poisoned by their own batch, testing it on themselves"],
+    "forging": ["killed at the forge when a quenching tank flashed over",
+                "bled to death in a sect workshop after a slip at the anvil"],
+    "healing": ["carried off by a fever taken from a patient in the "
+                "infirmary",
+                "dead of the plague they had spent the season treating"],
+}
+PROFESSION_LINES = {
+    "practice": {
+        "alchemy": ["{who} spent the season at the furnace, and mostly at "
+                    "the scrubbing of it.",
+                    "{who} spent the season grinding and weighing and "
+                    "watching a pot that did not boil."],
+        "forging": ["{who} spent the season at the forge, drawing out billets "
+                    "that went back into the fire.",
+                    "{who} spent the season on the bellows and the hammer and "
+                    "very little else."],
+        "healing": ["{who} spent the season in the infirmary, learning which "
+                    "of the jars was which.",
+                    "{who} spent the season setting bones that somebody else "
+                    "had already set better."],
+    },
+    "rank": "{who} has come up to {word} at {craft} ({rank}/{max}).",
+    "wall": "{who} has taken {craft} as far as copied notes go; past "
+            "{word} it wants a teacher or a manual.",
+    "spoiled": {
+        "alchemy": "{who}'s batch came out of the furnace as slag and a "
+                   "smell that stayed in the robes for a month.",
+        "forging": "{who} drew the blade too thin and it went back into the "
+                   "fire in two pieces.",
+        "healing": "{who} spent the season in the infirmary and learned only "
+                   "that they had learned nothing.",
+    },
+}
+# THE MANUAL. §8's other door past rank 1, and the sect library is where it
+# opens: a season in the hall (which already costs standing and silver) can
+# turn up the written-down version of a craft the disciple has actually
+# started. P7's technique manuals — including the flawed ones — are a
+# different thing on the same shelf, and `_hall_technique` is their seam.
+HALL_MANUAL = 0.30              # of a year in the hall, given a craft to
+                                # look one up for
+HALL_MANUAL_LINE = ("{who} came out of the {sect} library with a hand-copied "
+                    "manual of {craft} under one arm.")
+
+# ALCHEMY (§8). Pills are the fast lane and TOXICITY is the bill: every pill
+# taken is a point of it, and above PILL_TOXICITY_FREE every further pill is
+# a point of BURDEN — permanent, felt at every tribulation after, and exactly
+# Part I §3's promise made mechanical. Six pills is a CAREER's worth of free
+# shortcuts; the seventh starts eating the ceiling. Toxicity sheds one point
+# a pill-free year, so a player who paces themselves never pays at all — and
+# that pacing is the whole game the pill offers.
+PILL_KINDS = {
+    "qi": "qi in the dantian, where a season of sitting would have put it",
+    "healing": "one level of a wound, closed on the spot",
+    "clarity": "a clear head at the next tribulation, once",
+}
+PILL_YIELD = {1: (1, 1), 2: (1, 2), 3: (2, 3)}      # pills a season, by rank
+PILL_QI = 18.0                  # what a qi pill puts in the dantian: two and
+                                # a half years of sitting at the sect, and
+                                # SIX OF THEM ARE A FULL DANTIAN — which is
+                                # exactly the free toxicity budget above.
+                                # That is the whole shape of the wall: one
+                                # realm's qi can be bought outright and cost
+                                # nothing, a second one bought in the same
+                                # decade starts eating the ceiling, and a
+                                # tribulation FAILED (qi back to 40, and the
+                                # refill on top of a body already at the
+                                # line) is what actually poisons a career.
+PILL_CLARITY_PER_RANK = 0.03    # §8: +3% a rank, on ONE breakthrough attempt
+PILL_TOXICITY_FREE = 6          # what a body carries before the pills cost
+PILL_TOXICITY_BURDEN = 1        # ... and the burden every further one adds
+PILL_DECAY = 1                  # toxicity shed in a pill-free year
+PILL_VALUE = {"qi": 3, "healing": 4, "clarity": 5}  # silver, sold
+PILL_LINES = {
+    "brew": "{who} drew {n} {kind} pill{s} out of the furnace.",
+    "qi": "{who} swallowed a qi pill and sat with it until it had gone "
+          "where it was told (+qi).",
+    "clarity": "{who} swallowed a clarity pill and kept the head it bought "
+               "for the tribulation.",
+    "none": "{who} has no {kind} pill to take.",
+    "whole": "{who} is not hurt; the pill would be wasted on them.",
+    "toxic": "{who} felt the last of the pills settle somewhere it will not "
+             "come out of (+burden).",
+}
+
+# FORGING (§8). Gear at +1/+2 power — a real point, inside the §5 cap, which
+# `World.player_power` and nothing else enforces. The rack is sellable: what
+# a forge is FOR, in a world where silver buys the hall and the road.
+FORGE_POWER = {1: 1, 2: 1, 3: 2}
+FORGE_MASTERWORK = 0.25         # a rank-2 season that comes off the anvil a
+                                # rank-3 piece anyway
+FORGE_VALUE = {1: 5, 2: 5, 3: 12}       # silver a piece fetches, by grade
+FORGE_NAMES = ["a straight sword", "a pair of bracers", "a hooked spear",
+               "a riding sabre", "a set of scaled greaves", "a heavy glaive",
+               "a short sword and its sheath", "a banded cuirass"]
+FORGE_LINES = {
+    "made": "{who} took {what} off the anvil — {grade}, worth +{power} in "
+            "anybody's hands.",
+    "sold": "{who} sold {what} to {buyer} for {silver} silver.",
+    "market": "{who} sold {what} in the market for {silver} silver.",
+    "empty": "{who} has nothing on the rack to sell.",
+}
+FORGE_GRADES = {1: "a serviceable piece", 2: "a serviceable piece",
+                3: "a piece worth a name"}
+
+# HEALING (§8). Your own wounds free — and other people's for the only coin
+# this kernel has never minted. A patient carried in is a scene: they live or
+# they do not, the ledger moves either way, and at rank 2+ somebody who WOULD
+# HAVE DIED walks out owing you a LIFE-DEBT, which is the strongest rel in
+# the social ledger and the one thing a grudge cannot be written over.
+HEAL_SELF_RANK = 1              # from here your own wounds close in the season
+HEAL_FULL_RANK = 2              # ... and from here they close entirely
+HEAL_PATIENT = 0.50             # of a season: somebody is carried in
+HEAL_DIRE = 0.35                # ... and would not have seen the month out
+HEAL_SAVE_BASE = 0.45
+HEAL_SAVE_PER_RANK = 0.20
+HEAL_DIRE_PENALTY = 0.25
+HEAL_SAVE_CLAMP = (0.05, 0.95)
+HEAL_KARMA = 1                  # §7: deeds move the ledger, and this is one.
+HEAL_KARMA_DIRE = 3             # Small on purpose: a season in the
+                                # infirmary sees one or two through, and a
+                                # career of them should reach "honoured" in
+                                # a decade — not outrun an assassination
+                                # (-30) in a single year.
+HEAL_LOST_INSIGHT = 3           # adversity teaches, and losing one is that
+HEAL_FEE = (1, 3)               # what a grateful house presses on you
+HEAL_GRATITUDE = 1              # the rel a saved patient carries
+LIFEDEBT_RANK = 2               # §8: the rank a life-debt starts at
+LIFEDEBT_INTENSITY = 4          # ... and how heavy it sits
+HEAL_POOL = 6                   # the faces a season's door brings up ...
+HEAL_WEIGHT_SECT = 2.5          # ... their own sect first,
+HEAL_WEIGHT_LAND = 1.5          # ... then their own country,
+HEAL_WEIGHT_KNOWN = 2.0         # ... and anyone whose name they know
+HEAL_TROUBLES = ["carried in off the road with a spear-hole in them",
+                 "brought down from the practice ground with a crushed hand",
+                 "found half-drowned under the mill at the ford",
+                 "carried up the mountain burning with a fever",
+                 "brought in from the wilds with a beast's teeth still in "
+                 "the leg",
+                 "dragged out of a collapsed gallery with the dust in both "
+                 "lungs"]
+HEAL_LINES = {
+    "none": "{who} kept the infirmary all season and nobody worse than a "
+            "sprain came through the door.",
+    "saved": "{who} treated {patient}, {trouble}, and had them on their feet "
+             "by the turn of the season (+karma).",
+    "dire": "{who} kept {patient} alive — {trouble}, and by every reckoning "
+            "already dead (+karma).",
+    "debt": " {patient} owes {who} a life, and both of them know it.",
+    "lost": "{who} worked over {patient} for a season, {trouble}, and lost "
+            "them anyway (+insight).",
+}
+
+# THE PROFITEER (§3). The trade run's vice fork: grain into a starving land
+# at famine prices pays DOUBLE and costs karma. It is offered only where it
+# exists — a country with nothing left to eat — and it is the season layer's
+# clearest statement of the kernel's oldest rule: VICE IS THE FAST LANE, and
+# the ledger is what it is billed to.
+PROFITEER_AT = 4.0              # a land poor enough for famine prices
+PROFITEER_MULT = 2.0            # §3: pays double
+PROFITEER_KARMA = -4
+PROFITEER_PROSPERITY = -0.4     # what it takes out of the town it sold in
+PROFITEER_LINES = {
+    "ask": ("The {b} is starving, and grain there is worth what the last "
+            "silver in a village can pay."),
+    "took": "{who} ran {goods} into the starving {b} and sold it at famine "
+            "prices (+resources, -karma).",
+    "fair": "{who} ran {goods} into the starving {b} and sold it for what it "
+            "had cost them.",
+}
+
 # --- THE PLAYABLE LAYER: THE PLAYED CHARACTER (VII §2) ---------------------
 PLAYER_AID_NOTE = "agent 65"    # the player joins the watched intake
 # Deeds drive the played character's mutation: the world writes on the
@@ -2123,6 +2377,9 @@ PLAYER_ACTIVITIES = [
      "the sect's forms, for standing and silver"),
     ("master", "Seek a master",
      "somebody above you, their trial, and what they teach"),
+    ("alchemy", PROFESSIONS["alchemy"][0], PROFESSIONS["alchemy"][1]),
+    ("forging", PROFESSIONS["forging"][0], PROFESSIONS["forging"][1]),
+    ("healing", PROFESSIONS["healing"][0], PROFESSIONS["healing"][1]),
     ("injustice", "Fight injustice",
      "a misruled land, its roads and its magistrates; karma and grudges"),
     ("hunt", "Hunt spirit beasts",
@@ -2372,9 +2629,14 @@ class AgendaItem:
 class PlayerState:
     """What a PLAYED character carries that NPCs abstract into one number.
 
-    Professions and pills are P6 and techniques P7; the fields exist so
-    later sessions have one place to put them, and so the shape of a played
-    sheet stops changing underneath the save format.
+    Techniques are P7; the field exists so that session has one place to put
+    them, and so the shape of a played sheet stops changing underneath the
+    save format.
+
+    P6: `professions` is SEASONS OF PRACTICE like the rest of the tracks;
+    `pills`, `gear`, `toxicity` and `clarity` are the only INVENTORY in the
+    sim, and they exist on exactly one sheet — an NPC's `resources` is
+    already the abstraction of all of it (VII §8).
 
     P5: `proficiencies` and `drills` are both SEASONS OF PRACTICE, not
     ranks — the one rank mechanic (`RANK_SHAPES`, `World.track_rank`) turns
@@ -2396,10 +2658,26 @@ class PlayerState:
     drills: dict = field(default_factory=dict)          # P5: seasons drilled
                                                         # into each stance
     stances: dict = field(default_factory=dict)         # P2: stance ranks 0-3
-    professions: dict = field(default_factory=dict)     # P6: alchemy/forge/heal
+    professions: dict = field(default_factory=dict)     # P6: alchemy/forging/
+                                                        # healing, in seasons
+    manuals: list = field(default_factory=list)         # P6: the crafts a
+                                                        # book has unlocked
     techniques: list = field(default_factory=list)      # P7
-    pills: dict = field(default_factory=dict)           # P6
-    toxicity: int = 0                                   # P6
+    pills: dict = field(default_factory=dict)           # P6: kind -> how many
+    brew: str = "qi"                                    # P6: what the
+                                                        # furnace is set up
+                                                        # for, until told
+                                                        # otherwise
+    gear: list = field(default_factory=list)            # P6: the rack, as
+                                                        # {"what", "power",
+                                                        #  "grade"} dicts
+    toxicity: int = 0                                   # P6: pills the body
+                                                        # is still carrying
+    pill_year: int = -1                                 # ... and the last
+                                                        # year one went down
+    clarity: float = 0.0                                # P6: a clarity pill
+                                                        # held for the next
+                                                        # tribulation
     orders: dict = field(default_factory=dict)          # P3: standing orders
                                                         # (VII §6; seeded
                                                         # from ORDERS_DEFAULT)
@@ -3132,6 +3410,12 @@ class World:
         if holder is target:
             return      # nobody keeps a score against themselves (a rare
                         # self-grudge used to send them to duel themselves)
+        held = holder.rels.get(target.aid)
+        if held is not None and held.kind == "life-debt":
+            # VII §8: the strongest coin in the social ledger. You do not
+            # open a score against the one who kept you alive, and a bad day
+            # does not turn the debt into one.
+            return
         if target.karma < GRUDGE_VS_VICE_AT:
             amount = int(amount * GRUDGE_VS_VICE_MULT + 0.5)
         rel = holder.rels.get(target.aid)
@@ -3701,9 +3985,33 @@ class World:
             return
         take = self._share_int(int(round(TRADE_FLOOR + TRADE_MARGIN * gap))
                                + self._vice_spoils(a), share)
+        # §3: THE PROFITEER FORK, and VICE IS STILL THE FAST LANE. Offered
+        # only where it exists — a country with nothing left to eat — and
+        # never to an NPC, whose `_vice_spoils` above is already the whole
+        # of what their appetite is worth on this road. Nothing here rolls
+        # unless the player says the word.
+        asked = famine = False
+        if (self.playing and a is self.pc and other is not home
+                and other.wealth() < PROFITEER_AT):
+            asked = True
+            famine = self.ask_player(
+                "profiteer", PROFITEER_LINES["ask"].format(b=other.name),
+                ["fair", "famine"], "fair") == "famine"
+        if famine:
+            take = int(round(take * PROFITEER_MULT))
+            a.karma += PROFITEER_KARMA
+            self._record_deed(a, "cruelty")     # §2: the record mutates you
+            where = self._pick_home(other)
+            where.prosperity = max(0.0, where.prosperity
+                                   + PROFITEER_PROSPERITY)
         a.resources += take
         if r.random() < TRADE_STANDING_CHANCE * share:
             a.standing += 1
+        if asked:
+            self.log(PROFITEER_LINES["took" if famine else "fair"]
+                     .format(**fields), [a],
+                     place=where if famine else None)
+            return
         key = "run" if take >= 2 else "thin"
         a.history.append((self.year,
                           r.choice(TRADE_LINES[key]).format(**fields)))
@@ -3825,10 +4133,11 @@ class World:
             DEMON_THREAT_MAX,
             self.demon_threat + DEMON_THREAT_DRIFT * len(SEASONS))
 
-    def _front_wound(self, a: Agent, level: int):
-        """The front's real cost, for whoever is played: hp lives only inside
-        a fight, and there is no fight here — but a body carried off the line
-        is carried off it the same way."""
+    def _take_wound(self, a: Agent, level: int):
+        """A wound taken OUTSIDE a fight: off the line (P4 §7) or out of a
+        furnace that went up (P6 §8). hp lives only inside a bout, and there
+        is no bout here — but a body carried off is carried off the same
+        way, and `_wound_resisted` is still the one door it comes through."""
         if a.play is None or not a.alive:
             return
         level = self._wound_resisted(a, level)
@@ -3909,11 +4218,11 @@ class World:
             a.fortune = max(-FORTUNE_CAP, a.fortune - 1)
             text = line("maul") + self._front_epithet(a)
             self.log(text, [a], dramatic=True, place=where)
-            self._front_wound(a, 2)     # ... and then what walks off the line
+            self._take_wound(a, 2)      # ... and then what walks off the line
             self._mutate(a, "near_death")
             return
         a.insight += FRONT_DRIVEN_INSIGHT * share
-        self._front_wound(a, 1)
+        self._take_wound(a, 1)
         a.history.append((self.year, line("driven")))
 
     # -- the incursion (§7): the year the Waste comes over ------------------
@@ -4255,10 +4564,10 @@ class World:
     def player_power_terms(self, a: Agent) -> list:
         """Every point the player layer adds to a fighter, itemised.
 
-        P5 fills in the first line of it: Weapon proficiency, half a point a
-        rank, two and a half at the top of the track. P6's forged gear and
-        P7's techniques append here and NOWHERE ELSE — one list in, one
-        clamp out.
+        P5 filled in the first line of it: Weapon proficiency, half a point
+        a rank, two and a half at the top of the track. P6 adds forged gear,
+        +1 or +2. P7's techniques append here and NOWHERE ELSE — one list
+        in, one clamp out.
         """
         if a is None or a.play is None:
             return []
@@ -4266,7 +4575,11 @@ class World:
         weapon = self.proficiency_rank(a, "weapon")
         if weapon:
             terms.append(("weapon", PROFICIENCY_WEAPON_POWER * weapon))
-        # P6: ("gear", forged +1/+2). P7: ("technique", elemental arts +1).
+        # P6: what came off the anvil — the best piece on the rack, never a
+        # stack of them. P7: ("technique", elemental arts +1).
+        gear = self.gear_power(a)
+        if gear:
+            terms.append(("gear", gear))
         return terms
 
     def player_power(self, a: Agent) -> float:
@@ -4802,13 +5115,15 @@ class World:
             self.log(WOUND_LINES[level].format(who=a.display()), [a])
 
     def heal_wound(self, a: Agent, how="rest") -> bool:
-        """One level closed. A restful season does it; P6's healer and
-        healing pill will call the same door with `how` set."""
+        """One level closed, and THE ONLY PLACE a wound closes. A restful
+        season does it; P6's infirmary season and healing pill come through
+        the same door with `how` set, and only the line changes."""
         if a is None or a.play is None or a.play.wound <= 0:
             return False
         word = WOUND_WORD[a.play.wound]
         a.play.wound -= 1
-        self.log(WOUND_HEALED.format(who=a.display(), what=word), [a])
+        self.log(WOUND_HEALED.get(how, WOUND_HEALED["rest"]).format(
+            who=a.display(), what=word), [a])
         return True
 
     def _duel(self, att: Agent, dfn: Agent, context="",
@@ -7213,6 +7528,7 @@ class World:
         self._drift_prosperity()
         self._stipends()
         self._karma_luck()
+        self._pill_year()               # P6 §8: what a pill-free year sheds
         for a in list(self.living()):
             self._try_breakthrough(a)
         for a in list(self.living()):
@@ -7276,6 +7592,12 @@ class World:
         # everybody who is not played, and rolled for nobody.
         chance += (PROFICIENCY_THEORY_TRIBULATION
                    * self.proficiency_rank(a, "theory"))
+        # P6 §8: a clarity pill, spent HERE and nowhere else — on the
+        # ATTEMPT, win or lose, which is what "one breakthrough attempt"
+        # means. Nobody unplayed has one, and no die is rolled to find out.
+        if a.play is not None and a.play.clarity:
+            chance += a.play.clarity
+            a.play.clarity = 0.0
         # Talent soft-caps the realm: reaching far above your talent is hard.
         if a.realm + 1 > a.talent // 2 + 2:
             chance -= 0.15
@@ -7844,6 +8166,7 @@ class World:
         if r.random() < HALL_STANDING_GAIN * share * len(SEASONS):
             a.standing += 1
         self._hall_technique(a)         # P7
+        self._hall_manual(a, share)     # P6 §8: the other door past rank 1
         taught = ""
         if r.random() < HALL_TEACHES * share * len(SEASONS):
             taught = self._hall_stance(a)
@@ -7868,6 +8191,23 @@ class World:
                                  self._stance_seasons(HALL_STANCE_RANK))
         return key
 
+    def _hall_manual(self, a: Agent, share=1.0) -> str:
+        """§8's other door past a craft's first rank: the written-down
+        version of it, off the sect's own shelves, for a craft this disciple
+        has actually started. P7's technique manuals — the flawed ones
+        included — are a different thing on the same shelf."""
+        want = [k for k in PROFESSIONS
+                if k not in a.play.manuals
+                and self.track_rank(a.play.professions.get(k, 0.0),
+                                    PROFESSION_SHAPE) >= 1]
+        if not want or self.rng.random() >= HALL_MANUAL * share * len(SEASONS):
+            return ""
+        key = self.rng.choice(want)
+        a.play.manuals.append(key)
+        self.log(HALL_MANUAL_LINE.format(who=a.display(), sect=a.sect,
+                                         craft=key), [a])
+        return key
+
     def _hall_technique(self, a: Agent):
         """P7's seam: the sect library sells technique cards for standing and
         silver (VII §9). Nothing here yet, and deliberately nothing — a
@@ -7880,6 +8220,348 @@ class World:
         and the trial are P5's; what a teacher can hand over beyond a stance
         is P7's, and this is where it goes."""
         return None
+
+    # -- professions: the furnace, the forge, the infirmary (VII §8) --------
+    #
+    # ONE RANK MECHANIC, THREE SKINS. Every rank below is read out of
+    # `profession_rank`, which reads `World.track_rank`, which is where every
+    # rank in the player layer comes from; the seasons go in through
+    # `World._practice`, the same dumb accumulator P5's drills use. NOTHING
+    # HERE ROLLS FOR AN NPC: every entry point returns before the first die
+    # when `play` is None, which is what keeps the batch stream identical.
+
+    def profession_rank(self, a: Agent, key: str) -> int:
+        """Alchemy / forging / healing, rank 0-3 — and §8's WALL.
+
+        Past `PROFESSION_TEACHER_RANK` the seasons still bank but the rank
+        does not rise, until somebody who knows the craft is standing over it
+        (a master) or has written it down (a manual). The practice is not
+        lost: the day the teacher arrives, the hands already know it.
+        """
+        if a is None or a.play is None:
+            return 0
+        rank = self.track_rank(a.play.professions.get(key, 0.0),
+                               PROFESSION_SHAPE)
+        if (rank >= PROFESSION_TEACHER_RANK
+                and not self.profession_taught(a, key)):
+            return PROFESSION_TEACHER_RANK - 1
+        return rank
+
+    def profession_taught(self, a: Agent, key: str) -> bool:
+        """§8's gate on rank 2 and up: a teacher, or a manual.
+
+        Deliberately NOT folded into `_practice`, which must stay a dumb
+        accumulator — a gate that ate seasons would make a manual found late
+        worth nothing, and the whole point of the wall is that it is a wall
+        and not a hole in the floor.
+        """
+        if a is None or a.play is None:
+            return False
+        return key in a.play.manuals or self.master_of(a) is not None
+
+    def _act_profession(self, a: Agent, key: str, share=1.0):
+        """A season at the furnace, the forge or the infirmary (§3, §8).
+
+        One season, two things, exactly like a season at the racks: the
+        practice goes into the track, and the craft does whatever the rank
+        the practice has already bought is good for.
+        """
+        r = self.rng
+        seasons = share * len(SEASONS) * self.teaching(a)
+        was = self.profession_rank(a, key)
+        banked = self.track_rank(a.play.professions.get(key, 0.0),
+                                 PROFESSION_SHAPE)
+        self._practice(a, a.play.professions, key, PROFESSION_SHAPE, seasons)
+        now = self.profession_rank(a, key)
+        earned = self.track_rank(a.play.professions.get(key, 0.0),
+                                 PROFESSION_SHAPE)
+        self._act_cultivate(a, share * PROFESSION_QI_SHARE)   # at the sect
+        if now > was:
+            self.log(PROFESSION_LINES["rank"].format(
+                who=a.display(), word=PROFESSION_WORDS[now], craft=key,
+                rank=now, max=RANK_SHAPES[PROFESSION_SHAPE]["max"]), [a])
+        elif earned > banked and earned > now:
+            # §8's wall, said the season the hands hit it and not again.
+            a.history.append((self.year, PROFESSION_LINES["wall"].format(
+                who=a.display(), craft=key, word=PROFESSION_WORDS[now])))
+        if self._craft_accident(a, key, share):
+            return                      # the season ended in the infirmary
+        if now <= 0:
+            a.history.append((self.year, r.choice(
+                PROFESSION_LINES["practice"][key]).format(who=a.display())))
+            return
+        if r.random() < CRAFT_SPOIL.get(now, 0.0):
+            a.history.append((self.year, PROFESSION_LINES["spoiled"][key]
+                              .format(who=a.display())))
+            return
+        if key == "alchemy":
+            self._brew(a, now, share)
+        elif key == "forging":
+            self._forge(a, now, share)
+        else:
+            self._infirmary(a, now, share)
+
+    def _craft_accident(self, a: Agent, key: str, share=1.0) -> bool:
+        """Did the season take a piece out of them? (§8, and §12's autopilot
+        target — see CRAFT_ACCIDENT.) Returns True if the season ends here."""
+        r = self.rng
+        if r.random() >= CRAFT_ACCIDENT[key] * share * len(SEASONS):
+            return False
+        if r.random() < CRAFT_ACCIDENT_DEATH:
+            self.kill(a, r.choice(CRAFT_DEATHS[key]))
+            return True
+        bad = r.random() < CRAFT_ACCIDENT_SERIOUS
+        if bad:
+            a.burden += 1
+        self.log(CRAFT_ACCIDENT_LINES[key].format(who=a.display())
+                 + (CRAFT_ACCIDENT_BAD if bad else ""), [a], dramatic=bad)
+        self._take_wound(a, 2 if bad else 1)
+        return True
+
+    # -- alchemy: the pills, and the bill for them --------------------------
+
+    def _brew(self, a: Agent, rank: int, share=1.0):
+        """A batch out of the furnace.
+
+        WHICH pill is the player's call, and it is a STANDING one (`brew
+        KIND`, `PlayerState.brew`) rather than a question a season — a
+        furnace is set up for a recipe and left that way, and a timeskip
+        that stopped to ask four times a year would not be a timeskip.
+        """
+        r = self.rng
+        kind = a.play.brew if a.play.brew in PILL_KINDS else "qi"
+        lo, hi = PILL_YIELD[rank]
+        n = self._share_int(r.randint(lo, hi), share * len(SEASONS))
+        if n <= 0:
+            a.history.append((self.year, PROFESSION_LINES["spoiled"]["alchemy"]
+                              .format(who=a.display())))
+            return
+        a.play.pills[kind] = a.play.pills.get(kind, 0) + n
+        self.log(PILL_LINES["brew"].format(who=a.display(), n=n, kind=kind,
+                                           s="" if n == 1 else "s"), [a])
+
+    def take_pill(self, kind: str, a: Optional[Agent] = None) -> str:
+        """§8: swallow one, and pay TOXICITY for it.
+
+        Every pill is a point; above `PILL_TOXICITY_FREE` every further one
+        is a point of BURDEN, which is permanent and is felt at every
+        tribulation after. Six pills is a career's worth of free shortcuts —
+        the seventh starts eating the ceiling, and the ceiling is what a
+        cultivator's whole life is about. Toxicity sheds a point a pill-free
+        year (`_pill_year`), so a player who paces themselves never pays.
+
+        §8 reads "+qi on a cultivation season"; the qi is paid HERE, where
+        the pill goes down, because nothing in this layer carries a pending
+        effect between one season and the next (VII §5 refused exactly that
+        for hp). What "on a cultivation season" means in play is that the
+        player chooses the season to swallow it in — and everything the pill
+        is worth is on the table when they do.
+
+        Returns what to tell the human; the chronicle gets the rest.
+        """
+        a = self.pc if a is None else a
+        if a is None or a.play is None or not a.alive:
+            return "There is nobody to take it."
+        want = (kind or "").strip().lower()
+        kind = next((k for k in PILL_KINDS if k.startswith(want)), "")
+        if not kind:
+            return f"Pills come in three kinds: {', '.join(PILL_KINDS)}."
+        if a.play.pills.get(kind, 0) <= 0:
+            return PILL_LINES["none"].format(who=a.display(), kind=kind)
+        if kind == "healing" and not a.play.wound:
+            return PILL_LINES["whole"].format(who=a.display())
+        a.play.pills[kind] -= 1
+        a.play.toxicity += 1
+        a.play.pill_year = self.year
+        if kind == "qi":
+            a.qi = min(100, a.qi + PILL_QI)
+            self.log(PILL_LINES["qi"].format(who=a.display()), [a])
+        elif kind == "healing":
+            self.heal_wound(a, how="pill")      # P3's one door, still
+        else:
+            # No pill market in v1: the alchemist and the one who swallows it
+            # are the same hand, so the grade is read off the craft.
+            a.play.clarity += PILL_CLARITY_PER_RANK * max(
+                1, self.profession_rank(a, "alchemy"))
+            self.log(PILL_LINES["clarity"].format(who=a.display()), [a])
+        if a.play.toxicity > PILL_TOXICITY_FREE:
+            a.burden += PILL_TOXICITY_BURDEN
+            self.log(PILL_LINES["toxic"].format(who=a.display()), [a])
+        return ""
+
+    def set_brew(self, kind: str, a: Optional[Agent] = None) -> str:
+        """What the furnace is set up for, until told otherwise."""
+        a = self.pc if a is None else a
+        if a is None or a.play is None:
+            return "There is no furnace to set."
+        want = (kind or "").strip().lower()
+        match = next((k for k in PILL_KINDS
+                      if want and k.startswith(want)), "")
+        if not match:
+            return ("The furnace takes one recipe at a time: "
+                    + "; ".join(f"{k} ({v})" for k, v in PILL_KINDS.items()))
+        a.play.brew = match
+        return f"The furnace is set up for {match} pills: {PILL_KINDS[match]}."
+
+    def _pill_year(self):
+        """§8: toxicity decays a point per PILL-FREE year. No die, and no
+        agent without a played sheet is touched."""
+        for a in self.living():
+            if a.play is None or a.play.toxicity <= 0:
+                continue
+            if a.play.pill_year == self.year:
+                continue
+            a.play.toxicity = max(0, a.play.toxicity - PILL_DECAY)
+
+    # -- forging: the rack --------------------------------------------------
+
+    def _forge(self, a: Agent, rank: int, share=1.0):
+        """A piece off the anvil. Worth a point or two of power — inside the
+        §5 cap, which `player_power` and nothing else enforces — and worth
+        silver to somebody who would rather buy than make."""
+        r = self.rng
+        grade = rank
+        if rank == 2 and r.random() < FORGE_MASTERWORK:
+            grade = 3
+        what = r.choice(FORGE_NAMES)
+        a.play.gear.append({"what": what, "power": FORGE_POWER[grade],
+                            "grade": grade})
+        self.log(FORGE_LINES["made"].format(
+            who=a.display(), what=what, grade=FORGE_GRADES[grade],
+            power=FORGE_POWER[grade]), [a])
+
+    def gear_power(self, a: Agent) -> float:
+        """What the rack is worth in a fight: the best piece on it, and no
+        stacking — you carry one sword."""
+        if a is None or a.play is None or not a.play.gear:
+            return 0.0
+        return float(max(g["power"] for g in a.play.gear))
+
+    def _market_buyer(self, a: Agent, price: int) -> Optional[Agent]:
+        """Somebody with the silver for it. §8: what they buy MELTS INTO
+        their `resources` — an NPC keeps no inventory, because their one
+        number is already the abstraction of every blade and pill they own,
+        and it does not move for a fair trade."""
+        pool = [o for o in self.cultivators()
+                if o.aid != a.aid and o.alive and o.resources >= price]
+        if not pool:
+            return None
+        mine = [o for o in pool if o.sect == a.sect]
+        return self.rng.choice(mine or pool)
+
+    def sell_item(self, what: str, a: Optional[Agent] = None) -> str:
+        """Sell a pill or a piece off the rack (§8). The gear sold is the
+        WORST piece there — you do not sell the sword off your own hip until
+        it is the only one left."""
+        a = self.pc if a is None else a
+        if a is None or a.play is None or not a.alive:
+            return "There is nobody to sell anything."
+        want = (what or "").strip().lower()
+        kind = next((k for k in PILL_KINDS if want and k.startswith(want)), "")
+        if not kind:
+            if not want or not ("gear".startswith(want)
+                                or want in ("rack", "piece")):
+                return f"Sell 'gear' or one of: {', '.join(PILL_KINDS)}."
+            if not a.play.gear:
+                return FORGE_LINES["empty"].format(who=a.display())
+            piece = min(a.play.gear, key=lambda g: g["power"])
+            a.play.gear.remove(piece)
+            price = FORGE_VALUE[piece["grade"]]
+            self._sold(a, piece["what"], price)
+            return ""
+        if a.play.pills.get(kind, 0) <= 0:
+            return PILL_LINES["none"].format(who=a.display(), kind=kind)
+        a.play.pills[kind] -= 1
+        self._sold(a, f"a {kind} pill", PILL_VALUE[kind])
+        return ""
+
+    def _sold(self, a: Agent, what: str, price: int):
+        a.resources += price
+        buyer = self._market_buyer(a, price)
+        if buyer is None:
+            self.log(FORGE_LINES["market"].format(
+                who=a.display(), what=what, silver=price), [a])
+            return
+        self.log(FORGE_LINES["sold"].format(
+            who=a.display(), what=what, buyer=buyer.display(),
+            silver=price), [a, buyer])
+
+    # -- healing: your own wounds, and other people's -----------------------
+
+    def _patient(self, a: Agent) -> Optional[Agent]:
+        """Who gets carried in. Sect first, then the country, then whoever
+        the season brings; never a ruler, who has physicians of his own."""
+        pool = [o for o in self.cultivators()
+                if o.aid != a.aid and o.alive and o.age >= 14
+                and not o.is_ruler()]
+        if not pool:
+            return None
+        short = pool if len(pool) <= HEAL_POOL else self.rng.sample(pool,
+                                                                   HEAL_POOL)
+        weights = []
+        for o in short:
+            w = 1.0
+            if o.sect == a.sect:
+                w += HEAL_WEIGHT_SECT
+            if (a.home is not None and o.home is not None
+                    and o.home.land is a.home.land):
+                w += HEAL_WEIGHT_LAND
+            if o.aid in a.rels:
+                w += HEAL_WEIGHT_KNOWN
+            weights.append(w)
+        return self.rng.choices(short, weights=weights)[0]
+
+    def _infirmary(self, a: Agent, rank: int, share=1.0):
+        """A season of it. Your own wounds close for nothing; somebody
+        else's is a scene with a ledger attached (§8)."""
+        r = self.rng
+        if a.play.wound and rank >= HEAL_SELF_RANK:
+            self.heal_wound(a, how="craft")
+            while a.play.wound and rank >= HEAL_FULL_RANK:
+                self.heal_wound(a, how="craft")
+        if r.random() >= HEAL_PATIENT * share * len(SEASONS):
+            a.history.append((self.year, HEAL_LINES["none"].format(
+                who=a.display())))
+            return
+        patient = self._patient(a)
+        if patient is None:
+            a.history.append((self.year, HEAL_LINES["none"].format(
+                who=a.display())))
+            return
+        trouble = r.choice(HEAL_TROUBLES)
+        dire = r.random() < HEAL_DIRE
+        chance = HEAL_SAVE_BASE + HEAL_SAVE_PER_RANK * rank
+        if dire:
+            chance -= HEAL_DIRE_PENALTY
+        chance = max(HEAL_SAVE_CLAMP[0], min(HEAL_SAVE_CLAMP[1], chance))
+        fields = dict(who=a.display(), patient=patient.display(),
+                      trouble=trouble)
+        if r.random() >= chance:
+            a.insight += HEAL_LOST_INSIGHT
+            self.log(HEAL_LINES["lost"].format(**fields), [a, patient],
+                     dramatic=dire)
+            if dire:
+                self.kill(patient, "died of their injuries under a healer's "
+                                   "hands")
+            return
+        a.karma += HEAL_KARMA_DIRE if dire else HEAL_KARMA
+        a.resources += r.randint(*HEAL_FEE)
+        text = HEAL_LINES["dire" if dire else "saved"].format(**fields)
+        if dire and rank >= LIFEDEBT_RANK:
+            # §8: the strongest coin in the social ledger. `_add_grudge` will
+            # not write over it, and the holder grieves like a sworn brother.
+            self._record_deed(a, "mercy")
+            self._bind(a, patient, "life-debt", LIFEDEBT_INTENSITY)
+            text += HEAL_LINES["debt"].format(**fields)
+        else:
+            back = patient.rels.get(a.aid)
+            if back is None or back.kind not in FRIENDLY_KINDS:
+                self._bind(a, patient, "friend", HEAL_GRATITUDE)
+            else:
+                back.intensity += HEAL_GRATITUDE
+            if dire:
+                self._record_deed(a, "mercy")
+        self.log(text, [a, patient], dramatic=dire)
 
     # -- seek a master (VII §8) ---------------------------------------------
 
@@ -8084,6 +8766,8 @@ class World:
             self._act_socialize(a, share)
         elif activity in PROFICIENCIES:
             self._act_train(a, activity, share)
+        elif activity in PROFESSIONS:
+            self._act_profession(a, activity, share)
         elif activity == "hall":
             self._act_hall(a, share)
         elif activity == "master":
@@ -8141,6 +8825,11 @@ class World:
                     if a.play.wound >= 2 else "")
             lines.append(f"  wounded ({WOUND_WORD[a.play.wound]}, "
                          f"{self.max_hp(a):.0f} of {ROUND_HP:.0f}){cost}")
+        if a.play is not None and a.play.toxicity:
+            over = (" — every further pill is a point of burden"
+                    if a.play.toxicity >= PILL_TOXICITY_FREE else "")
+            lines.append(f"  pills in the blood: toxicity "
+                         f"{a.play.toxicity} of {PILL_TOXICITY_FREE}{over}")
         if a.is_ruler():
             polity = self.polities.get(a.ruling)
             if polity is not None:
@@ -8161,9 +8850,8 @@ class World:
         return "\n".join(lines)
 
     def player_bag(self) -> str:
-        """VII §11: what the played character is carrying. Almost all of it
-        arrives in later sessions; the card exists so it has somewhere to
-        land."""
+        """VII §11: what the played character is carrying — the crafts, the
+        shelf, the rack, the toxicity, and (P7) the techniques."""
         a = self.pc
         if a is None or a.play is None:
             return "Nothing to show."
@@ -8195,6 +8883,46 @@ class World:
             lines.append("  stances: " + ", ".join(
                 f"{k} {v}/{STANCE_RANK_MAX}"
                 for k, v in sorted(st.stances.items())))
+        # P6: the three crafts, and §8's wall where it has been hit.
+        crafts = []
+        top = RANK_SHAPES[PROFESSION_SHAPE]["max"]
+        for key in PROFESSIONS:
+            banked, done, need = self.track_progress(
+                st.professions.get(key, 0.0), PROFESSION_SHAPE)
+            if not banked and not done:
+                continue
+            shown = self.profession_rank(a, key)
+            wall = (" — WALLED: it wants a teacher or a manual"
+                    if shown < banked else "")
+            toward = (f" ({done:.1f}/{need:.0f} toward {banked + 1})"
+                      if need and not wall else "")
+            crafts.append(f"{key} {shown}/{top} — "
+                          f"{PROFESSION_WORDS[shown]}{toward}{wall}")
+        if crafts:
+            lines.append("  crafts: " + "; ".join(crafts))
+        if st.manuals:
+            lines.append("  manuals: " + ", ".join(sorted(st.manuals)))
+        held = [f"{k} x{n}" for k, n in sorted(st.pills.items()) if n > 0]
+        over = (" — over the line: every further pill is a point of burden"
+                if st.toxicity >= PILL_TOXICITY_FREE else "")
+        lines.append(f"  pills: {', '.join(held) or 'none'} | toxicity "
+                     f"{st.toxicity} of {PILL_TOXICITY_FREE}{over}")
+        if self.profession_rank(a, "alchemy"):
+            lines.append(f"  the furnace is set up for {st.brew} pills "
+                         f"('brew KIND' to change it)")
+        if st.clarity:
+            lines.append(f"  a clarity pill is in them: "
+                         f"{st.clarity * 100:+.0f}% on the next tribulation")
+        if st.gear:
+            best = max(st.gear, key=lambda g: g["power"])
+            spare = len(st.gear) - 1
+            lines.append(f"  rack: carrying {best['what']} "
+                         f"(+{best['power']} power)"
+                         + (f", and {spare} more piece"
+                            f"{'s' if spare != 1 else ''} to sell"
+                            if spare else ""))
+        lines.append("  techniques: none — the schools arrive with the next "
+                     "session")
         master = self.master_of(a)
         if master is not None:
             lines.append(f"  master: {master.display()} "
@@ -8218,8 +8946,6 @@ class World:
                      f"yield at {float(orders['yield']) * 100:.0f}%, "
                      f"{orders['execute']} the beaten, escape "
                      f"{orders['escape']} ('orders' for the card)")
-        lines.append("  (techniques, pills and professions arrive with later "
-                     "sessions)")
         return "\n".join(lines)
 
     # -- PC handling --------------------------------------------------------
@@ -8798,6 +9524,9 @@ PLAY_HELP = """Commands (play mode):
                      the season BEFORE anything that matters to you
   agenda             what this year is known to hold
   bag                what you are carrying
+  brew KIND          what the furnace is set up for: qi, healing, clarity
+  take KIND          swallow a pill: qi, healing or clarity
+  sell KIND | gear   sell a pill, or the worst piece off the rack
   orders             the standing orders card; `orders KEY VALUE` sets one
   pc / sheet NAME    a character sheet
   log NAME           a character's whole private history
@@ -8989,6 +9718,20 @@ class Play:
                   or "  Nothing this year that concerns you.")
         elif low == "bag":
             print(w.player_bag())
+        elif low == "brew" or low.startswith("brew "):
+            print(w.set_brew(cmd[4:].strip()))
+        elif low == "take" or low.startswith("take "):
+            # P6: swallowing a pill and selling a blade are not seasons, and
+            # what they log is flushed at once so the player sees the price.
+            said = w.take_pill(cmd[4:].strip())
+            if said:
+                print(said)
+            self.flush_private(self.flush())
+        elif low == "sell" or low.startswith("sell "):
+            said = w.sell_item(cmd[4:].strip())
+            if said:
+                print(said)
+            self.flush_private(self.flush())
         elif low == "orders" or low.startswith("orders "):
             parts = cmd.split(None, 2)
             if len(parts) == 1:
@@ -9247,10 +9990,10 @@ class Play:
 COMBAT_TEST_BAND = 3.0          # percentage points; VII §5 and §12
 COMBAT_TEST_ROUNDS = (3, 8)     # what an even fight should take
 COMBAT_NEUTRAL = ["Stubborn", "Charming"]   # traits no stance table reads
-# label, then each side as (realm, talent, qi) — or (realm, talent, qi,
-# weapon rank), P5's proficiency, which is the only player-layer term in a
-# fight until P6 — then the two stances. The edge the fight is called at is
-# the harsher of the two.
+# label, then each side as (realm, talent, qi) — or with P5's weapon rank
+# and P6's forged gear appended, (realm, talent, qi, weapon, gear), the two
+# tenants of the §5 cap — then the two stances. The edge the fight is
+# called at is the harsher of the two.
 COMBAT_CELLS = [
     ("even, Qi Refining",        (1, 5, 40), (1, 5, 40),
      ("duelling", None), ("duelling", None)),
@@ -9289,6 +10032,12 @@ COMBAT_CELLS = [
      ("duelling", None), ("duelling", None)),
     ("weapon 5, murderous",      (2, 5, 40, 5), (2, 5, 40),
      ("murderous", None), ("murderous", None)),
+    # P6: the cap's second tenant. A master-forged piece is +2 power, and it
+    # has to move the fought bout by exactly what it moves the one roll.
+    ("forged +2 vs bare",        (2, 5, 40, 0, 2), (2, 5, 40),
+     ("duelling", None), ("duelling", None)),
+    ("weapon 5 and forged +2",   (2, 5, 40, 5, 2), (2, 5, 40),
+     ("duelling", None), ("duelling", None)),
 ]
 
 
@@ -9312,7 +10061,7 @@ def _seasons_for_rank(rank: int, shape: str) -> float:
 
 
 def _test_reset(a: Agent, realm: int, talent: int, qi: float, weapon=0,
-                stances=(), wound=0, body=0):
+                gear=0, stances=(), wound=0, body=0):
     a.realm, a.talent, a.qi = realm, talent, float(qi)
     a.traits = list(COMBAT_NEUTRAL)
     a.alive = True
@@ -9333,6 +10082,10 @@ def _test_reset(a: Agent, realm: int, talent: int, qi: float, weapon=0,
         a.play.proficiencies = {
             "weapon": _seasons_for_rank(weapon, PROFICIENCY_SHAPE),
             "body": _seasons_for_rank(body, PROFICIENCY_SHAPE)}
+        # P6: the rack, which the one roll and the fought bout must both
+        # read out of `player_power` and neither out of anywhere else.
+        a.play.gear = ([{"what": "a forged blade", "power": gear, "grade": 3}]
+                       if gear else [])
 
 
 def test_combat(seed=1, fights=10000) -> bool:
