@@ -39,6 +39,22 @@ corrupts: every ruling year is a chance to slip one step down the ladder
 Greedy -> Power-Hungry -> Cruel. The PC camera keeps rolling through a
 reign; enthronement is not an ending.
 
+Session 5 is the moral economy, and it is mechanical to the last digit: no
+event anywhere asks "is this the villain". Four vice traits join the pool —
+Bully (fights only downward, and shakes the juniors down for what they
+carry), Power-Hungry (schemes, covets seats, turns Vengeful when passed
+over), Cruel (maims the beaten, so the world fills with walking evidence)
+and Bloodthirsty (takes a duel past winning, and rides to any muster that
+will have them). Karma is seeded from disposition and then moved by DEEDS
+that dominate it over a long life — killing the defenseless, sparing a
+beaten foe, rescue, dying in defence of others — and karma is coupled to
+everything that was already there: luck drifts toward the sign of it, the
+tribulation reads it, the road tilts by it, grudges bite half again as deep
+against a black ledger, and vice takes a cut of every win. Virtue is the
+luck lane; vice is the fast lane for wealth. The one deliberate cheat in the
+whole layer is the camera constraint (§8): the protagonist and the few
+people bound to them can darken, but never become monstrous.
+
 Logging policy (the product):
   * Every consequential event is appended to the PRIVATE history of every
     agent involved. Nothing is lost.
@@ -95,31 +111,40 @@ TRAIT_POOL = [
     "Proud", "Cautious", "Reckless", "Ruthless", "Loyal", "Vengeful",
     "Scholarly", "Charming", "Stubborn", "Ascetic", "Greedy", "Humble",
     "Righteous", "Cold",
+    # The four vices (§7). They are rolled like any other trait; only karma
+    # ever reads them as a set.
+    "Bully", "Power-Hungry", "Cruel", "Bloodthirsty",
 ]
 
 # JOB 1 — traits weight the yearly action choice (multipliers on base weights).
 TRAIT_ACTION = {
-    "Proud":     {"socialize": 1.3},
-    "Cautious":  {"adventure": 0.5, "cultivate": 1.3},
-    "Reckless":  {"adventure": 2.2, "seclude": 0.6},
-    "Ruthless":  {"socialize": 1.2},
-    "Loyal":     {"socialize": 1.2},
-    "Vengeful":  {"socialize": 1.4},
-    "Scholarly": {"cultivate": 1.4, "teach": 1.8},
-    "Charming":  {"socialize": 1.8},
-    "Stubborn":  {"cultivate": 1.3},
-    "Ascetic":   {"seclude": 2.2, "socialize": 0.5},
-    "Greedy":    {"adventure": 1.6},
-    "Humble":    {"cultivate": 1.2},
-    "Righteous": {"socialize": 1.1},
-    "Cold":      {"seclude": 1.4, "socialize": 0.6},
-    "Broken":    {"seclude": 1.7, "adventure": 0.5},
+    "Proud":        {"socialize": 1.3},
+    "Cautious":     {"adventure": 0.5, "cultivate": 1.3},
+    "Reckless":     {"adventure": 2.2, "seclude": 0.6},
+    "Ruthless":     {"socialize": 1.2},
+    "Loyal":        {"socialize": 1.2},
+    "Vengeful":     {"socialize": 1.4},
+    "Scholarly":    {"cultivate": 1.4, "teach": 1.8},
+    "Charming":     {"socialize": 1.8},
+    "Stubborn":     {"cultivate": 1.3},
+    "Ascetic":      {"seclude": 2.2, "socialize": 0.5},
+    "Greedy":       {"adventure": 1.6},
+    "Humble":       {"cultivate": 1.2},
+    "Righteous":    {"socialize": 1.1},
+    "Cold":         {"seclude": 1.4, "socialize": 0.6},
+    "Broken":       {"seclude": 1.7, "adventure": 0.5},
+    # A bully needs juniors in front of them, a schemer needs a room, and a
+    # bloodthirsty disciple needs someone to fight: all three live in the
+    # socialize action, which is where duels come from.
+    "Bully":        {"socialize": 1.6, "seclude": 0.6, "teach": 0.4},
+    "Power-Hungry": {"socialize": 1.9, "seclude": 0.5, "cultivate": 0.9},
+    "Cruel":        {"socialize": 1.3, "teach": 0.5},
+    "Bloodthirsty": {"socialize": 1.5, "adventure": 1.5, "seclude": 0.5},
 }
 
-# Every trait an agent can actually be carrying today: the rolled pool plus
-# the ones only mutation hands out. The corruption ladder of §4 reaches past
-# this set into session 5's vice traits and simply stops at the last rung
-# that exists.
+# Every trait an agent can actually be carrying: the rolled pool plus the
+# ones only mutation hands out. The corruption ladder of §4 walks through
+# this set and stops at the last rung that exists in it.
 ACQUIRABLE_TRAITS = set(TRAIT_POOL) | set(TRAIT_ACTION)
 
 # Names come from six language pools, each borrowing a real-world language so
@@ -362,23 +387,88 @@ HEIR_AGE = (20, 48)             # age of a courtier raised to a vacant seat
 RULER_REALM2_CHANCE = 0.15      # a sovereign with a cultivator ancestor
 RULER_RESOURCES = (6, 14)       # the treasury they sit on
 RULER_STANDING = (5, 9)
-# Court skew: thrones are not filled at random from the trait pool.
-# (Session 5 adds the vice traits and raises them here: Power-Hungry 3.0,
-# Cruel 2.0, Bully 1.5, Bloodthirsty 1.5.)
-COURT_TRAIT_WEIGHTS = {"Proud": 2.5, "Righteous": 2.5, "Charming": 1.6,
-                       "Greedy": 1.5, "Cold": 1.5, "Humble": 1.5,
-                       "Loyal": 1.5, "Ruthless": 1.3}
+# Court skew: thrones are not filled at random from the trait pool. The
+# ambitious end up near seats, and so do the people willing to use one.
+COURT_TRAIT_WEIGHTS = {"Power-Hungry": 3.0, "Proud": 2.5, "Righteous": 2.5,
+                       "Cruel": 2.0, "Charming": 1.6, "Greedy": 1.5,
+                       "Cold": 1.5, "Humble": 1.5, "Loyal": 1.5,
+                       "Bully": 1.5, "Bloodthirsty": 1.5, "Ruthless": 1.3}
 
-# Moral sets (§7). Karma is seeded from traits and tracked from here on;
-# NOTHING is coupled to it yet — the couplings land in session 5, along with
-# the four vice traits that fill VICE_TRAITS (Bully, Power-Hungry, Cruel,
-# Bloodthirsty).
+# --- VIRTUE, VICE AND KARMA (§7) -------------------------------------------
+# The moral sets. Greedy, Ruthless, Vengeful and Cold stay morally GRAY: no
+# karma weight, their existing resource and combat edges untouched, and all
+# of them legal for the protagonist. Only these four count as vice, and
+# karma is the only thing in the sim that reads them as a set — no event
+# anywhere asks whether someone is the villain.
 VIRTUE_TRAITS = ("Righteous", "Humble", "Loyal")
-VICE_TRAITS = ()
-KARMA_PER_MORAL_TRAIT = 2
+VICE_TRAITS = ("Cruel", "Bully", "Power-Hungry", "Bloodthirsty")
+KARMA_PER_MORAL_TRAIT = 2       # karma is SEEDED 2*(virtue) - 2*(vice)...
+
+# ... and then moved by DEEDS, which dominate disposition over a long life.
+KARMA_KILL_DEFENSELESS = -2     # a killing where the realms left no contest
+KARMA_SPARE = 1                 # a beaten foe let up off the ground
+KARMA_RESCUE = 2                # rescue or liberation
+KARMA_DIED_DEFENDING = 3        # posthumous: the obituary and the grief
+
+# The couplings — the whole moral economy, and all of it mechanical.
+# Virtue is the luck lane; vice is the fast lane for wealth.
+FORTUNE_CAP = 3                 # the streaky-luck counter stays small
+FORTUNE_WEIGHT = 0.02           # what a point of it is worth on a die roll
+KARMA_FORTUNE_DRIFT = 1         # fortune drifts a step toward sign(karma)/yr
+KARMA_TRIBULATION = 0.0025      # karma/4 percentage points on a tribulation
+KARMA_TRIBULATION_CAP = 0.05    # ... clamped to five of them
+KARMA_ADVENTURE_TILT = 0.01     # the road: fateful encounters, or ambushes
+KARMA_ADVENTURE_CAP = 0.05
+VICE_SPOILS = 1                 # a vice trait skims every win and every haul
+GRUDGE_VS_VICE_MULT = 1.5       # grudges bite deeper against a black ledger
+GRUDGE_VS_VICE_AT = 0           # ... karma strictly under this
+
+# THE FOUR VICES, each with a behaviour of its own.
+# BULLY — fights only DOWNWARD (the tyranny of realms inverted) and shakes
+# the juniors down for what they carry. Every victim keeps a grudge and a
+# little of the insight adversity always pays.
+BULLY_CHANCE = 0.5              # of a socialize year spent on a junior
+BULLY_TAKE = (1, 3)             # resources taken off them
+BULLY_GRUDGE = 2
+BULLY_INSIGHT = 2
+BULLY_SAME_SECT = 2.5           # one's own juniors are nearest to hand
+BULLY_LINES = [
+    "{bully} cornered {victim} behind the outer hall of {sect} and took "
+    "{spoil}; a realm between them left nothing to argue with (+insight, "
+    "grudge).",
+    "{bully} stopped {victim} at the gate, went through their bundle and "
+    "took {spoil} (+insight, grudge).",
+    "{bully} beat {victim} in front of the junior hall over a debt no ledger "
+    "records, and took {spoil} (+insight, grudge).",
+]
+# CRUEL — does not stop at winning. The victim carries the evidence.
+CRUEL_MAIM_CHANCE = 0.5
+CRUEL_MAIM_INSIGHT = 4
+CRUEL_MAIM_GRUDGE = 3
+# BLOODTHIRSTY — takes a duel past winning, and rides to any muster. Both
+# knobs are deliberately small: a duel between equals kills one of the two
+# more often than not, so a taste for them is a fast way to empty a sect.
+BLOODTHIRSTY_LETHAL = 0.3       # an ordinary duel becomes a killing matter
+BLOODTHIRSTY_DUEL_CHANCE = 0.1  # ... and they go looking for one
+# The war seam: session 6 owns campaigns, but the muster is already here.
+# war_volunteer_weight() is the scan it will call; until then a levy under
+# a conscripting or warring polity can already take a cultivator's year.
+WAR_VOLUNTEER_TRAITS = {"Bloodthirsty": 3.0, "Greedy": 1.5, "Loyal": 1.5}
+WAR_VOLUNTEER_NATIVE = 2.0
+WAR_VOLUNTEER_FULL = 5.0        # weight at which someone is certain to go
+SERVICE_CHANCE = 0.35           # a Bloodthirsty native answers the muster
+SERVICE_PAY = (2, 5)
+SERVICE_SKIRMISH = 0.4          # ... and the levies see some fighting
+SERVICE_INSIGHT = 2
+
+# THE CAMERA CONSTRAINT (§8) — the one deliberate breach of SIM FIRST in
+# this layer. Documented at _mutate, where it is enforced.
+CAMERA_BOUND_KINDS = ("friend", "sworn", "lover", "master", "disciple")
+CAMERA_REROUTE = ("Vengeful", "Cold", "Broken")
 
 # Rule style: five facets scored from the leader's traits plus situation.
-# Traits that do not exist yet simply never score — the table is the seam.
+# With the vices in the pool, every row of this table can now fire — a Cruel
+# or Bully king is no longer a theoretical shape.
 RULE_FACETS = ["BENEVOLENT", "EXTRACTIVE", "CRUEL", "NEGLECTFUL",
                "CONSCRIPTION"]
 RULE_FACET_TRAITS = {
@@ -539,9 +629,9 @@ GOVERNANCE_INSIGHT = {"petition": 2, "betrayal": 3, "usurpation": 5,
                       "deposition": 6}
 
 # POWER CORRUPTS: each ruling year, a small chance the seat walks its holder
-# one step down the ladder. Steps into traits that do not exist yet simply do
-# not happen — session 5 adds Power-Hungry and Cruel to the trait pool and the
-# rest of the ladder lights up on its own.
+# one step down the ladder — the only path in the sim that HANDS OUT vice,
+# which is why the camera constraint (§8) is enforced inside _mutate rather
+# than at the roll.
 CORRUPTION_LADDER = [None, "Greedy", "Power-Hungry", "Cruel"]
 CORRUPTION_CHANCE = 0.008           # per ruling year
 CORRUPTION_PER_EXTRACTION = 0.0015   # ... raised by years of taking
@@ -610,7 +700,7 @@ USURP_ODDS = (0.10, 0.90)
 USURP_KILL_CHANCE = 0.5         # a taken seat does not always keep its holder
 USURP_KILL_RUTHLESS = 0.85
 USURP_KILL_RIGHTEOUS = 0.15
-USURP_SPARE_KARMA = 1           # §7: sparing a beaten foe
+USURP_SPARE_KARMA = KARMA_SPARE  # §7: sparing a beaten foe
 USURP_KARMA = -2                # ... and taking a seat by force
 USURP_FAIL_INSIGHT = 5
 USURP_FAIL_DEATH = 0.35
@@ -673,7 +763,7 @@ ADVENTURE_HOME_BOOST = 1.5      # the roads a cultivator already knows
 ROAD_HARD_AT = 3.5              # destination prosperity: below this, misruled
 ROAD_RICH_AT = 7.0              # ... and at or above this, golden
 ADVENTURE_RISK_SHIFT = {"harsh": -0.06, "settled": 0.0, "rich": 0.05}
-ADVENTURE_RESCUE_KARMA = 1      # pulling people out of a bad land is a deed
+ADVENTURE_RESCUE_KARMA = KARMA_RESCUE   # §7: rescue or liberation
 ADVENTURE_RESCUE_CHANCE = 0.5   # ... the rest of the time they only witness it
 ADVENTURE_PATRON_CHANCE = 0.4   # a rich land's spoils come with a name attached
 ADVENTURE_SCENES = {
@@ -830,7 +920,7 @@ PETITION_OPPOSITION_PER_ARMY = 0.4
 PETITION_ODDS = (0.15, 0.9)
 PETITION_GAIN = 1.5             # prosperity a rescued village recovers
 PETITION_REPRISAL = 0.5         # ... and what a failed rescue costs it
-PETITION_KARMA = 2              # §7: rescue or liberation
+PETITION_KARMA = KARMA_RESCUE   # §7: rescue or liberation
 PETITION_STANDING = 3
 PETITION_UNREST = 1
 PETITION_FAIL_INSIGHT = 4       # adversity, as ever
@@ -1055,7 +1145,8 @@ class Agent:
     past_reigns: list = field(default_factory=list)  # seats held and laid down
     thrones_refused: int = 0          # §4: offers turned down, for the obituary
     extraction_years: int = 0         # years of taking — the corruption clock
-    karma: int = 0                    # §7: tracked from session 2, coupled in 5
+    karma: int = 0                    # §7: seeded from traits, moved by deeds
+    defended: str = ""                # what they died in defence of, if any
     rels: dict = field(default_factory=dict)     # aid -> Rel
     epithets: list = field(default_factory=list)
     history: list = field(default_factory=list)  # private log: (year, text)
@@ -1362,10 +1453,38 @@ class World:
         return traits
 
     def _seed_karma(self, a: Agent):
-        """Karma starts as disposition; deeds will dominate it (session 5)."""
+        """§7: karma starts as disposition and is SEEDED ONCE, at creation.
+
+        It is not recomputed when traits mutate — a reformed bully does not
+        get his ledger wiped, and a corrupted king does not get his past
+        debited. Deeds move it from here on, and over a long life they
+        dominate the seed by an order of magnitude.
+        """
         virtue = sum(1 for t in a.traits if t in VIRTUE_TRAITS)
         vice = sum(1 for t in a.traits if t in VICE_TRAITS)
         a.karma = KARMA_PER_MORAL_TRAIT * (virtue - vice)
+
+    def _vice_spoils(self, a: Agent) -> int:
+        """§7: vice takes a cut of every win. Evil is the fast lane."""
+        return VICE_SPOILS if any(t in VICE_TRAITS for t in a.traits) else 0
+
+    def _karma_kill(self, killer: Optional[Agent], victim: Agent):
+        """§7: killing the DEFENSELESS. A duel between equals is a duel; a
+        killing across a realm gap is a killing, and the ledger says so."""
+        if killer is None or not killer.alive:
+            return
+        if victim.realm < killer.realm:
+            killer.karma += KARMA_KILL_DEFENSELESS
+
+    def _fell_defending(self, a: Agent, whom: str):
+        """§7: dying in defence of others. Posthumous — it buys the dead
+        nothing at all, only the obituary and the grief of friends."""
+        a.defended = whom
+        a.karma += KARMA_DIED_DEFENDING
+
+    def _camera_safe(self, a: Agent) -> bool:
+        """§8: could this agent hold the camera? (No vice traits.)"""
+        return not any(t in VICE_TRAITS for t in a.traits)
 
     def _install_ruler(self, polity: Polity, age: int,
                        founding=False) -> Agent:
@@ -1521,8 +1640,11 @@ class World:
         # The focal intake — the "starting class of 64".
         cohort = self._recruit_intake(announce=False)
 
-        # The random main character.
-        self.pc = r.choice(cohort)
+        # The random main character — drawn from the recruits who rolled no
+        # vice trait (§8: the camera constraint applies at the roll, and the
+        # PC is picked after the cohort is rolled).
+        self.pc = r.choice([a for a in cohort if self._camera_safe(a)]
+                           or cohort)
         self.pc.history.append((0, "Entered the sect as a new disciple."))
 
     def _recruit_intake(self, announce=True) -> list:
@@ -1638,6 +1760,10 @@ class World:
         b.rels[a.aid].intensity = max(b.rels[a.aid].intensity, intensity)
 
     def _add_grudge(self, holder: Agent, target: Agent, amount=1):
+        # §7: the wronged remember a black ledger longer. Every grudge in the
+        # sim comes through here, so this is the whole coupling.
+        if target.karma < GRUDGE_VS_VICE_AT:
+            amount = int(amount * GRUDGE_VS_VICE_MULT + 0.5)
         rel = holder.rels.get(target.aid)
         if rel and rel.kind in HOSTILE_KINDS:
             rel.intensity += amount
@@ -1737,8 +1863,55 @@ class World:
             if a.is_ruler():
                 self._act_rule(a)       # §4: ruling replaces the action phase
                 continue
+            if a.has_trait("Bloodthirsty") and self._take_service(a):
+                continue                # §7: they went to the muster instead
             act = self._pick_action(a)
             getattr(self, f"_act_{act}")(a)
+
+    def war_volunteer_weight(self, a: Agent, polity: Polity) -> float:
+        """§9: how badly a cultivator wants a place in somebody's war.
+
+        The scan session 6's campaigns will call: Bloodthirsty first, then
+        the ones who go for the pay or for the country they were born in.
+        """
+        w = sum(m for t, m in WAR_VOLUNTEER_TRAITS.items() if a.has_trait(t))
+        if a.home is not None and self.polity_at(a.home) is polity:
+            w += WAR_VOLUNTEER_NATIVE
+        return w
+
+    def _take_service(self, a: Agent) -> bool:
+        """§7: Bloodthirsty volunteers for wars — and until session 6 there
+        are no wars, only musters. A polity at war or calling up its levies
+        can take a cultivator's whole year: the pay is good, and there is
+        usually somebody on the border worth killing.
+        """
+        r = self.rng
+        polity = self.polity_at(a.home)
+        if polity is None or a.home is None:
+            return False
+        if not (polity.at_war or "CONSCRIPTION" in polity.last_facets):
+            return False
+        eager = min(1.0, self.war_volunteer_weight(a, polity)
+                    / WAR_VOLUNTEER_FULL)
+        if r.random() >= SERVICE_CHANCE * eager:
+            return False
+        pay = r.randint(*SERVICE_PAY)
+        a.resources += pay + self._vice_spoils(a)
+        a.standing += 1
+        polity.army += 1
+        leader = self.leader_of(polity)
+        under = (f" under {self.ruler_ref(leader)}"
+                 if leader is not None and leader.alive else "")
+        if r.random() < SERVICE_SKIRMISH:
+            a.insight += SERVICE_INSIGHT
+            self.log(f"{a.display()} rode with the levies of {polity.domain}"
+                     f"{under} and spent the season killing along the border "
+                     f"(+resources, +insight).", [a], place=a.home)
+        else:
+            self.log(f"{a.display()} took a captain's pay in the muster of "
+                     f"{polity.domain}{under}; the levies drilled all year "
+                     f"and marched nowhere (+resources).", [a], place=a.home)
+        return True
 
     def _act_rule(self, a: Agent):
         """§4: the RULE action, and the cultivation lock.
@@ -1796,7 +1969,7 @@ class World:
             return None
         nxt = CORRUPTION_LADDER[rung + 1]
         if nxt not in ACQUIRABLE_TRAITS:
-            return None     # session 5 adds the rest of the ladder
+            return None     # a rung this build does not carry
         return CORRUPTION_LADDER[rung], nxt
 
     def _act_cultivate(self, a: Agent):
@@ -1822,6 +1995,12 @@ class World:
         return self._pick_home(land)    # a settlement, by its population
 
     @staticmethod
+    def _karma_tilt(a: Agent) -> float:
+        """§7: what a life's ledger is worth on the road, clamped small."""
+        return max(-KARMA_ADVENTURE_CAP,
+                   min(KARMA_ADVENTURE_CAP, a.karma * KARMA_ADVENTURE_TILT))
+
+    @staticmethod
     def road_condition(place: Place) -> str:
         """What a destination's prosperity makes of the risk table."""
         if place.prosperity < ROAD_HARD_AT:
@@ -1845,16 +2024,21 @@ class World:
         # who happened to pass through it: only a misruled destination — where
         # the country itself is what happened to them — carries the place.
         where = dest if condition == "harsh" else None
-        # Streaky luck, then the country itself: a misruled land is a more
-        # dangerous place to look for fortune, a golden one a kinder one.
-        roll = (r.random() - a.fortune * 0.02
-                + ADVENTURE_RISK_SHIFT[condition])
+        # The road's roll: LOW is a grave, HIGH is a fateful encounter.
+        # Streaky luck first (a good run carries — the sign of this term was
+        # inverted before the karma couplings went in, which made luck run
+        # exactly backwards); then the ledger (§7: high karma finds fateful
+        # encounters, low karma finds ambushes); then the country itself — a
+        # misruled land is a more dangerous place to look for fortune than a
+        # golden one.
+        roll = (r.random() + a.fortune * FORTUNE_WEIGHT
+                + self._karma_tilt(a) + ADVENTURE_RISK_SHIFT[condition])
         if roll < 0.04 / a.realm:   # the wilds threaten the strong far less
             self.kill(a, scene("death"))
         elif roll < 0.12:
             a.insight += 4
             a.burden += 1
-            a.fortune = max(-3, a.fortune - 1)
+            a.fortune = max(-FORTUNE_CAP, a.fortune - 1)
             text = scene("near_death")
             if r.random() < 0.4 and len(a.epithets) < 3:
                 ep = r.choice([e for e in MAIM_EPITHETS if e not in a.epithets])
@@ -1865,8 +2049,8 @@ class World:
         elif roll < 0.42:
             a.history.append((self.year, scene("quiet")))   # nothing found
         elif roll < 0.67:
-            a.resources += r.randint(2, 6)
-            a.fortune = min(3, a.fortune + 1)
+            a.resources += r.randint(2, 6) + self._vice_spoils(a)
+            a.fortune = min(FORTUNE_CAP, a.fortune + 1)
             if condition == "rich" and r.random() < ADVENTURE_PATRON_CHANCE:
                 a.standing += 1     # patrons and fairs make names
             a.history.append((self.year, scene("spoils")))
@@ -1880,9 +2064,9 @@ class World:
             else:
                 a.history.append((self.year, scene("insight")))
         elif roll < 0.92:
-            a.resources += 8
+            a.resources += 8 + self._vice_spoils(a)
             a.insight += 2
-            a.fortune = min(3, a.fortune + 2)
+            a.fortune = min(FORTUNE_CAP, a.fortune + 2)
             self.log(scene("treasure"), [a], dramatic=(a.realm >= 3),
                      place=where)
         else:
@@ -1907,6 +2091,19 @@ class World:
             t = max(targets, key=lambda x: a.rels[x.aid].intensity)
             if a.power() >= t.power() - 3:
                 self._duel(a, t, lethal=True, context="a long-nursed grudge")
+                return
+        # §7: a Bully fights only DOWNWARD — the tyranny of realms inverted.
+        if a.has_trait("Bully") and r.random() < BULLY_CHANCE:
+            if self._bully_shakedown(a):
+                return
+        # ... and Bloodthirsty goes looking for a fight with an equal, which
+        # is the only kind that can actually kill them.
+        if a.has_trait("Bloodthirsty") and r.random() < BLOODTHIRSTY_DUEL_CHANCE:
+            peers = [o for o in self.cultivators()
+                     if o.aid != a.aid and o.realm == a.realm and o.age >= 14]
+            if peers:
+                self._duel(a, r.choice(peers), lethal=True,
+                           context="a quarrel picked for its own sake")
                 return
         if a.has_trait("Proud") and r.random() < 0.25:
             peers = [o for o in self.cultivators() if o.sect == a.sect
@@ -1953,11 +2150,72 @@ class World:
 
     # -- contests -----------------------------------------------------------
 
+    def _bully_shakedown(self, a: Agent) -> bool:
+        """§7: the tyranny of realms, pointed the wrong way.
+
+        A Bully never picks a fight they can lose. They pick a junior, take
+        what the junior is carrying, and leave behind exactly two things: a
+        grudge, and the little insight that adversity always pays. The sim
+        does not punish this — the victims do, eventually.
+        """
+        r = self.rng
+        marks, weights = [], []
+        for o in self.cultivators():
+            if o.aid == a.aid or o.age < 14 or o.realm >= a.realm:
+                continue
+            marks.append(o)
+            weights.append(BULLY_SAME_SECT if o.sect == a.sect else 1.0)
+        if not marks:
+            return False
+        victim = r.choices(marks, weights)[0]
+        taken = min(victim.resources, r.randint(*BULLY_TAKE))
+        victim.resources -= taken
+        a.resources += taken + self._vice_spoils(a)
+        victim.insight += BULLY_INSIGHT
+        self._add_grudge(victim, a, BULLY_GRUDGE)
+        spoil = (f"{taken} in silver" if taken
+                 else "nothing, and beat them for having nothing")
+        self.log(r.choice(BULLY_LINES).format(
+            bully=a.display(), victim=victim.display(), spoil=spoil,
+            sect=victim.sect or "the outer court"), [a, victim])
+        self._mutate(victim, "humiliated")
+        return True
+
+    def _maim(self, winner: Agent, loser: Agent, where: str) -> bool:
+        """§7: a Cruel victor does not stop at winning.
+
+        The victim walks out of it with an epithet, a heavier burden and the
+        insight that adversity pays — which is how the sim ends up full of
+        walking evidence of somebody's character.
+        """
+        if not loser.alive or len(loser.epithets) >= 3:
+            return False
+        spare = [e for e in MAIM_EPITHETS if e not in loser.epithets]
+        if not spare:
+            return False
+        ep = self.rng.choice(spare)
+        loser.epithets.append(ep)
+        loser.insight += CRUEL_MAIM_INSIGHT
+        loser.burden += 1
+        self._add_grudge(loser, winner, CRUEL_MAIM_GRUDGE)
+        self.log(f"{winner.display()} went on breaking {loser.name} after "
+                 f"{where} was already decided; the mark will not come off "
+                 f"[epithet: {ep}] (+insight).", [winner, loser],
+                 dramatic=True)
+        return True
+
     def _duel(self, att: Agent, dfn: Agent, lethal=False, context=""):
         """One formula, with the tyranny of realms."""
         r = self.rng
         gap = att.realm - dfn.realm
         ctx = f" over {context}" if context else ""
+        # §7: Bloodthirsty escalates. A matter of face becomes a killing
+        # matter because one of the two wanted it to be.
+        edge = ""
+        if not lethal and r.random() < BLOODTHIRSTY_LETHAL and (
+                att.has_trait("Bloodthirsty") or dfn.has_trait("Bloodthirsty")):
+            lethal = True
+            edge = "; one of them had come to kill, not to win"
 
         if abs(gap) >= 1:
             strong, weak = (att, dfn) if gap > 0 else (dfn, att)
@@ -1965,9 +2223,11 @@ class World:
             if abs(gap) >= 2:
                 flee -= 0.25
             if lethal and r.random() > flee:
+                strong.resources += self._vice_spoils(strong)
+                self._karma_kill(strong, weak)  # §7: killing the defenseless
                 self.log(f"{strong.display()} struck down {weak.display()}"
-                         f"{ctx} — a full realm between them left no contest.",
-                         [strong, weak], dramatic=True)
+                         f"{ctx} — a full realm between them left no "
+                         f"contest{edge}.", [strong, weak], dramatic=True)
                 self.kill(weak, f"killed by {strong.display()}", killer=strong)
             else:
                 weak.insight += 3
@@ -1982,25 +2242,34 @@ class World:
         att_wins = r.random() < pa / (pa + pb)
         winner, loser = (att, dfn) if att_wins else (dfn, att)
         winner.standing += 1
+        winner.resources += self._vice_spoils(winner)   # §7: spoils to the bone
 
         kill_chance = 0.0
         if lethal:
             kill_chance = 0.55
             if winner.has_trait("Ruthless"):
                 kill_chance = 0.85
+            if winner.has_trait("Bloodthirsty"):
+                kill_chance = 0.9
             if winner.has_trait("Righteous"):
                 kill_chance = 0.25
         if r.random() < kill_chance:
             self.log(f"{winner.display()} defeated and slew {loser.display()}"
-                     f"{ctx}.", [winner, loser], dramatic=True)
+                     f"{ctx}{edge}.", [winner, loser], dramatic=True)
             self.kill(loser, f"slain in a duel by {winner.display()}",
                       killer=winner)
         else:
             loser.insight += 3
             self._add_grudge(loser, winner, 2)
+            spared = ""
+            if lethal:
+                winner.karma += KARMA_SPARE     # §7: sparing a beaten foe
+                spared = ", spared where the next blow would have finished it"
             self.log(f"{winner.display()} defeated {loser.display()}{ctx}; "
-                     f"{loser.display()} survives, shamed (+insight).",
+                     f"{loser.display()} survives, shamed{spared} (+insight).",
                      [winner, loser])
+            if winner.has_trait("Cruel") and r.random() < CRUEL_MAIM_CHANCE:
+                self._maim(winner, loser, "the duel")
             self._mutate(loser, "humiliated")
 
     # -- event phase --------------------------------------------------------
@@ -2422,8 +2691,9 @@ class World:
                      world_event=polity.is_sovereign())
             # A claim lost in the audience hall is what a coup or a war of
             # succession grows out of — session 6 escalates it; for now the
-            # grudge is the whole consequence.
-            self._mutate(loser, "humiliated")
+            # grudge, and what being passed over makes of a schemer, are the
+            # whole consequence.
+            self._mutate(loser, "passed_over")
             return True
 
         self._seat(polity, claimant)
@@ -2579,6 +2849,8 @@ class World:
         if usurper.has_trait("Righteous"):
             kill_chance = USURP_KILL_RIGHTEOUS
         if r.random() < kill_chance:
+            # §7: a beaten mortal king is as defenseless as anyone else.
+            self._karma_kill(usurper, leader)
             self.log(f"{usurper.display()} of {usurper.sect}, "
                      f"{usurper.realm_name}, took the seat of the "
                      f"{polity.name} by force; {ref} did not live out the "
@@ -2787,6 +3059,8 @@ class World:
         text = (f"{hero.display()} went to {where} for {petition.task} and "
                 f"was broken by the men of {domain}")
         if lethal:
+            # §7: dying in defence of others. It buys the dead nothing.
+            self._fell_defending(hero, f"the villagers of {where}")
             self.log(text + f"; they did not walk out, and {where} is left "
                             f"worse than it was.",
                      [hero] + ([ruler] if ruler is not None else []),
@@ -2824,12 +3098,16 @@ class World:
             runner = max(r.sample(runner, min(3, len(runner))),
                          key=lambda x: x.power())
             champ.standing += 2
-            champ.resources += 4
+            champ.resources += 4 + self._vice_spoils(champ)
             self._bind(champ, runner, "rival", 2)
             self.log(f"{champ.display()} won the {REALM_NAMES[realm]} "
                      f"tournament, defeating {runner.display()} in the final; "
                      f"a rivalry is born before the assembled sects.",
                      [champ, runner], dramatic=(realm >= 3))
+            # §7: a Cruel champion cripples the runner-up in front of the
+            # assembled sects, which is how everyone learns what they are.
+            if champ.has_trait("Cruel") and r.random() < CRUEL_MAIM_CHANCE:
+                self._maim(champ, runner, "the final")
             self._mutate(runner, "humiliated")
 
     def _expedition(self):
@@ -2860,7 +3138,7 @@ class World:
                  f"entered.", volunteers, world_event=True)
         deaths = []
         for a in volunteers:
-            roll = r.random() - a.fortune * 0.02
+            roll = r.random() + a.fortune * FORTUNE_WEIGHT   # low = a grave
             if roll < 0.13:
                 deaths.append(a)
             elif roll < 0.25:
@@ -2875,8 +3153,8 @@ class World:
                              dramatic=True)
                 self._mutate(a, "near_death")
             elif roll < 0.5:
-                a.resources += r.randint(4, 10)
-                a.fortune = min(3, a.fortune + 1)
+                a.resources += r.randint(4, 10) + self._vice_spoils(a)
+                a.fortune = min(FORTUNE_CAP, a.fortune + 1)
             elif roll < 0.7:
                 a.insight += 4
         for a in deaths:
@@ -2940,6 +3218,7 @@ class World:
     def _resolution_phase(self):
         self._drift_prosperity()
         self._stipends()
+        self._karma_luck()
         for a in list(self.living()):
             self._try_breakthrough(a)
         for a in list(self.living()):
@@ -2949,6 +3228,18 @@ class World:
                              f"{a.realm_name} to the last")
                 continue
             self._maybe_voluntary_exit(a)
+
+    def _karma_luck(self):
+        """§7: the luck coupling. Every year, fortune drifts one step toward
+        the sign of the ledger — on top of the streaky luck the road hands
+        out. Virtue is the luck lane; it is also the SLOW lane, since the
+        counter is clamped small and buys only a couple of points on a die.
+        """
+        for a in self.living():
+            if a.karma > 0:
+                a.fortune = min(FORTUNE_CAP, a.fortune + KARMA_FORTUNE_DRIFT)
+            elif a.karma < 0:
+                a.fortune = max(-FORTUNE_CAP, a.fortune - KARMA_FORTUNE_DRIFT)
 
     def _drift_prosperity(self):
         """Left alone, a settlement returns to its land's temper. What drags
@@ -2968,6 +3259,11 @@ class World:
             return  # stalled; the action phase already biases them to adventure
         chance = 0.35 + a.talent * 0.03 + (a.insight - req) * 0.01 \
             - a.burden * 0.05
+        # §7: the tribulation reads the ledger — karma/4 percentage points,
+        # clamped to five either way. Enough to be felt over a career, never
+        # enough to carry a life on its own.
+        chance += max(-KARMA_TRIBULATION_CAP,
+                      min(KARMA_TRIBULATION_CAP, a.karma * KARMA_TRIBULATION))
         # Talent soft-caps the realm: reaching far above your talent is hard.
         if a.realm + 1 > a.talent // 2 + 2:
             chance -= 0.15
@@ -3050,9 +3346,18 @@ class World:
             back = o.rels.get(a.aid)
             if back and back.kind in FRIENDLY_KINDS:
                 o.insight += 3 if back.kind != "friend" else 2
-                o.history.append((self.year,
-                                  f"Grieved the loss of {back.kind} "
-                                  f"{a.display()} (+insight)."))
+                if a.defended:
+                    # §7: a death in defence of others is a different grief.
+                    o.insight += 1
+                    o.history.append((self.year,
+                                      f"Grieved the loss of {back.kind} "
+                                      f"{a.display()}, who died standing "
+                                      f"between {a.defended} and the men who "
+                                      f"came for them (+insight)."))
+                else:
+                    o.history.append((self.year,
+                                      f"Grieved the loss of {back.kind} "
+                                      f"{a.display()} (+insight)."))
                 if killer is not None and killer.alive:
                     self._add_grudge(o, killer, 3)
                     self._mutate(o, "betrayed")
@@ -3091,6 +3396,8 @@ class World:
             of_sect = f" of {a.sect}" if a.sect else ""
             parts = [f"OBITUARY: {a.display()}{of_sect}, dead at {a.age} "
                      f"({a.realm_name}); {a.death_cause}."]
+        if a.defended:
+            parts.append(f"Died in defence of {a.defended}.")
         for name, domain, title, start, end, how in a.past_reigns:
             parts.append(f"Was {title} of {domain} for "
                          f"{self.years_phrase(end - start)}, and "
@@ -3134,8 +3441,39 @@ class World:
                  f"{dead_head.display()}: {winner.display()} prevailed over "
                  f"{loser.display()}, who withdraws nursing a grudge.",
                  [winner, loser], world_event=True)
+        # §7: passed over for a seat they wanted, a schemer turns Vengeful.
+        self._mutate(loser, "passed_over")
 
     # -- trait mutation (JOB 3) ---------------------------------------------
+
+    def _camera_cast(self, a: Agent) -> bool:
+        """§8: is this agent in the viewpoint cast — the protagonist, or
+        someone CURRENTLY bound to them as friend, sworn, lover, master or
+        disciple? (Rivals, enemies and allies are not: the cast the reader
+        rides with is small.)"""
+        pc = self.pc
+        if pc is None:
+            return False
+        if a.aid == pc.aid:
+            return True
+        rel = pc.rels.get(a.aid)
+        return rel is not None and rel.kind in CAMERA_BOUND_KINDS
+
+    def _camera_filter(self, a: Agent, trait: str) -> str:
+        """THE CAMERA CONSTRAINT (§8) — the one deliberate breach of SIM
+        FIRST in the whole politics layer, and it is enforced here.
+
+        The protagonist and the handful of people bound to them never mutate
+        into a vice trait; a blocked step reroutes to Vengeful, Cold or
+        Broken. The viewpoint cast can darken — it cannot become monstrous.
+
+        This protects the READER'S SEAT, not the characters: PC and friends
+        still lose, stall, get maimed, get shaken down, and die on schedule,
+        and nothing else in the sim knows the camera exists.
+        """
+        if trait in VICE_TRAITS and self._camera_cast(a):
+            return self.rng.choice(CAMERA_REROUTE)
+        return trait
 
     def _mutate(self, a: Agent, trigger: str, sure=False):
         """`sure` skips the usual gate: the caller has already rolled for it
@@ -3144,34 +3482,55 @@ class World:
         if not a.alive or (not sure and r.random() > 0.35):
             return
         swap = None
+        gain = None
+        gained_by_the_seat = False
         if trigger == "power":
             step = self._corruption_step(a)
             if step is None:
                 return              # the bottom of the ladder, or of the build
             frm, to = step
+            gained_by_the_seat = True
             if frm is None:
-                a.traits.append(to)
-                self.log(f"{self.ruler_ref(a)} is changed by the seat: "
-                         f"gained trait {to}.", [a])
-                return
-            swap = (frm, to)
-        elif trigger == "humiliated" and a.has_trait("Proud"):
-            swap = ("Proud", r.choice(["Humble", "Vengeful", "Broken"]))
+                gain = to
+            else:
+                swap = (frm, to)
+        elif trigger in ("humiliated", "passed_over"):
+            # Passed over for a seat, a schemer stops scheming and starts
+            # remembering. Crushed in public, a bully's whole method has
+            # just failed in front of everyone.
+            if trigger == "passed_over" and a.has_trait("Power-Hungry"):
+                swap = ("Power-Hungry", "Vengeful")
+            elif a.has_trait("Proud"):
+                swap = ("Proud", r.choice(["Humble", "Vengeful", "Broken"]))
+            elif a.has_trait("Bully"):
+                swap = ("Bully", r.choice(["Broken", "Humble"]))
         elif trigger == "betrayed" and a.has_trait("Loyal"):
             swap = ("Loyal", "Vengeful")
         elif trigger == "near_death":
-            if a.has_trait("Reckless"):
+            # Having nearly died of it cures a taste for killing.
+            if a.has_trait("Bloodthirsty"):
+                swap = ("Bloodthirsty", r.choice(["Cautious", "Ascetic"]))
+            elif a.has_trait("Reckless"):
                 swap = ("Reckless", r.choice(["Cautious", "Ascetic"]))
             elif r.random() < 0.5 and "Ascetic" not in a.traits:
-                a.traits.append("Ascetic")
-                self.log(f"{a.display()} emerged changed: gained trait "
-                         f"Ascetic.", [a])
+                gain = "Ascetic"
+        if swap is not None:
+            to = self._camera_filter(a, swap[1])
+            if to in a.traits:
                 return
-        if swap and swap[1] not in a.traits:
             a.traits.remove(swap[0])
-            a.traits.append(swap[1])
-            self.log(f"{self.ruler_ref(a)} is changed: "
-                     f"{swap[0]} -> {swap[1]}.", [a])
+            a.traits.append(to)
+            self.log(f"{self.ruler_ref(a)} is changed"
+                     f"{' by the seat' if gained_by_the_seat else ''}: "
+                     f"{swap[0]} -> {to}.", [a])
+        elif gain is not None:
+            to = self._camera_filter(a, gain)
+            if to in a.traits:
+                return
+            a.traits.append(to)
+            self.log(f"{self.ruler_ref(a)} is changed"
+                     f"{' by the seat' if gained_by_the_seat else ''}: "
+                     f"gained trait {to}.", [a])
 
     # -- PC handling --------------------------------------------------------
 
@@ -3181,7 +3540,11 @@ class World:
         stays fully simulated), and the chronicle follows the reign."""
         old = self.pc
         # Dump the fallen protagonist's full life into the chronicle record.
-        candidates = [a for a in self.cultivators() if a.age <= 30]
+        # §8 again: the successor is drawn from the young who rolled no vice.
+        young = [a for a in self.cultivators() if a.age <= 30]
+        candidates = [a for a in young if self._camera_safe(a)] or young
+        if not candidates:
+            candidates = [a for a in self.cultivators() if self._camera_safe(a)]
         if not candidates:
             candidates = self.cultivators()
         if not candidates:
