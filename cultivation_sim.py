@@ -55,6 +55,30 @@ luck lane; vice is the fast lane for wealth. The one deliberate cheat in the
 whole layer is the camera constraint (§8): the protagonist and the few
 people bound to them can darken, but never become monstrous.
 
+Session 6 gives the country its answer. Unrest used to be a gauge with no
+valve — the bad courts pinned it at the cap and only a funeral ever spent
+it — and now it has three. A country over the threshold RISES, and looks
+first for a champion: someone carrying a grudge against that court, or a
+Righteous native of it. The rising is settled by the tyranny of realms like
+every other contest, which is why a mortal tyrant falls to any Foundation
+Establishment champion and a cultivator-king does not fall at all: he walks
+into the crowd himself, and the massacre buys him a few quiet years, a
+ruined country and a ledger nobody forgets. A winning champion is offered
+the seat and may refuse it. A reign whose ledger has gone deeply black
+draws KNIVES — grudge-holders within a realm of the seat, one attempt a
+year anywhere in the world, and a success is a succession with a corpse on
+the floor. And restless courts with armies to spend make WAR along the
+edges of the grid: an abstract campaign of one to three years, prosperity
+down on both sides, conscripts dead by the thousand as chronicle colour,
+and the cultivators who rode to it dying like the agents they are. Wars end
+in tribute, in a ceded region, or in a kneeling; a vassal who kept the
+tribute one year too many is fought back under the oath, or wins its
+independence. Sect headship, meanwhile, turns out to be rulership-lite: the
+head's virtues and vices tilt the sect's richness and drift the juniors'
+standing, and under a vice-heavy head the Righteous and the Humble DEFECT —
+which seeds precisely the cross-sect grudges the feud arithmetic has been
+counting all along.
+
 Logging policy (the product):
   * Every consequential event is appended to the PRIVATE history of every
     agent involved. Nothing is lost.
@@ -450,9 +474,9 @@ CRUEL_MAIM_GRUDGE = 3
 # more often than not, so a taste for them is a fast way to empty a sect.
 BLOODTHIRSTY_LETHAL = 0.3       # an ordinary duel becomes a killing matter
 BLOODTHIRSTY_DUEL_CHANCE = 0.1  # ... and they go looking for one
-# The war seam: session 6 owns campaigns, but the muster is already here.
-# war_volunteer_weight() is the scan it will call; until then a levy under
-# a conscripting or warring polity can already take a cultivator's year.
+# The muster (§9): war_volunteer_weight() is the scan a campaign calls to
+# find the cultivators who will ride to it, and a peacetime levy under a
+# conscripting polity can take a Bloodthirsty cultivator's year on its own.
 WAR_VOLUNTEER_TRAITS = {"Bloodthirsty": 3.0, "Greedy": 1.5, "Loyal": 1.5}
 WAR_VOLUNTEER_NATIVE = 2.0
 WAR_VOLUNTEER_FULL = 5.0        # weight at which someone is certain to go
@@ -506,7 +530,7 @@ CRACKDOWN_SCORE = 1             # but only one already willing to use it
 POOR_TREASURY = 2               # an empty treasury tempts the tax collector
 POOR_TREASURY_SCORE = 1
 CONSCRIPTION_BASE = 2           # only at war, or under a Bloodthirsty ruler
-UNREST_MAX = 12                 # session 6's revolts will spend this down
+UNREST_MAX = 12                 # the cap; revolts (§9) are what spends it
 UNREST_DECAY = 1                # a benevolent or quiet year settles the land
 SUCCESSION_UNREST_RELIEF = 2    # a new face on the seat buys a little peace
 CRUEL_GRUDGE_MAX = 5            # cap on a subject's grudge against their ruler
@@ -623,10 +647,13 @@ RULE_MORTAL_LINES = [
     "{ruler} completed {years} on the seat; {domain} has known no other "
     "hand for a generation.",
 ]
-# Insight bought with governance adversity, by kind. (Session 6 adds the two
-# largest: a revolt survived, and a war lost.)
+# Insight bought with governance adversity, by kind. §4 names a revolt
+# survived and a war lost as the two largest, and they are priced that way:
+# a country that rose against you, and an army that came home beaten, teach a
+# throne more than anything else it will ever meet.
 GOVERNANCE_INSIGHT = {"petition": 2, "betrayal": 3, "usurpation": 5,
-                      "deposition": 6}
+                      "deposition": 6, "assassination": 4, "revolt": 7,
+                      "war_lost": 8}
 
 # POWER CORRUPTS: each ruling year, a small chance the seat walks its holder
 # one step down the ladder — the only path in the sim that HANDS OUT vice,
@@ -706,12 +733,13 @@ USURP_FAIL_INSIGHT = 5
 USURP_FAIL_DEATH = 0.35
 
 # DEFIANCE: a vassal keeps the tribute. This is the betrayal §4 names as one
-# of the adversities a throne can actually learn from. (Session 6 turns a
-# standing defiance into a war.)
+# of the adversities a throne can actually learn from, and a standing
+# defiance is what a war of vassalage grows out of (§9).
 DEFIANCE_CHANCE = 0.025
 DEFIANCE_TRAITS = ("Proud", "Power-Hungry", "Ruthless", "Stubborn")
 DEFIANCE_GRUDGE_WEIGHT = 0.5
 DEFIANCE_UNREST = 2
+DEFIANCE_MEMORY = 12            # years a kept tribute stays an open quarrel
 
 # ABDICATION: the way off a throne that nobody forces. An Ascetic or Broken
 # ruler, or one grown old and weary, lays the seat down — and a cultivator
@@ -731,6 +759,170 @@ ABDICATE_MORTAL_MULT = 0.4      # a mortal notable has nowhere to go but
 ABDICATE_HOLD_TRAITS = ("Proud", "Stubborn", "Greedy")
 ABDICATE_HOLD_MULT = 0.35
 RETURN_INSIGHT = 3              # what the years on the seat were worth
+
+# --- CONSEQUENCE EVENTS (§9): REVOLT, ASSASSINATION, WAR -------------------
+# Until now unrest was a gauge with no valve: a bad court pinned it at the cap
+# and only a funeral ever spent it. These are the three ways a country answers
+# back, and all three are settled by the same tyranny of realms as every other
+# contest in the sim — which is exactly why a cultivator-king is a different
+# problem from a bad king.
+
+# REVOLT. Over the threshold, a country can rise in any year. It looks for a
+# CHAMPION first — someone carrying a grudge against that court, or a
+# Righteous native of it — because a rising without one is a mob.
+REVOLT_THRESHOLD = 9            # unrest over which a country can rise at all
+REVOLT_CHANCE_PER_UNREST = 0.0035   # per point of unrest above the threshold
+REVOLT_MIN_REALM = 2            # a Qi Condensation disciple leads nothing
+REVOLT_MIN_AGE = 18
+REVOLT_TRAIT_WEIGHTS = {"Righteous": 4.0, "Vengeful": 2.0, "Power-Hungry": 2.0,
+                        "Proud": 1.5, "Reckless": 1.5, "Bloodthirsty": 1.5}
+REVOLT_HOME_WEIGHT = 2.5        # blood in that land
+REVOLT_GRUDGE_WEIGHT = 2.0      # ... or a grudge against that court
+REVOLT_CHAMPION_CHANCE = 0.75   # a willing champion actually rides
+# The contest: the household guard, the realm above it, and the levies.
+REVOLT_GUARD = 16.0
+REVOLT_GUARD_PER_REALM = 12.0
+REVOLT_GUARD_PER_ARMY = 0.45
+REVOLT_UNREST_HELP = 1.2        # a hungrier country puts more men in the road
+REVOLT_ODDS = (0.10, 0.95)
+REVOLT_GAP_ODDS = 0.9           # a realm over the throne: the tyrant falls
+REVOLT_GAP_CERTAIN = 2          # two realms over it: not a fight at all
+REVOLT_UNDER_ODDS = 0.12        # ... and a realm UNDER it, a whole country at
+                                # your back is still not nearly enough
+REVOLT_MOB_ODDS = 0.10          # a leaderless uprising, against a mortal seat
+REVOLT_MOB_PER_UNREST = 0.015
+REVOLT_ARMY_LOSS = 0.4          # what putting one down (or losing) costs
+REVOLT_KARMA = KARMA_RESCUE     # §7: liberation
+REVOLT_RELIEF = 0.8             # what a country eats the year the seat falls
+REVOLT_INSIGHT = 2              # what the survivors of a rising learn
+REVOLT_REFUSE_BASE = 0.20       # the champion is offered the seat, and may
+                                # refuse it; a local notable takes it instead
+REVOLT_KILL_CHANCE = 0.55       # a thrown-down ruler does not always live
+REVOLT_KILL_RUTHLESS = 0.85
+REVOLT_KILL_RIGHTEOUS = 0.2
+REVOLT_FAIL_INSIGHT = 5         # adversity, as ever
+REVOLT_FAIL_DEATH = 0.45
+REVOLT_FAIL_UNREST = 3          # a crushed rising still spends some of it
+REVOLT_FAIL_PROSPERITY = -0.4
+TYRANT_BREAKER = "Tyrant-Breaker"
+# THE MASSACRE. A mortal tyrant falls to any realm-2 champion; a
+# cultivator-king turns the same rising into a killing field. Prosperity and
+# the ruler's ledger both collapse, and the survivors come out of it with
+# insight and grudges — adversity is the insight engine here as everywhere.
+MASSACRE_PROSPERITY = -1.6
+MASSACRE_KARMA = -8
+MASSACRE_UNREST = 4             # terror buys a few quiet years, and no more
+MASSACRE_INSIGHT = 4
+MASSACRE_GRUDGE = 3
+REVOLT_WITNESS_CHANCE = 0.5     # a native whose own people were in it
+MASSACRE_DEAD = (400, 9000)     # commoners; chronicle colour, not agents
+
+# ASSASSINATION. §9 sets the bar at karma <= -4, which was written before the
+# rule facets were: a facet moves a ledger by 1-2 points A YEAR, so any merely
+# bad reign clears -4 inside a decade and a long one ends near -100. The bar
+# below is the same intent on the scale the sim actually uses — a deeply evil
+# reign, not a disappointing one — and at most one attempt is made anywhere in
+# the world in a year, which is what keeps knives rarer than risings (§13).
+ASSASSIN_KARMA = -30            # the bar, on the scale rule facets produce
+ASSASSIN_CHANCE = 0.018         # one roll a year across all nine lands
+ASSASSIN_PER_KARMA = 0.0005     # ... blacker ledgers draw more knives
+ASSASSIN_CHANCE_MAX = 0.055
+ASSASSIN_REALM_GAP = 1          # grudge-holders within one realm of the seat
+ASSASSIN_MIN_GRUDGE = 2
+ASSASSIN_TRAIT_WEIGHTS = {"Vengeful": 3.0, "Ruthless": 2.0,
+                          "Bloodthirsty": 2.0, "Cold": 1.5, "Righteous": 1.0}
+ASSASSIN_GRUDGE_WEIGHT = 1.5
+ASSASSIN_BASE = 0.45
+ASSASSIN_PER_REALM = 0.25       # the knife's realm against the seat's
+ASSASSIN_CAUTIOUS = 0.25        # a frightened ruler sleeps behind guards
+ASSASSIN_PER_ARMY = 0.006
+ASSASSIN_ODDS = (0.1, 0.85)
+ASSASSIN_CAUGHT = 0.6           # a failed assassin rarely walks out
+ASSASSIN_FAIL_INSIGHT = 4
+ASSASSIN_UNREST = 2
+
+# WAR. Between edge-adjacent sovereigns, rarely across a corner. A restless
+# ruler with an army starts one; so does a court left weak by a contested
+# succession, and so does a vassal that has kept the tribute one year too
+# many. The campaign itself is abstract — 1-3 years, prosperity down on both
+# sides, conscripts dead by the thousand as chronicle colour — but the
+# cultivators who ride to it are entirely real.
+WAR_CHANCE = 0.035              # one roll a year across all nine lands
+WAR_MIN_ARMY = 10
+WAR_TRAIT_WEIGHTS = {"Bloodthirsty": 3.0, "Power-Hungry": 2.5, "Greedy": 1.0,
+                     "Proud": 1.0, "Cruel": 1.0}
+WAR_ARMY_WEIGHT = 0.05          # per soldier over the minimum
+WAR_CORNER_CHANCE = 0.12        # a war fought across a corner of the grid
+WAR_CRISIS_YEARS = 8            # how long a contested seat looks like prey
+WAR_CRISIS_WEIGHT = 3.0
+WAR_DEFIANCE_WEIGHT = 4.0       # the seam a war of vassalage grows from
+WAR_WEAK_PREY = 1.5             # per realm the defender stands below
+WAR_LENGTH = (1, 3)
+WAR_PROSPERITY_ATT = -0.35      # a campaign costs the invader too
+WAR_PROSPERITY_DEF = -0.7
+WAR_UNREST = 1
+WAR_ARMY_LOSS = (0.10, 0.30)    # fraction of the levies spent per campaign year
+WAR_CONSCRIPTS_DEAD = (300, 6000)
+WAR_RULER_SCORE = 10.0          # per realm the ruler stands above mortal
+WAR_CULTIVATOR_SCORE = 0.35     # a joined cultivator's power, on the scales
+WAR_SCORE_NOISE = 0.30          # the friction that decides most campaigns
+WAR_BATTLE_DEATH = 0.09         # per campaign year, per cultivator present
+WAR_BATTLE_INSIGHT = 3
+WAR_BATTLE_SPOILS = (2, 7)
+WAR_SPOILS_CHANCE = 0.5         # not every season's army carries off enough
+WAR_TRIBUTE = (6, 18)           # what a beaten court hands over
+WAR_LOSER_UNREST = 3
+WAR_WINNER_PROSPERITY = 0.4     # the spoils reach the villages, a little
+WAR_OUTCOME_WEIGHTS = {"tribute": 5.0, "region": 3.0, "vassalage": 2.0}
+WAR_DECLARE_LINES = [
+    "{att} marched on {def_dom}; the border villages were burning before "
+    "the first snow.",
+    "{att} crossed into {def_dom} without an envoy sent ahead of the army.",
+    "{att} declared the old border of {def_dom} a lie and sent the levies "
+    "to correct it.",
+    "{att} answered an insult nobody outside the court remembered with an "
+    "invasion of {def_dom}.",
+]
+WAR_VASSAL_DECLARE_LINES = [
+    "{att} took the field against {def_ruler}, who had kept the tribute of "
+    "{def_dom} and sent no word with it.",
+    "{att} called the levies to bring {def_dom} back under the old oath.",
+]
+WAR_CAMPAIGN_LINES = [
+    "The war over {def_dom} ground through another year; some {dead} "
+    "conscripts are in the ground and both countries are the poorer.",
+    "Another campaigning season over {def_dom}: {dead} dead of the levies, "
+    "the fields unsown on both sides of the border.",
+    "The armies wintered where they stood after a year in {def_dom}; {dead} "
+    "of the conscripts did not winter anywhere.",
+]
+
+# SECT HEADS UNDER THE POLITICS LAYER (§11). Headship is rulership-lite: the
+# head keeps cultivating, but their character tilts the sect's richness a few
+# points either way and drifts the juniors' standing with it. Under a
+# vice-heavy head the Righteous and the Humble DEFECT — a voluntary exit that
+# does not end a career, and that seeds exactly the cross-sect grudges the
+# feud arithmetic is already counting.
+SECT_TILT_PER_TRAIT = 0.03      # per virtue (up) or vice (down) the head holds
+SECT_TILT_CAP = 0.09
+SECT_STANDING_DRIFT = 0.10      # chance per junior per year, either way
+SECT_JUNIOR_REALM = 2           # who counts as a junior for the drift
+DEFECT_CHANCE = 0.010           # per vice trait the head carries, per year
+DEFECT_TRAITS = ("Righteous", "Humble")
+DEFECT_GRUDGE_CHANCE = 0.5      # ... or simply a grudge against the head
+DEFECT_MIN_AGE = 20
+DEFECT_MIN_REALM = 2
+DEFECT_STANDING_COST = 2
+DEFECT_GRUDGE = 3               # what the defector carries out of the gate
+DEFECT_WELCOME_CHANCE = 0.6     # somebody in the new sect vouches for them
+DEFECT_LINES = [
+    "{who} left {old} for {new}, saying they would not spend another year "
+    "under {head}.",
+    "{who} walked out of {old} in the night and was taken in at {new}; the "
+    "elders of {old} called it theft.",
+    "{who} broke with {head} in front of the assembled disciples and took "
+    "their name off the register of {old} for {new}.",
+]
 
 # --- THE CONTACT SURFACE: where the common people reach the sim (§§9-10) ---
 # Commoners never become agents. Their lives touch the simulation at exactly
@@ -1071,7 +1263,9 @@ class Polity:
     style: str = STYLE_QUIET         # last year's dominant facet, in a word
     last_facets: tuple = ()
     last_line: str = ""              # so a reign does not repeat itself twice
-    at_war: bool = False             # session 6 lights this up
+    at_war: bool = False             # set for the length of a campaign (§9)
+    crisis_year: Optional[int] = None    # a seat taken over a rival's claim
+    defiance_year: Optional[int] = None  # a vassal that kept the tribute
 
     def is_sovereign(self) -> bool:
         return self.liege is None and self.kind != "sect"
@@ -1110,6 +1304,31 @@ class Petition:
     plea: str = ""                  # "to open the sealed granary of {where}"
     done: str = ""                  # what the answer looks like, in past tense
     task: str = ""                  # "the sealed granary" — named on failure
+
+
+# ---------------------------------------------------------------------------
+# Wars — an abstract campaign between two courts (§9)
+# ---------------------------------------------------------------------------
+
+@dataclass(eq=False)
+class War:
+    """A 1-3 year campaign. The armies are numbers and the dead conscripts are
+    chronicle colour; the cultivators who ride to it are ordinary agents and
+    die like it.
+
+    `kind` is "conquest" (two sovereigns over a border) or "vassalage" (a
+    liege bringing a defiant vassal back under the old oath), which is the
+    only difference the outcomes read.
+    """
+    attacker: int                   # pid
+    defender: int                   # pid
+    year: int
+    length: int
+    kind: str = "conquest"
+    fought: int = 0                 # campaign years resolved so far
+    score: dict = field(default_factory=dict)     # pid -> accumulated weight
+    enlisted: dict = field(default_factory=dict)  # pid -> [aid] this year
+    veterans: set = field(default_factory=set)    # every aid that ever rode
 
 
 # ---------------------------------------------------------------------------
@@ -1203,7 +1422,10 @@ class World:
         self.agents: dict[int, Agent] = {}
         self._next_aid = 1
         self.intake_size = intake_size
-        self.sects = {name: richness for name, richness in SECT_SPECS}
+        # A sect's richness multiplier is its founding endowment TIMES the
+        # tilt its current head's character puts on it (§11).
+        self.sect_base = {name: richness for name, richness in SECT_SPECS}
+        self.sects = dict(self.sect_base)
         self.sect_heads: dict[str, Optional[int]] = {}
         self.chronicle: list[tuple[int, str, str]] = []  # (year, tag, text)
         self._fresh_lines: list[str] = []
@@ -1225,6 +1447,8 @@ class World:
         # The contact surface: open pleas, and when each village last begged.
         self.petitions: list = []
         self._petition_seen: dict[int, int] = {}   # place pid -> year
+        # Consequences (§9): the campaigns currently being fought.
+        self.wars: list = []
         self._setup()
 
     # -- geography ----------------------------------------------------------
@@ -1863,16 +2087,19 @@ class World:
             if a.is_ruler():
                 self._act_rule(a)       # §4: ruling replaces the action phase
                 continue
-            if a.has_trait("Bloodthirsty") and self._take_service(a):
-                continue                # §7: they went to the muster instead
+            # §9: a war at home can take anyone's year; a muster in peacetime
+            # only takes the ones who were looking for one.
+            if (self.wars or a.has_trait("Bloodthirsty")) \
+                    and self._take_service(a):
+                continue
             act = self._pick_action(a)
             getattr(self, f"_act_{act}")(a)
 
     def war_volunteer_weight(self, a: Agent, polity: Polity) -> float:
         """§9: how badly a cultivator wants a place in somebody's war.
 
-        The scan session 6's campaigns will call: Bloodthirsty first, then
-        the ones who go for the pay or for the country they were born in.
+        Bloodthirsty first, then the ones who go for the pay or for the
+        country they were born in.
         """
         w = sum(m for t, m in WAR_VOLUNTEER_TRAITS.items() if a.has_trait(t))
         if a.home is not None and self.polity_at(a.home) is polity:
@@ -1880,20 +2107,25 @@ class World:
         return w
 
     def _take_service(self, a: Agent) -> bool:
-        """§7: Bloodthirsty volunteers for wars — and until session 6 there
-        are no wars, only musters. A polity at war or calling up its levies
-        can take a cultivator's whole year: the pay is good, and there is
-        usually somebody on the border worth killing.
+        """§7/§9: the muster takes a cultivator's whole year.
+
+        A country at war will take anyone with an appetite for it — the
+        Bloodthirsty, the ones who go for the pay, and the natives who go
+        because it is their country. A peacetime levy only interests the
+        first kind. A cultivator who signs on with a war is enlisted in it
+        and settles up on the battlefield (`_battle`), not here.
         """
         r = self.rng
         polity = self.polity_at(a.home)
         if polity is None or a.home is None:
             return False
-        if not (polity.at_war or "CONSCRIPTION" in polity.last_facets):
+        war = self._war_of(polity)
+        if war is None and not ("CONSCRIPTION" in polity.last_facets
+                                and a.has_trait("Bloodthirsty")):
             return False
         eager = min(1.0, self.war_volunteer_weight(a, polity)
                     / WAR_VOLUNTEER_FULL)
-        if r.random() >= SERVICE_CHANCE * eager:
+        if eager <= 0 or r.random() >= SERVICE_CHANCE * eager:
             return False
         pay = r.randint(*SERVICE_PAY)
         a.resources += pay + self._vice_spoils(a)
@@ -1902,6 +2134,18 @@ class World:
         leader = self.leader_of(polity)
         under = (f" under {self.ruler_ref(leader)}"
                  if leader is not None and leader.alive else "")
+        if war is not None:
+            other = self.polities.get(
+                war.defender if war.attacker == polity.pid else war.attacker)
+            war.enlisted.setdefault(polity.pid, []).append(a.aid)
+            # No place= on this one, unlike the peacetime muster: a war
+            # takes whole cohorts of natives at once, and a land's own
+            # chronicle would be nothing else for three years running. The
+            # muster is the country's news; who rode to it is each rider's.
+            self.log(f"{a.display()} took the field with the armies of "
+                     f"{polity.domain}{under} against "
+                     f"{other.domain if other else 'the enemy'}.", [a])
+            return True
         if r.random() < SERVICE_SKIRMISH:
             a.insight += SERVICE_INSIGHT
             self.log(f"{a.display()} rode with the levies of {polity.domain}"
@@ -2083,7 +2327,7 @@ class World:
         r = self.rng
         # A vengeful agent with a ripe grudge seeks the enemy. A grudge
         # against a RULER is not settled with a duel — that is a revolt or
-        # an assassination, and both belong to session 6.
+        # an assassination (§9), and neither is settled with a duel.
         targets = [self.agents[i] for i, rel in a.rels.items()
                    if rel.kind in HOSTILE_KINDS and rel.intensity >= 3
                    and self.agents[i].alive and not self.agents[i].is_ruler()]
@@ -2276,7 +2520,11 @@ class World:
 
     def _event_phase(self):
         self._politics_phase()
+        self._war_phase()           # §9: campaigns first — they set at_war
+        self._revolt_phase()
+        self._maybe_assassinate()
         self._maybe_usurp()
+        self._sect_year()           # §11: the head's character on the sect
         self._petition_phase()
         if self.year % TOURNAMENT_PERIOD == 0:
             self._tournament()
@@ -2309,8 +2557,7 @@ class World:
         if leader.age >= NEGLECT_AGE_FRACTION * leader.lifespan:
             scores["NEGLECTFUL"] += NEGLECT_AGE_SCORE
         # An angry country hardens a ruler who was already hard; a decent one
-        # answers it with bread, not the headsman. (Until session 6's revolts
-        # spend it, unrest is a pressure gauge that only a succession eases.)
+        # answers it with bread, not the headsman.
         if polity.unrest >= CRACKDOWN_UNREST and scores["CRUEL"] > 0:
             scores["CRUEL"] += CRACKDOWN_SCORE
         if leader.resources <= POOR_TREASURY:
@@ -2478,7 +2725,8 @@ class World:
         """A vassal keeps the tribute and sends no explanation with it.
 
         This is the betrayal §4 names as one of the few adversities a throne
-        can actually learn from — and the seam session 6 grows a war out of.
+        can actually learn from, and the quarrel a war of vassalage (§9)
+        is declared over.
         """
         r = self.rng
         rel = lord.rels.get(liege_lord.aid)
@@ -2494,6 +2742,9 @@ class World:
         liege.unrest = min(UNREST_MAX, liege.unrest + DEFIANCE_UNREST)
         self._add_grudge(liege_lord, lord, 2)
         self._governance_insight(liege_lord, "betrayal")
+        # An open quarrel, remembered: this is what a war of vassalage is
+        # declared over (§9), for as long as the liege keeps caring.
+        vassal.defiance_year = self.year
         self.log(f"{self.ruler_ref(lord)} sent no tribute to the "
                  f"{liege.name} this year, and no explanation with it; "
                  f"{self.ruler_ref(liege_lord)} learned what a vassal's word "
@@ -2527,8 +2778,7 @@ class World:
         lapsed = len(polity.edicts)
         polity.edicts = []
         # A new face on the seat buys a honeymoon; the country remembers the
-        # rest. (Until session 6, this and a benevolent year are the only
-        # things that spend unrest.)
+        # rest.
         polity.unrest = max(0, polity.unrest // 2 - SUCCESSION_UNREST_RELIEF)
         polity.last_facets = ()
         polity.leader = None
@@ -2613,8 +2863,8 @@ class World:
         """§4: the only insight a throne earns. A raid it could not punish, a
         vassal's word broken, an attempt on the seat survived, the seat lost.
         The event that caused it writes its own line; this only banks what the
-        ruler learned. (Session 6 adds the two largest: a revolt survived and
-        a war lost.)"""
+        ruler learned. The two largest are a revolt survived and a war lost.
+        """
         if a is None or not a.alive:
             return
         a.insight += GOVERNANCE_INSIGHT.get(kind, 0)
@@ -2681,6 +2931,9 @@ class World:
             winner, loser = ((claimant, other) if clout(claimant) >= clout(other)
                              else (other, claimant))
             self._seat(polity, winner)
+            # §9: a court that had to settle a claim by acclamation is a court
+            # the neighbours look at. The war scan reads this.
+            polity.crisis_year = self.year
             self._add_grudge(loser, winner, 3)
             self.log(f"{winner.display()} of {winner.sect}, "
                      f"{winner.realm_name}, took the seat of the "
@@ -2689,10 +2942,6 @@ class World:
                      f"notables, who withdrew nursing a grudge.{tail}",
                      [winner, loser], dramatic=True, place=polity.seat,
                      world_event=polity.is_sovereign())
-            # A claim lost in the audience hall is what a coup or a war of
-            # succession grows out of — session 6 escalates it; for now the
-            # grudge, and what being passed over makes of a schemer, are the
-            # whole consequence.
             self._mutate(loser, "passed_over")
             return True
 
@@ -2907,6 +3156,730 @@ class World:
         self._polity_succession(polity, a, cause="abdication")
         self._step_down(a, "laid down")
         self._after_the_throne(a, "having laid down", polity)
+
+    # -- consequences: revolts (§9) -----------------------------------------
+
+    def _revolt_phase(self):
+        """The valve unrest never had.
+
+        Everything else in this layer pushes unrest up — cruelty, edicts,
+        levies, a petition answered, a vassal's defiance — and until now only
+        a funeral spent it, so bad courts simply pinned at the cap. Over the
+        threshold, a country can rise in any year. Vassals rise as readily as
+        sovereigns; only a sovereign's rising is world news (§12).
+        """
+        r = self.rng
+        for polity in self.ruling_polities():
+            if polity.unrest <= REVOLT_THRESHOLD:
+                continue
+            leader = self.leader_of(polity)
+            if leader is None or not leader.alive:
+                continue
+            over = polity.unrest - REVOLT_THRESHOLD
+            if r.random() < REVOLT_CHANCE_PER_UNREST * over:
+                self._revolt(polity, leader)
+
+    def _revolt_champion(self, polity: Polity,
+                         leader: Agent) -> Optional[Agent]:
+        """§9: a living cultivator with a grudge against the ruler, or a
+        Righteous one whose home lies in the territory. Nobody else has any
+        business at the head of somebody else's rising."""
+        r = self.rng
+        pool, weights = [], []
+        for a in self.cultivators():
+            if a.age < REVOLT_MIN_AGE or a.realm < REVOLT_MIN_REALM:
+                continue
+            native = a.home is not None and self.polity_at(a.home) is polity
+            rel = a.rels.get(leader.aid)
+            grudge = rel is not None and rel.kind in HOSTILE_KINDS
+            if not (grudge or (native and a.has_trait("Righteous"))):
+                continue
+            w = sum(m for t, m in REVOLT_TRAIT_WEIGHTS.items()
+                    if a.has_trait(t))
+            if native:
+                w += REVOLT_HOME_WEIGHT
+            if grudge:
+                w += REVOLT_GRUDGE_WEIGHT * rel.intensity
+            if w <= 0:
+                continue
+            pool.append(a)
+            weights.append(w)
+        if not pool or r.random() >= REVOLT_CHAMPION_CHANCE:
+            return None
+        return r.choices(pool, weights)[0]
+
+    @staticmethod
+    def _of_sect(a: Agent) -> str:
+        return f" of {a.sect}" if a.sect else ""
+
+    def _revolt(self, polity: Polity, leader: Agent):
+        """One rising, settled by the tyranny of realms like everything else.
+
+        A mortal tyrant falls to any Foundation Establishment champion. A
+        cultivator-king does not fall at all — he turns the same rising into a
+        massacre, and the country pays for having tried.
+        """
+        r = self.rng
+        champion = self._revolt_champion(polity, leader)
+        world = polity.is_sovereign()
+        # These lines all name the domain themselves, so the ruler is named
+        # without it: "the villages of the Wolf Steppe rose against Khan X".
+        ref = self.ruler_short(leader)
+
+        if champion is not None:
+            # The tyranny of realms, in both directions: a realm over the seat
+            # and the tyrant falls; a realm under it and a whole country at
+            # your back is still not enough; two under and there is no contest
+            # at all, only a massacre with a name at the front of it.
+            gap = champion.realm - leader.realm
+            if gap >= REVOLT_GAP_CERTAIN:
+                chance = 1.0
+            elif gap == 1:
+                chance = REVOLT_GAP_ODDS
+            elif gap <= -REVOLT_GAP_CERTAIN:
+                chance = 0.0
+            elif gap == -1:
+                chance = REVOLT_UNDER_ODDS
+            else:
+                opposition = (REVOLT_GUARD
+                              + REVOLT_GUARD_PER_REALM * (leader.realm - 1)
+                              + REVOLT_GUARD_PER_ARMY * polity.army)
+                strength = (champion.power()
+                            + REVOLT_UNREST_HELP * polity.unrest)
+                chance = max(REVOLT_ODDS[0],
+                             min(REVOLT_ODDS[1],
+                                 strength / (strength + opposition)))
+            self.log(f"The {polity.word()} villages of {polity.domain} rose "
+                     f"against {ref}, and {champion.display()}"
+                     f"{self._of_sect(champion)}, {champion.realm_name}, rode "
+                     f"at the head of them.", [leader, champion],
+                     dramatic=True, place=polity.seat, world_event=world)
+        else:
+            # A mob is a mob. It can pull down a mortal magistrate and it can
+            # do nothing whatever about a cultivator on a seat.
+            chance = min(0.6, REVOLT_MOB_ODDS
+                         + REVOLT_MOB_PER_UNREST * polity.unrest)
+            if leader.realm > 1:
+                chance = 0.0
+            self.log(f"The {polity.word()} villages of {polity.domain} rose "
+                     f"against {ref} with nobody at their head.", [leader],
+                     dramatic=True, place=polity.seat, world_event=world)
+
+        polity.army = max(0, int(polity.army * (1 - REVOLT_ARMY_LOSS)))
+        if r.random() < chance:
+            self._revolt_won(polity, leader, champion)
+        else:
+            self._revolt_crushed(polity, leader, champion)
+
+    def _revolt_won(self, polity: Polity, leader: Agent,
+                    champion: Optional[Agent]):
+        """The seat falls. Empty it FIRST, so what happens to its holder next
+        is a death and not a second succession."""
+        r = self.rng
+        world = polity.is_sovereign()
+        ref = self.ruler_short(leader)
+        self._step_down(leader, "was thrown down from")
+        polity.leader = None
+        polity.edicts = []
+        polity.unrest = 0
+        polity.last_facets = ()
+        polity.style = STYLE_QUIET
+        polity.crisis_year = self.year      # a new court is prey (§9, war)
+        # The granaries come open the week the seat falls; a country that has
+        # just thrown a tyrant down eats better for a season.
+        self._shift_prosperity(polity, REVOLT_RELIEF)
+
+        crowned = None
+        if champion is not None:
+            champion.karma += REVOLT_KARMA          # §7: liberation
+            champion.standing += PETITION_STANDING
+            if TYRANT_BREAKER not in champion.epithets:
+                champion.epithets.append(TYRANT_BREAKER)
+            refuse = REVOLT_REFUSE_BASE
+            refuse += sum(v for t, v in INVITE_REFUSE_TRAITS.items()
+                          if champion.has_trait(t))
+            refuse -= sum(v for t, v in INVITE_ACCEPT_TRAITS.items()
+                          if champion.has_trait(t))
+            refuse += INVITE_REFUSE_PER_REALM * (champion.realm
+                                                 - INVITE_MIN_REALM)
+            if r.random() >= max(0.05, min(0.95, refuse)):
+                crowned = champion
+                self._seat(polity, champion)
+                self.log(f"{champion.display()}{self._of_sect(champion)}, "
+                         f"{champion.realm_name}, threw down {ref} and was "
+                         f"raised to the seat of the {polity.name} by the "
+                         f"country that rose with them "
+                         f"[epithet: {TYRANT_BREAKER}].",
+                         [champion], dramatic=True, place=polity.seat,
+                         world_event=world)
+            else:
+                champion.thrones_refused += 1
+                self.log(f"{champion.display()}{self._of_sect(champion)} "
+                         f"threw down {ref} and would not take the seat after "
+                         f"it [epithet: {TYRANT_BREAKER}].", [champion],
+                         dramatic=True, place=polity.seat, world_event=world)
+        if crowned is None:
+            heir = self._install_ruler(polity, age=r.randint(*HEIR_AGE))
+            self.log(f"{self.ruler_ref(heir)}, a notable of {polity.domain}, "
+                     f"was raised to the seat of the {polity.name} by the "
+                     f"risen villages.", [heir], place=polity.seat,
+                     world_event=world)
+
+        kill_chance = REVOLT_KILL_CHANCE
+        if champion is not None:
+            if champion.has_trait("Ruthless"):
+                kill_chance = REVOLT_KILL_RUTHLESS
+            if champion.has_trait("Righteous"):
+                kill_chance = REVOLT_KILL_RIGHTEOUS
+        if r.random() < kill_chance:
+            if champion is not None:
+                self._karma_kill(champion, leader)   # §7: the realms decide
+            self.log(f"{ref} did not live out the rising in "
+                     f"{polity.domain}.",
+                     [leader], dramatic=True, place=polity.seat,
+                     world_event=world)
+            self.kill(leader, f"torn down with the seat of the {polity.name} "
+                              f"in the rising of {polity.domain}",
+                      killer=champion)
+            return
+        if champion is not None:
+            champion.karma += KARMA_SPARE            # §7: a beaten foe spared
+        self._governance_insight(leader, "revolt")
+        self._after_the_throne(leader, "thrown down from", polity)
+
+    def _revolt_crushed(self, polity: Polity, leader: Agent,
+                        champion: Optional[Agent]):
+        """The rising fails — and how badly depends entirely on what is
+        sitting on the seat. A mortal court hangs the ringleaders. A
+        cultivator-king walks into the crowd himself."""
+        r = self.rng
+        world = polity.is_sovereign()
+        ref = self.ruler_short(leader)
+        champ_realm = champion.realm if champion is not None else 1
+        massacre = leader.realm > champ_realm
+        self._governance_insight(leader, "revolt")
+
+        # Who it reached: a cultivator born in that country whose own people
+        # were among the ones left in the road. Not every native — the sim
+        # does not track where anybody is standing, so the coin decides
+        # whether the rising took their village or the next one over.
+        witnesses = []
+        for a in self.cultivators():
+            if a.home is None or self.polity_at(a.home) is not polity:
+                continue
+            if champion is not None and a.aid == champion.aid:
+                continue
+            if r.random() >= REVOLT_WITNESS_CHANCE:
+                continue
+            witnesses.append(a)
+
+        if massacre:
+            self._shift_prosperity(polity, MASSACRE_PROSPERITY)
+            leader.karma += MASSACRE_KARMA
+            leader.extraction_years += 2
+            polity.unrest = max(0, polity.unrest - MASSACRE_UNREST)
+            for a in witnesses:
+                a.insight += MASSACRE_INSIGHT
+                self._add_grudge(a, leader, MASSACRE_GRUDGE)
+            dead = r.randint(*MASSACRE_DEAD)
+            self.log(f"{ref}, {leader.realm_name}, went into the risen "
+                     f"villages of {polity.domain} in person; some {dead:,} "
+                     f"were killed and the country is {polity.word()} after "
+                     f"it (survivors +insight, grudges).",
+                     [leader] + witnesses, dramatic=True, place=polity.seat,
+                     world_event=world)
+        else:
+            leader.karma += KARMA_KILL_DEFENSELESS
+            self._shift_prosperity(polity, REVOLT_FAIL_PROSPERITY)
+            polity.unrest = max(0, polity.unrest - REVOLT_FAIL_UNREST)
+            for a in witnesses:
+                a.insight += REVOLT_INSIGHT
+                self._add_grudge(a, leader, 1)
+            self.log(f"The rising in {polity.domain} was broken up by the "
+                     f"levies of {ref}; the ringleaders were hanged along the "
+                     f"roads (survivors +insight).", [leader] + witnesses,
+                     dramatic=True, place=polity.seat, world_event=world)
+
+        if champion is None:
+            return
+        champion.insight += REVOLT_FAIL_INSIGHT
+        champion.burden += 1
+        self._add_grudge(champion, leader, 3)
+        self._add_grudge(leader, champion, 2)
+        death = REVOLT_FAIL_DEATH * (2.0 if massacre else 1.0)
+        if r.random() < death:
+            # §7: they died standing in front of somebody else's villages.
+            self._fell_defending(champion, f"the villages of {polity.domain}")
+            self.log(f"{champion.display()} was taken alive at the end of the "
+                     f"rising in {polity.domain} and killed in front of the "
+                     f"country they had raised.", [champion, leader],
+                     dramatic=True, place=polity.seat, world_event=world)
+            self.kill(champion, f"executed by {ref} after the rising of "
+                                f"{polity.domain} failed", killer=leader)
+            return
+        self.log(f"{champion.display()} got out of {polity.domain} alive "
+                 f"after the rising failed, hunted and no longer welcome in "
+                 f"the country they raised (+insight).", [champion, leader],
+                 dramatic=True, place=polity.seat)
+        self._mutate(champion, "humiliated")
+
+    # -- consequences: assassination (§9) -----------------------------------
+
+    def _maybe_assassinate(self):
+        """§9: a deeply evil reign draws knives.
+
+        One roll a year across the whole world, against the blackest ledger on
+        any seat, which is what keeps knives rarer than risings (§13). The bar
+        is documented at ASSASSIN_KARMA: the rule facets move a ledger by a
+        point or two EVERY YEAR, so the spec's literal -4 would fire on every
+        disappointing king in the nine lands.
+        """
+        r = self.rng
+        marks = []
+        for polity in self.ruling_polities():
+            leader = self.leader_of(polity)
+            if leader is None or not leader.alive:
+                continue
+            if leader.karma > ASSASSIN_KARMA:
+                continue
+            marks.append((polity, leader))
+        if not marks:
+            return
+        polity, leader = r.choices(
+            marks, [float(-m[1].karma) for m in marks])[0]
+        chance = min(ASSASSIN_CHANCE_MAX,
+                     ASSASSIN_CHANCE + ASSASSIN_PER_KARMA
+                     * (ASSASSIN_KARMA - leader.karma))
+        if r.random() >= chance:
+            return
+
+        pool, weights = [], []
+        for a in self.cultivators():
+            if a.age < CLAIM_MIN_AGE:
+                continue
+            if abs(a.realm - leader.realm) > ASSASSIN_REALM_GAP:
+                continue
+            rel = a.rels.get(leader.aid)
+            if (rel is None or rel.kind not in HOSTILE_KINDS
+                    or rel.intensity < ASSASSIN_MIN_GRUDGE):
+                continue
+            w = (ASSASSIN_GRUDGE_WEIGHT * rel.intensity
+                 + sum(m for t, m in ASSASSIN_TRAIT_WEIGHTS.items()
+                       if a.has_trait(t)))
+            if w <= 0:
+                continue
+            pool.append(a)
+            weights.append(w)
+        if not pool:
+            return
+        knife = r.choices(pool, weights)[0]
+
+        odds = (ASSASSIN_BASE
+                + ASSASSIN_PER_REALM * (knife.realm - leader.realm)
+                - ASSASSIN_PER_ARMY * polity.army)
+        if leader.has_trait("Cautious"):
+            odds -= ASSASSIN_CAUTIOUS
+        odds = max(ASSASSIN_ODDS[0], min(ASSASSIN_ODDS[1], odds))
+        ref = self.ruler_ref(leader)
+        world = polity.is_sovereign()
+        where = polity.seat.name if polity.seat else polity.domain
+
+        if r.random() < odds:
+            knife.standing += 2
+            self._karma_kill(knife, leader)
+            self.log(f"{knife.display()}{self._of_sect(knife)} came over the "
+                     f"wall at {where} and killed {ref} in the sleeping "
+                     f"chamber; a black ledger had been a long time drawing "
+                     f"that knife.",
+                     [knife, leader], dramatic=True, place=polity.seat,
+                     world_event=world)
+            # kill() carries the succession: a corpse on the floor of the hall
+            # is still a vacancy, and the court fills it before morning.
+            self.kill(leader, f"murdered on the seat of the {polity.name} by "
+                              f"{knife.display()}", killer=knife)
+            return
+
+        knife.insight += ASSASSIN_FAIL_INSIGHT
+        self._add_grudge(leader, knife, 3)
+        polity.unrest = min(UNREST_MAX, polity.unrest + ASSASSIN_UNREST)
+        self._governance_insight(leader, "assassination")
+        if r.random() < ASSASSIN_CAUGHT:
+            self.log(f"{knife.display()} was taken in the grounds of "
+                     f"{where} with a knife meant for {ref}.", [knife, leader],
+                     dramatic=True, place=polity.seat, world_event=world)
+            self.kill(knife, f"executed for an attempt on {ref}", killer=leader)
+            return
+        self.log(f"An attempt was made on {ref} and failed; the court did "
+                 f"not learn whose hand it was, and "
+                 f"{self.ruler_short(leader)} has slept badly since "
+                 f"(+insight).", [knife, leader], dramatic=True,
+                 place=polity.seat, world_event=world)
+
+    # -- consequences: war (§9) ---------------------------------------------
+
+    def _war_of(self, polity: Polity) -> Optional[War]:
+        for war in self.wars:
+            if polity.pid in (war.attacker, war.defender):
+                return war
+        return None
+
+    def _war_phase(self):
+        for war in list(self.wars):
+            self._war_year(war)
+        self._maybe_declare_war()
+
+    def _maybe_declare_war(self):
+        """§9: between edge-adjacent sovereigns, and rarely across a corner.
+
+        Started by a restless ruler with an army to spend; a court left weak
+        by a contested succession is what one of them looks at, and a vassal
+        that has kept the tribute one year too many is the other.
+        """
+        r = self.rng
+        if r.random() >= WAR_CHANCE:
+            return
+        busy = set()
+        for war in self.wars:
+            busy.add(war.attacker)
+            busy.add(war.defender)
+        options, weights = [], []
+        for polity in self.ruling_polities():
+            if polity.pid in busy or polity.army < WAR_MIN_ARMY:
+                continue
+            leader = self.leader_of(polity)
+            if leader is None or not leader.alive:
+                continue
+            appetite = sum(m for t, m in WAR_TRAIT_WEIGHTS.items()
+                           if leader.has_trait(t))
+            appetite += WAR_ARMY_WEIGHT * (polity.army - WAR_MIN_ARMY)
+            if appetite <= 0:
+                continue
+            # The seam: a liege brings a defiant vassal back under the oath.
+            for pid in polity.vassals:
+                vassal = self.polities.get(pid)
+                if vassal is None or pid in busy:
+                    continue
+                if vassal.defiance_year is None:
+                    continue
+                if self.year - vassal.defiance_year > DEFIANCE_MEMORY:
+                    continue
+                vlord = self.leader_of(vassal)
+                if vlord is None or not vlord.alive:
+                    continue
+                options.append((polity, vassal, "vassalage"))
+                weights.append(appetite + WAR_DEFIANCE_WEIGHT)
+            if not polity.is_sovereign():
+                continue
+            for strong in (True, False):
+                lands = self.neighbors(polity.land, strong=strong)
+                for other in self.sovereigns():
+                    if other.pid in busy or other.pid == polity.pid:
+                        continue
+                    if other.land not in lands:
+                        continue
+                    olord = self.leader_of(other)
+                    if olord is None or not olord.alive:
+                        continue
+                    w = appetite
+                    if (other.crisis_year is not None
+                            and self.year - other.crisis_year
+                            <= WAR_CRISIS_YEARS):
+                        w += WAR_CRISIS_WEIGHT
+                    w += WAR_WEAK_PREY * max(0, leader.realm - olord.realm)
+                    if not strong:
+                        w *= WAR_CORNER_CHANCE
+                    if w <= 0:
+                        continue
+                    options.append((polity, other, "conquest"))
+                    weights.append(w)
+        if not options:
+            return
+        attacker, defender, kind = r.choices(options, weights)[0]
+        self._declare_war(attacker, defender, kind)
+
+    def _declare_war(self, attacker: Polity, defender: Polity, kind: str):
+        r = self.rng
+        war = War(attacker=attacker.pid, defender=defender.pid,
+                  year=self.year, length=r.randint(*WAR_LENGTH), kind=kind)
+        war.score = {attacker.pid: 0.0, defender.pid: 0.0}
+        war.enlisted = {attacker.pid: [], defender.pid: []}
+        self.wars.append(war)
+        attacker.at_war = True
+        defender.at_war = True
+        att_lord = self.leader_of(attacker)
+        def_lord = self.leader_of(defender)
+        lines = (WAR_VASSAL_DECLARE_LINES if kind == "vassalage"
+                 else WAR_DECLARE_LINES)
+        self._add_grudge(def_lord, att_lord, 3)
+        self.log(r.choice(lines).format(att=self.ruler_ref(att_lord),
+                                        def_dom=defender.domain,
+                                        def_ruler=self.ruler_ref(def_lord)),
+                 [att_lord, def_lord], dramatic=True, place=defender.seat,
+                 world_event=True)
+
+    def _war_year(self, war: War):
+        """One campaigning season, resolved abstractly.
+
+        The armies are numbers, and the conscripts who die by the thousand are
+        chronicle colour — they were never agents. The cultivators who rode to
+        it are agents, and the battlefield treats them exactly as the wilds do.
+        """
+        r = self.rng
+        att = self.polities.get(war.attacker)
+        dfn = self.polities.get(war.defender)
+        if att is None or dfn is None:
+            self._close_war(war)
+            return
+        att_lord = self.leader_of(att)
+        def_lord = self.leader_of(dfn)
+        if not (att_lord and att_lord.alive and def_lord and def_lord.alive):
+            # A war does not outlive the court that wanted it.
+            self._close_war(war)
+            self.log(f"The war over {dfn.domain} came apart unfinished when "
+                     f"one of the two seats fell vacant; the armies went "
+                     f"home.", [], world_event=True)
+            return
+        war.fought += 1
+        war.score[att.pid] += att.army + WAR_RULER_SCORE * (att_lord.realm - 1)
+        war.score[dfn.pid] += dfn.army + WAR_RULER_SCORE * (def_lord.realm - 1)
+        for polity, drop in ((att, WAR_PROSPERITY_ATT),
+                             (dfn, WAR_PROSPERITY_DEF)):
+            self._shift_prosperity(polity, drop)
+            polity.unrest = min(UNREST_MAX, polity.unrest + WAR_UNREST)
+            polity.army = max(0, int(polity.army
+                                     * (1 - r.uniform(*WAR_ARMY_LOSS))))
+        self._battle(war, att, dfn.domain)
+        self._battle(war, dfn, dfn.domain)
+        dead = r.randint(*WAR_CONSCRIPTS_DEAD)
+        self.log(r.choice(WAR_CAMPAIGN_LINES).format(def_dom=dfn.domain,
+                                                     dead=f"{dead:,}"),
+                 [], place=dfn.seat, world_event=True)
+        if war.fought >= war.length:
+            self._end_war(war, att, dfn, att_lord, def_lord)
+
+    def _battle(self, war: War, polity: Polity, over: str):
+        """What the year did to the cultivators who signed on with this side."""
+        r = self.rng
+        riders = [self.agents[aid] for aid in war.enlisted.get(polity.pid, [])
+                  if self.agents[aid].alive]
+        war.enlisted[polity.pid] = []
+        for a in riders:
+            war.veterans.add(a.aid)
+            war.score[polity.pid] += WAR_CULTIVATOR_SCORE * a.power()
+            if r.random() < WAR_BATTLE_DEATH / a.realm:
+                self.log(f"{a.display()} was killed in the fighting over "
+                         f"{over}, one name in a casualty roll of thousands.",
+                         [a], dramatic=True, place=polity.seat)
+                self.kill(a, f"killed in the war over {over}")
+                continue
+            a.insight += WAR_BATTLE_INSIGHT
+            if r.random() < WAR_SPOILS_CHANCE:
+                a.resources += (r.randint(*WAR_BATTLE_SPOILS)
+                                + self._vice_spoils(a))
+                tail = "and took a share of what the army carried off"
+                gain = " (+insight, +resources)"
+            else:
+                tail = "and came out of it with nothing but what they learned"
+                gain = " (+insight)"
+            self.log(f"{a.display()} came through a campaigning season over "
+                     f"{over} {tail}{gain}.", [a])
+            self._mutate(a, "near_death")
+
+    def _close_war(self, war: War):
+        if war in self.wars:
+            self.wars.remove(war)
+        for pid in (war.attacker, war.defender):
+            polity = self.polities.get(pid)
+            if polity is not None:
+                polity.at_war = self._war_of(polity) is not None
+
+    def _end_war(self, war: War, att: Polity, dfn: Polity,
+                 att_lord: Agent, def_lord: Agent):
+        r = self.rng
+        sa = war.score[att.pid] * (1 + r.uniform(-WAR_SCORE_NOISE,
+                                                 WAR_SCORE_NOISE))
+        sd = war.score[dfn.pid] * (1 + r.uniform(-WAR_SCORE_NOISE,
+                                                 WAR_SCORE_NOISE))
+        self._close_war(war)
+        years = self.years_phrase(war.fought)
+        if war.kind == "vassalage":
+            if sa >= sd:
+                dfn.defiance_year = None
+                dfn.unrest = min(UNREST_MAX, dfn.unrest + WAR_LOSER_UNREST)
+                paid = min(def_lord.resources, r.randint(*WAR_TRIBUTE))
+                def_lord.resources -= paid
+                att_lord.resources += paid
+                self._governance_insight(def_lord, "war_lost")
+                self.log(f"After {years}, {self.ruler_ref(def_lord)} came to "
+                         f"the camp of {self.ruler_ref(att_lord)} and swore "
+                         f"the old oath again, with the arrears of tribute "
+                         f"carried behind (+insight).",
+                         [att_lord, def_lord], dramatic=True,
+                         place=dfn.seat, world_event=True)
+                return
+            dfn.liege = None
+            dfn.defiance_year = None
+            if dfn.pid in att.vassals:
+                att.vassals.remove(dfn.pid)
+            att.unrest = min(UNREST_MAX, att.unrest + WAR_LOSER_UNREST)
+            self._governance_insight(att_lord, "war_lost")
+            self.log(f"After {years}, {self.ruler_ref(att_lord)} could not "
+                     f"bring {dfn.domain} back under the oath; the "
+                     f"{dfn.name} stands sovereign and pays nobody "
+                     f"(+insight).", [att_lord, def_lord], dramatic=True,
+                     place=dfn.seat, world_event=True)
+            return
+
+        winner, loser = (att, dfn) if sa >= sd else (dfn, att)
+        win_lord = att_lord if winner is att else def_lord
+        lose_lord = def_lord if winner is att else att_lord
+        loser.unrest = min(UNREST_MAX, loser.unrest + WAR_LOSER_UNREST)
+        loser.crisis_year = self.year
+        self._governance_insight(lose_lord, "war_lost")
+        self._shift_prosperity(winner, WAR_WINNER_PROSPERITY)
+        win_lord.standing += 2
+
+        outcomes = dict(WAR_OUTCOME_WEIGHTS)
+        if not (loser.is_sovereign() and winner.is_sovereign()
+                and loser.liege is None):
+            outcomes.pop("vassalage", None)
+        region = self._cedable_region(loser)
+        if region is None:
+            outcomes.pop("region", None)
+        keys = list(outcomes)
+        outcome = r.choices(keys, [outcomes[k] for k in keys])[0]
+
+        if outcome == "vassalage":
+            loser.liege = winner.pid
+            winner.vassals.append(loser.pid)
+            self.log(f"After {years}, {self.ruler_ref(lose_lord)} knelt to "
+                     f"{self.ruler_ref(win_lord)}; the {loser.name} is a "
+                     f"vassal of the {winner.name} and pays tribute to it "
+                     f"(+insight).", [win_lord, lose_lord], dramatic=True,
+                     place=loser.seat, world_event=True)
+        elif outcome == "region":
+            loser.territory.remove(region)
+            winner.territory.append(region)
+            region.polity = winner.pid
+            winner.army += len(region.settlements())
+            self.log(f"After {years}, the {region.name} was cut out of "
+                     f"{loser.domain} and added to the {winner.name}; the "
+                     f"villages there pay their hearth-tax to "
+                     f"{self.ruler_ref(win_lord)} now (+insight).",
+                     [win_lord, lose_lord], dramatic=True, place=region,
+                     world_event=True)
+        else:
+            paid = min(lose_lord.resources, r.randint(*WAR_TRIBUTE))
+            lose_lord.resources -= paid
+            win_lord.resources += paid
+            self.log(f"After {years}, {self.ruler_ref(lose_lord)} bought the "
+                     f"armies of {self.ruler_ref(win_lord)} out of "
+                     f"{loser.domain} with the treasury and what could be "
+                     f"raised on top of it (+insight).",
+                     [win_lord, lose_lord], dramatic=True, place=loser.seat,
+                     world_event=True)
+
+    def _cedable_region(self, polity: Polity) -> Optional[Place]:
+        """A piece of a country that can change hands: anything in the
+        territory that does not hold the seat."""
+        if len(polity.territory) < 2:
+            return None
+        options = [p for p in polity.territory
+                   if polity.seat is not p
+                   and polity.seat not in p.settlements()
+                   and p.settlements()]
+        return self.rng.choice(options) if options else None
+
+    # -- sects under the politics layer (§11) --------------------------------
+
+    def _sect_year(self):
+        """§11: headship is rulership-lite, and it shows in the accounts.
+
+        The head's character tilts the sect's richness multiplier a few points
+        either way — that multiplier is what every disciple's cultivation year
+        is measured in — and drifts the juniors' standing with it. Nothing
+        here asks whether anyone is the villain: it counts the same two trait
+        sets karma counts, and the arithmetic does the rest.
+        """
+        r = self.rng
+        for sect, base in self.sect_base.items():
+            head = self.agents.get(self.sect_heads.get(sect))
+            tilt = 0.0
+            if head is not None and head.alive:
+                virtue = sum(1 for t in head.traits if t in VIRTUE_TRAITS)
+                vice = sum(1 for t in head.traits if t in VICE_TRAITS)
+                tilt = max(-SECT_TILT_CAP,
+                           min(SECT_TILT_CAP,
+                               SECT_TILT_PER_TRAIT * (virtue - vice)))
+            self.sects[sect] = base * (1.0 + tilt)
+            if tilt == 0 or head is None or not head.alive:
+                continue
+            step = 1 if tilt > 0 else -1
+            for a in self.cultivators():
+                if (a.sect != sect or a.aid == head.aid
+                        or a.realm > SECT_JUNIOR_REALM or a.age < 14):
+                    continue
+                if r.random() < SECT_STANDING_DRIFT:
+                    a.standing = max(0, a.standing + step)
+
+    def _maybe_defect(self, a: Agent) -> bool:
+        """§11: under a vice-heavy head, the Righteous and the Humble leave.
+
+        A defection is a voluntary exit that does NOT end a career — the
+        defector goes on cultivating in somebody else's colours — and it seeds
+        exactly the cross-sect grudge the feud arithmetic is already counting,
+        which is how a bad headship becomes a sect war two decades later.
+        """
+        r = self.rng
+        if not a.sect or a.age < DEFECT_MIN_AGE or a.realm < DEFECT_MIN_REALM:
+            return False
+        head = self.agents.get(self.sect_heads.get(a.sect))
+        if head is None or not head.alive or head.aid == a.aid:
+            return False
+        vice = sum(1 for t in head.traits if t in VICE_TRAITS)
+        if not vice:
+            return False
+        rel = a.rels.get(head.aid)
+        grudge = rel is not None and rel.kind in HOSTILE_KINDS
+        upright = any(a.has_trait(t) for t in DEFECT_TRAITS)
+        if not upright and not (grudge and r.random() < DEFECT_GRUDGE_CHANCE):
+            return False
+        if r.random() >= DEFECT_CHANCE * vice:
+            return False
+        options, weights = [], []
+        for sect in self.sects:
+            if sect == a.sect:
+                continue
+            other = self.agents.get(self.sect_heads.get(sect))
+            w = 1.0
+            if other is not None and other.alive:
+                w += sum(1 for t in other.traits if t in VIRTUE_TRAITS)
+                w -= 0.5 * sum(1 for t in other.traits if t in VICE_TRAITS)
+            options.append(sect)
+            weights.append(max(0.2, w))
+        if not options:
+            return False
+        new = r.choices(options, weights)[0]
+        old = a.sect
+        a.sect = new
+        a.standing = max(0, a.standing - DEFECT_STANDING_COST)
+        self._add_grudge(a, head, DEFECT_GRUDGE)
+        self._add_grudge(head, a, 1)
+        self.log(r.choice(DEFECT_LINES).format(
+            who=a.display(), old=old, new=new, head=head.display()),
+            [a, head], dramatic=(a.realm >= 3 or head.realm >= FAME_REALM))
+        if r.random() < DEFECT_WELCOME_CHANCE:
+            peers = [o for o in self.cultivators()
+                     if o.sect == new and o.aid != a.aid
+                     and abs(o.realm - a.realm) <= 1]
+            if peers:
+                other = r.choice(peers)
+                self._bind(a, other, "ally", 2)
+                self.log(f"{other.display()} of {new} stood surety for "
+                         f"{a.display()} against the elders of {old}.",
+                         [a, other])
+        self._update_sect_heads()
+        return True
 
     # -- petitions: the sect/polity interface (§9) ---------------------------
 
@@ -3308,6 +4281,9 @@ class World:
         if a.is_ruler():
             # A throne has its own exit, and it is not this one.
             self._maybe_abdicate(a)
+            return
+        # §11: the exit that is not an exit — a defector keeps cultivating.
+        if self._maybe_defect(a):
             return
         chance = 0.0
         if a.realm == 1 and a.age > 30 and a.talent <= 4:
