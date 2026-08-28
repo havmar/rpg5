@@ -118,8 +118,13 @@ REALM_NAMES = {
 MAX_REALM = 6
 FAME_REALM = 4          # realm at which a character becomes a household name
 
-# Insight required to attempt the breakthrough OUT of each realm.
-INSIGHT_REQ = {1: 10, 2: 22, 3: 38, 4: 58, 5: 85}
+# Insight required to attempt the breakthrough OUT of each realm. The first
+# gate is deliberately WIDE and the rest narrow sharply: insight only ever
+# arrives through adversity, so a high first gate did not select for talent,
+# it just left two thirds of every intake stalled at Qi Condensation until
+# something on the road killed them. Part III's funnel is what these five
+# numbers are for.
+INSIGHT_REQ = {1: 3, 2: 28, 3: 32, 4: 52, 5: 80}
 
 BASE_LIFESPAN = 80
 LIFESPAN_PER_REALM = 45  # each realm past the first adds this many years
@@ -357,7 +362,23 @@ SETTLEMENT_KINDS = ("city", "town", "village")
 # back toward baseline. It is ALWAYS shown as a word, never a number.
 PROSPERITY_BASELINE = (4.0, 6.0)
 PROSPERITY_JITTER = 0.5
-PROSPERITY_DRIFT = 0.2
+# The drift is PROPORTIONAL to the distance from baseline (a fraction of the
+# gap per year), not a flat step. With a flat step the field was bang-bang:
+# any reign whose yearly pull beat the step ran its country to zero and
+# anything gentler pinned it exactly at baseline, so the map came out
+# starving-or-golden with nothing in between. Proportional recovery makes
+# prosperity a GRADED reading of whoever holds the seat — a country settles
+# at baseline + (yearly pull / PROSPERITY_RECOVERY), so one vice makes a
+# desperate land, two make a starving one, and a decent reign makes a
+# prosperous one.
+# It is also ASYMMETRIC: a ruined country climbs back toward its temper
+# faster than a rich one can be pushed past it. Ruin is easy to leave and
+# wealth is hard to reach, which is why a single vice on a seat makes a
+# desperate land, two make a starving one, and only a genuinely decent reign
+# — held for a generation — makes a prosperous one.
+PROSPERITY_RECOVERY = 0.22      # per year, per point BELOW the baseline
+PROSPERITY_SETTLING = 0.05      # ... and per point above it
+PROSPERITY_DRIFT_MIN = 0.02     # it never quite stops moving
 PROSPERITY_WORDS = [
     (2.0, "starving"), (4.0, "desperate"), (6.0, "modest"),
     (8.0, "comfortable"), (9.5, "prosperous"), (10.1, "golden"),
@@ -407,16 +428,17 @@ RULER_INCOME_RICH_AT = 6.0      # prosperity at which a country pays it
 
 # Worldgen rulers are ordinary Agents: sect-less mortals on the mortal clock.
 RULER_AGE = (28, 62)            # age of a ruler installed at worldgen
-HEIR_AGE = (20, 48)             # age of a courtier raised to a vacant seat
+HEIR_AGE = (32, 58)             # age of a courtier raised to a vacant seat
 RULER_REALM2_CHANCE = 0.15      # a sovereign with a cultivator ancestor
 RULER_RESOURCES = (6, 14)       # the treasury they sit on
 RULER_STANDING = (5, 9)
 # Court skew: thrones are not filled at random from the trait pool. The
 # ambitious end up near seats, and so do the people willing to use one.
-COURT_TRAIT_WEIGHTS = {"Power-Hungry": 3.0, "Proud": 2.5, "Righteous": 2.5,
-                       "Cruel": 2.0, "Charming": 1.6, "Greedy": 1.5,
-                       "Cold": 1.5, "Humble": 1.5, "Loyal": 1.5,
-                       "Bully": 1.5, "Bloodthirsty": 1.5, "Ruthless": 1.3}
+# §4 raises the odds of exactly three: the ambitious, the vain and the
+# dutiful. Weighting the other vices up as well (an earlier pass did) put a
+# Cruel or Bloodthirsty king on nearly every seat and left the whole map
+# starving, which §13 says it must not be.
+COURT_TRAIT_WEIGHTS = {"Power-Hungry": 3.0, "Proud": 2.5, "Righteous": 2.5}
 
 # --- VIRTUE, VICE AND KARMA (§7) -------------------------------------------
 # The moral sets. Greedy, Ruthless, Vengeful and Cold stay morally GRAY: no
@@ -505,7 +527,10 @@ RULE_FACET_TRAITS = {
 RULE_FACET_EFFECTS = {
     # prosperity per settlement, unrest, ruler karma, ruler standing,
     # ruler resources (a range), army (a range)
-    "BENEVOLENT":   {"prosperity": 0.4,  "unrest": 0, "karma": 1,
+    # Benevolence is priced a shade above §5's 0.4: a decent reign has to be
+    # able to outrun the settling rate far enough to make a land visibly
+    # PROSPEROUS, or §13's "at least one is prosperous-to-golden" never fires.
+    "BENEVOLENT":   {"prosperity": 0.5,  "unrest": 0, "karma": 1,
                      "standing": 1},
     "EXTRACTIVE":   {"prosperity": -0.5, "unrest": 0, "karma": -1,
                      "resources": (2, 4)},
@@ -520,7 +545,7 @@ STYLE_WORDS = {"BENEVOLENT": "benevolent", "EXTRACTIVE": "extractive",
 STYLE_QUIET = "quiet"
 MAX_FACETS_PER_YEAR = 2         # a reign has at most two moods at once
 NEGLECT_AGE = 70                # a MORTAL ruler past this age governs by
-NEGLECT_AGE_SCORE = 2           # absence (§5) — and a cultivator-king only
+NEGLECT_AGE_SCORE = 1           # absence (§5) — and a cultivator-king only
                                 # in the same last eighth of their own, far
                                 # longer, life. A Core Formation king of 90
                                 # is not a dotard.
@@ -534,9 +559,20 @@ UNREST_MAX = 12                 # the cap; revolts (§9) are what spends it
 UNREST_DECAY = 1                # a benevolent or quiet year settles the land
 SUCCESSION_UNREST_RELIEF = 2    # a new face on the seat buys a little peace
 CRUEL_GRUDGE_MAX = 5            # cap on a subject's grudge against their ruler
+# What a land still talks about. Risings, massacres and wars are filed here
+# as one concrete clause each, and "The State of the Nine Lands" (§12) reads
+# them back out at the end of a run.
+UPHEAVAL_MEMORY = 60            # years an upheaval stays within living memory
+UPHEAVAL_SHOWN = 2              # ... and how many of them a land is asked for
+# Unrest, in words, for the same report — the number never leaves the sheet.
+UNREST_WORDS = [(2, "quiet"), (5, "restive"), (9, "angry"),
+                (UNREST_MAX + 1, "one bad harvest from a rising")]
 # A ruler doing the same thing for thirty years is not news every year: a
 # facet writes a line when it is newly dominant, and only sometimes after.
 RULE_LINE_REPEAT_CHANCE = 0.2
+# A century-long reign draws on these every few years, so each pool is wide
+# enough that a reader following one country does not read the same four
+# sentences over and over.
 RULE_LINES = {
     "BENEVOLENT": [
         "{ruler} opened the granaries of {domain} through a hard winter.",
@@ -546,6 +582,18 @@ RULE_LINES = {
         "{domain} were whipped for false measures.",
         "{ruler} rebuilt the roads of {domain} and fed the work gangs at "
         "the crown's expense.",
+        "{ruler} bought grain abroad at a loss and sold it cheap in "
+        "{domain}; the treasury is thinner for it.",
+        "{ruler} had the boundary stones of {domain} reset and gave the "
+        "disputed strips to whoever had been ploughing them.",
+        "{ruler} pardoned the debtors of {domain} and burned the tally "
+        "sticks in the square.",
+        "{ruler} paid the bride-price of the poorest houses of {domain} "
+        "out of the crown's own purse.",
+        "{ruler} sat with the physicians through a fever season in "
+        "{domain} and buried the dead by name.",
+        "{ruler} dug wells the length of {domain} and charged nothing for "
+        "the water.",
     ],
     "EXTRACTIVE": [
         "{ruler} tripled the tax on herds and hearths; the villages of "
@@ -553,23 +601,56 @@ RULE_LINES = {
         "{ruler} seized the salt trade of {domain} for the treasury.",
         "{ruler} sold the harvest of {domain} abroad and kept the silver.",
         "{ruler} set a new toll on every bridge and ford in {domain}.",
+        "{ruler} called in every debt owed to the crown in {domain} at "
+        "once, and took land where there was no coin.",
+        "{ruler} farmed out the taxes of {domain} to bidders and asked no "
+        "questions about the collecting.",
+        "{ruler} took the temple plate of {domain} for the mint.",
+        "{ruler} declared the forests of {domain} crown land and fined "
+        "the villages for their own firewood.",
+        "{ruler} weighed the coin of {domain} short and spent it at full "
+        "value.",
     ],
     "CRUEL": [
         "{ruler} answered the complaints of {domain} with the headsman.",
         "{ruler} burned a village of {domain} for a rumour of sedition.",
         "{ruler} hung the tax-defaulters of {domain} along the roads.",
         "{ruler} took hostages from every house of note in {domain}.",
+        "{ruler} had the elders of a district of {domain} beaten in the "
+        "square for a petition badly worded.",
+        "{ruler} put out the eyes of a magistrate of {domain} for a "
+        "judgement that displeased the court.",
+        "{ruler} quartered the guard on {domain} and let them take what "
+        "they liked.",
+        "{ruler} kept the sons of {domain}'s notables at court, and made "
+        "sure the fathers knew why.",
+        "{ruler} drowned a village headman of {domain} for arriving late "
+        "with the tally.",
     ],
     "NEGLECTFUL": [
         "{ruler} let the granaries of {domain} stand unrepaired another year.",
         "{ruler} read no petition out of {domain} all year.",
         "{ruler} kept to the inner court while the roads of {domain} washed "
         "out.",
+        "{ruler} left the assize of {domain} unheld; the quarrels waited "
+        "another year, and some were settled with knives.",
+        "{ruler} left the seat of {domain} in the hands of stewards and "
+        "asked them nothing.",
+        "{ruler} let the river dikes of {domain} go one more season "
+        "without a work gang.",
+        "{ruler} did not once leave the capital; {domain} saw nothing of "
+        "its ruler all year.",
     ],
     "CONSCRIPTION": [
         "{ruler} called up the levies of {domain}; the fields went unsown.",
         "{ruler} took one man in five from the villages of {domain} for the "
         "muster.",
+        "{ruler} emptied the gaols of {domain} into the ranks and gave "
+        "them spears.",
+        "{ruler} set the smiths of {domain} to arrowheads and nothing "
+        "else all year.",
+        "{ruler} mustered the herdsmen of {domain} with their own horses "
+        "and did not say for how long.",
     ],
 }
 
@@ -616,6 +697,15 @@ MANDATE_CHANCE = 0.5            # a liege's edict reaching each vassal
 # all. Their realm still counts in full — that is exactly what keeps a Core
 # Formation king on his seat for a century. The only insight a throne earns is
 # bought with governance adversity.
+# How a reign began, kept on the agent and spent in the obituary: "Was King
+# of the Wolf Steppe for thirty-one years, raised to it by a rising, and was
+# thrown down from the seat in Y142."
+THRONE_CAME_CLAIM = "having claimed it at a vacancy"
+THRONE_CAME_CONTEST = "having claimed it over a rival"
+THRONE_CAME_INVITE = "invited to it by its own court"
+THRONE_CAME_USURP = "having taken it by force"
+THRONE_CAME_RISING = "raised to it by a rising"
+
 RULE_MILESTONE = 10             # a reign is remarked on every ten years
 RULE_LINE_CHANCE = 0.10         # ... and otherwise only now and then
 RULE_YEAR_LINES = [
@@ -629,6 +719,16 @@ RULE_YEAR_LINES = [
     "{ruler} kept the granary accounts of {domain} in person all year.",
     "{ruler} put down a quarrel between two houses of {domain} before it "
     "could become a blood feud.",
+    "{ruler} sat through the tax reckoning of {domain} and sent three "
+    "assessors away in irons.",
+    "{ruler} married a cousin of the house into a neighbouring court; "
+    "{domain} calls it a good year's work.",
+    "{ruler} rebuilt the walls of {seat} and made the merchants pay half.",
+    "{ruler} held a great hunt out of {seat}; the notables of {domain} "
+    "came, and so did their grievances.",
+    "{ruler} had the laws of {domain} read out in every market, most of "
+    "them for the first time in a generation.",
+    "{ruler} refused an embassy at {seat} and would not say why.",
 ]
 # The cultivation lock, said out loud once a decade: a cultivator on a throne
 # is a cultivator standing still.
@@ -641,11 +741,19 @@ RULE_LOCK_LINES = [
     "of governing has left that foundation exactly where it stood.",
     "{ruler} kept the seal of {domain} another ten years, and the sword in "
     "its wrappings; {years} on the seat and counting.",
+    "{ruler} has spent {years} settling other people's quarrels; the "
+    "cultivation of {sect} waits where it was left.",
+    "Another ten years of governing {domain} went by; {ruler} is "
+    "{years} older and not one breath further along the path.",
 ]
 RULE_MORTAL_LINES = [
     "{ruler} has held the seat of the {polity} for {years}.",
     "{ruler} completed {years} on the seat; {domain} has known no other "
     "hand for a generation.",
+    "{years} on the seat, and the assizes of {domain} still open in "
+    "{ruler}'s name.",
+    "The court at {seat} marked {years} of {ruler}'s rule; the older "
+    "stewards can remember no other.",
 ]
 # Insight bought with governance adversity, by kind. §4 names a revolt
 # survived and a war lost as the two largest, and they are priced that way:
@@ -682,11 +790,11 @@ CLAIM_GRUDGE = 2.0
 CLAIM_RIGHTEOUS = 3.5
 CLAIM_SUFFERING_AT = 4.0        # prosperity at or under which a land suffers
 CLAIM_SUFFERING_UNREST = 6      # ... or unrest at or over which it does
-CLAIM_REALM_DAMP = 0.40         # per realm above the second: the higher a
+CLAIM_REALM_DAMP = 0.50         # per realm above the second: the higher a
                                 # cultivator has climbed, the less a mortal
                                 # seat is worth stepping off the path for
 CLAIM_CHANCE_PER_POINT = 0.20
-CLAIM_CHANCE_MAX = 0.8
+CLAIM_CHANCE_MAX = 0.9
 CLAIM_CONTEST_CHANCE = 0.35     # two claims pressed at once
 CLAIM_CONTEST_STANDING = 2
 CLAIM_CONTEST_NOISE = 6.0
@@ -694,7 +802,7 @@ CLAIM_CONTEST_NOISE = 6.0
 # INVITATION AND REFUSAL. A court left in disarray looks outside for a ruler
 # and offers the seat to a famous or native cultivator — who is entirely free
 # to refuse it, and often does. Refusals are remembered in the obituary.
-INVITE_CHANCE = 0.18            # a heirless court looks outside at all
+INVITE_CHANCE = 0.28            # a heirless court looks outside at all
 INVITE_UNREST = 4               # an unquiet one looks harder
 INVITE_UNREST_BONUS = 0.18
 INVITE_MIN_REALM = 2
@@ -702,7 +810,7 @@ INVITE_MIN_STANDING = 8
 INVITE_NATIVE = 2.5
 INVITE_FAMOUS = 2.0
 INVITE_STANDING_WEIGHT = 0.4
-INVITE_REFUSE_BASE = 0.45
+INVITE_REFUSE_BASE = 0.35
 INVITE_REFUSE_TRAITS = {"Ascetic": 0.35, "Scholarly": 0.15, "Cold": 0.15,
                         "Humble": 0.15, "Reckless": 0.10}
 INVITE_ACCEPT_TRAITS = {"Power-Hungry": 0.40, "Greedy": 0.25, "Proud": 0.20,
@@ -746,13 +854,17 @@ DEFIANCE_MEMORY = 12            # years a kept tribute stays an open quarrel
 # walks back up the mountain with their qi exactly where they left it and a
 # world that has moved on without them.
 ABDICATE_MIN_REIGN = 6
-ABDICATE_TRAIT_CHANCE = 0.004    # an Ascetic or Broken ruler
+# These four were halved in the tuning pass: abdication was carrying half of
+# every exit from a throne, which left §13's "2-5% of a cohort ends its story
+# on a throne" short — most cultivator-kings were walking away from the seat
+# before it could kill them.
+ABDICATE_TRAIT_CHANCE = 0.002    # an Ascetic or Broken ruler
 ABDICATE_TRAITS = ("Ascetic", "Broken")
 ABDICATE_WEARY_AT = 0.80        # fraction of lifespan: old and weary
-ABDICATE_WEARY_CHANCE = 0.014
+ABDICATE_WEARY_CHANCE = 0.007
 ABDICATE_LONG_REIGN = 30
-ABDICATE_LONG_CHANCE = 0.003
-ABDICATE_CULTIVATOR_CHANCE = 0.002  # the mountain never stops calling
+ABDICATE_LONG_CHANCE = 0.0015
+ABDICATE_CULTIVATOR_CHANCE = 0.001  # the mountain never stops calling
 ABDICATE_MORTAL_MULT = 0.4      # a mortal notable has nowhere to go but
                                 # exile, and knows it; the mountain is only
                                 # waiting for the cultivator
@@ -955,6 +1067,12 @@ ADVENTURE_HOME_BOOST = 1.5      # the roads a cultivator already knows
 ROAD_HARD_AT = 3.5              # destination prosperity: below this, misruled
 ROAD_RICH_AT = 7.0              # ... and at or above this, golden
 ADVENTURE_RISK_SHIFT = {"harsh": -0.06, "settled": 0.0, "rich": 0.05}
+# The two bad bands of the road roll. The grave is divided by the traveller's
+# realm — the wilds threaten the strong far less — and both are what the
+# funnel is most sensitive to: adventure is where the insight is, so a first
+# realm that has to go looking for it is also the realm that dies out there.
+ADVENTURE_DEATH = 0.015
+ADVENTURE_NEAR_DEATH = 0.11
 ADVENTURE_RESCUE_KARMA = KARMA_RESCUE   # §7: rescue or liberation
 ADVENTURE_RESCUE_CHANCE = 0.5   # ... the rest of the time they only witness it
 ADVENTURE_PATRON_CHANCE = 0.4   # a rich land's spoils come with a name attached
@@ -1361,8 +1479,12 @@ class Agent:
     standing: int = 1
     ruling: Optional[int] = None      # pid of the polity they rule, or None
     reign_start: Optional[int] = None
+    reign_came: str = ""              # how they came to the seat they hold
     past_reigns: list = field(default_factory=list)  # seats held and laid down
     thrones_refused: int = 0          # §4: offers turned down, for the obituary
+    revolts_survived: int = 0         # risings put down while on the seat
+    wars_won: int = 0                 # campaigns fought from a throne, and
+    wars_lost: int = 0                # ... the ones that came home beaten
     extraction_years: int = 0         # years of taking — the corruption clock
     karma: int = 0                    # §7: seeded from traits, moved by deeds
     defended: str = ""                # what they died in defence of, if any
@@ -1447,8 +1569,10 @@ class World:
         # The contact surface: open pleas, and when each village last begged.
         self.petitions: list = []
         self._petition_seen: dict[int, int] = {}   # place pid -> year
-        # Consequences (§9): the campaigns currently being fought.
+        # Consequences (§9): the campaigns currently being fought, and what
+        # the lands still remember of the ones that are over.
         self.wars: list = []
+        self.upheavals: list = []   # (year, land name, one clause)
         self._setup()
 
     # -- geography ----------------------------------------------------------
@@ -2277,9 +2401,9 @@ class World:
         # golden one.
         roll = (r.random() + a.fortune * FORTUNE_WEIGHT
                 + self._karma_tilt(a) + ADVENTURE_RISK_SHIFT[condition])
-        if roll < 0.04 / a.realm:   # the wilds threaten the strong far less
+        if roll < ADVENTURE_DEATH / a.realm:
             self.kill(a, scene("death"))
-        elif roll < 0.12:
+        elif roll < ADVENTURE_NEAR_DEATH:
             a.insight += 4
             a.burden += 1
             a.fortune = max(-FORTUNE_CAP, a.fortune - 1)
@@ -2569,6 +2693,13 @@ class World:
             scores["CONSCRIPTION"] = 0
         return scores
 
+    def _remember(self, land: Optional[Place], clause: str):
+        """File an upheaval under the land it happened in. Nothing reads this
+        but the final report — it is the world's memory, not its state."""
+        if land is None:
+            return
+        self.upheavals.append((self.year, land.name, clause))
+
     def _shift_prosperity(self, polity: Polity, delta: float):
         for p in polity.settlements():
             p.prosperity = max(0.0, min(10.0, p.prosperity + delta))
@@ -2805,16 +2936,18 @@ class World:
 
     # -- the throne as an exit: claims, invitations, usurpation, abdication --
 
-    def _seat(self, polity: Polity, a: Agent):
+    def _seat(self, polity: Polity, a: Agent, came=THRONE_CAME_CLAIM):
         """Put a living agent on a throne.
 
         Everything else in the sim already routes around rulers — the action
         phase hands them the RULE action, and cultivators() keeps them out of
         tournaments, expeditions, petitions and the sect's own life — so this
-        plus polity.leader is the whole transition.
+        plus polity.leader is the whole transition. `came` is the road they
+        took onto the seat, kept so the obituary can still name it.
         """
         a.ruling = polity.pid
         a.reign_start = self.year
+        a.reign_came = came
         polity.leader = a.aid
         polity.last_facets = ()
         polity.style = STYLE_QUIET
@@ -2827,9 +2960,10 @@ class World:
         if polity is not None:
             a.past_reigns.append((polity.name, polity.domain,
                                   polity.title(a.sex), a.reign_start,
-                                  self.year, how))
+                                  self.year, how, a.reign_came))
         a.ruling = None
         a.reign_start = None
+        a.reign_came = ""
 
     def _after_the_throne(self, a: Agent, how: str, polity: Polity):
         """Off the seat and still breathing.
@@ -2930,7 +3064,7 @@ class World:
 
             winner, loser = ((claimant, other) if clout(claimant) >= clout(other)
                              else (other, claimant))
-            self._seat(polity, winner)
+            self._seat(polity, winner, THRONE_CAME_CONTEST)
             # §9: a court that had to settle a claim by acclamation is a court
             # the neighbours look at. The war scan reads this.
             polity.crisis_year = self.year
@@ -3001,7 +3135,7 @@ class World:
                      f"{guest.sect}, who refused it and went back to the "
                      f"mountain.", [guest], dramatic=True, place=polity.seat)
             return False
-        self._seat(polity, guest)
+        self._seat(polity, guest, THRONE_CAME_INVITE)
         self.log(f"The notables of {polity.domain} offered the seat of the "
                  f"{polity.name} to {guest.display()} of {guest.sect}, "
                  f"{guest.realm_name}, {vacancy} — and the offer was "
@@ -3087,7 +3221,7 @@ class World:
         # death and not a second succession.
         usurper.karma += USURP_KARMA
         self._step_down(leader, "was cast down from")
-        self._seat(polity, usurper)
+        self._seat(polity, usurper, THRONE_CAME_USURP)
         # §6: edicts stand only until the ruler changes, and a new face on a
         # seat buys the same honeymoon a funeral would.
         polity.edicts = []
@@ -3289,6 +3423,8 @@ class World:
         # just thrown a tyrant down eats better for a season.
         self._shift_prosperity(polity, REVOLT_RELIEF)
 
+        self._remember(polity.land,
+                       f"{polity.domain} rose and threw down {ref}")
         crowned = None
         if champion is not None:
             champion.karma += REVOLT_KARMA          # §7: liberation
@@ -3304,7 +3440,7 @@ class World:
                                                  - INVITE_MIN_REALM)
             if r.random() >= max(0.05, min(0.95, refuse)):
                 crowned = champion
-                self._seat(polity, champion)
+                self._seat(polity, champion, THRONE_CAME_RISING)
                 self.log(f"{champion.display()}{self._of_sect(champion)}, "
                          f"{champion.realm_name}, threw down {ref} and was "
                          f"raised to the seat of the {polity.name} by the "
@@ -3357,6 +3493,7 @@ class World:
         ref = self.ruler_short(leader)
         champ_realm = champion.realm if champion is not None else 1
         massacre = leader.realm > champ_realm
+        leader.revolts_survived += 1
         self._governance_insight(leader, "revolt")
 
         # Who it reached: a cultivator born in that country whose own people
@@ -3382,6 +3519,10 @@ class World:
                 a.insight += MASSACRE_INSIGHT
                 self._add_grudge(a, leader, MASSACRE_GRUDGE)
             dead = r.randint(*MASSACRE_DEAD)
+            self._remember(polity.land,
+                           f"{ref} went into the risen villages of "
+                           f"{polity.domain} in person, and some {dead:,} "
+                           f"were killed")
             self.log(f"{ref}, {leader.realm_name}, went into the risen "
                      f"villages of {polity.domain} in person; some {dead:,} "
                      f"were killed and the country is {polity.word()} after "
@@ -3395,6 +3536,9 @@ class World:
             for a in witnesses:
                 a.insight += REVOLT_INSIGHT
                 self._add_grudge(a, leader, 1)
+            self._remember(polity.land,
+                           f"the rising in {polity.domain} was broken up "
+                           f"and its ringleaders hanged")
             self.log(f"The rising in {polity.domain} was broken up by the "
                      f"levies of {ref}; the ringleaders were hanged along the "
                      f"roads (survivors +insight).", [leader] + witnesses,
@@ -3487,6 +3631,9 @@ class World:
         if r.random() < odds:
             knife.standing += 2
             self._karma_kill(knife, leader)
+            self._remember(polity.land,
+                           f"{ref} was murdered in the sleeping chamber at "
+                           f"{where}")
             self.log(f"{knife.display()}{self._of_sect(knife)} came over the "
                      f"wall at {where} and killed {ref} in the sleeping "
                      f"chamber; a black ledger had been a long time drawing "
@@ -3709,6 +3856,13 @@ class World:
                 paid = min(def_lord.resources, r.randint(*WAR_TRIBUTE))
                 def_lord.resources -= paid
                 att_lord.resources += paid
+                self._tally_war(att_lord, def_lord)
+                self._remember(dfn.land,
+                               f"{dfn.domain} was brought back under the "
+                               f"oath of the {att.name}")
+                self._remember(att.land,
+                               f"the {att.name} brought {dfn.domain} back "
+                               f"under the old oath")
                 self._governance_insight(def_lord, "war_lost")
                 self.log(f"After {years}, {self.ruler_ref(def_lord)} came to "
                          f"the camp of {self.ruler_ref(att_lord)} and swore "
@@ -3722,6 +3876,9 @@ class World:
             if dfn.pid in att.vassals:
                 att.vassals.remove(dfn.pid)
             att.unrest = min(UNREST_MAX, att.unrest + WAR_LOSER_UNREST)
+            self._tally_war(def_lord, att_lord)
+            self._remember(dfn.land, f"the {dfn.name} broke free of the "
+                                     f"{att.name} and pays nobody")
             self._governance_insight(att_lord, "war_lost")
             self.log(f"After {years}, {self.ruler_ref(att_lord)} could not "
                      f"bring {dfn.domain} back under the oath; the "
@@ -3735,6 +3892,13 @@ class World:
         lose_lord = def_lord if winner is att else att_lord
         loser.unrest = min(UNREST_MAX, loser.unrest + WAR_LOSER_UNREST)
         loser.crisis_year = self.year
+        self._tally_war(win_lord, lose_lord)
+        self._remember(loser.land, f"{loser.domain} lost {years} of war "
+                                   f"to the {winner.name}")
+        if winner.land is not loser.land:
+            self._remember(winner.land, f"the {winner.name} beat "
+                                        f"{loser.domain} after {years} of "
+                                        f"campaigning")
         self._governance_insight(lose_lord, "war_lost")
         self._shift_prosperity(winner, WAR_WINNER_PROSPERITY)
         win_lord.standing += 2
@@ -3778,6 +3942,15 @@ class World:
                      f"raised on top of it (+insight).",
                      [win_lord, lose_lord], dramatic=True, place=loser.seat,
                      world_event=True)
+
+    @staticmethod
+    def _tally_war(winner: Optional[Agent], loser: Optional[Agent]):
+        """A campaign settled. Both counts are spent in the obituary: a
+        throne is remembered by the wars it won and the ones it lost."""
+        if winner is not None:
+            winner.wars_won += 1
+        if loser is not None:
+            loser.wars_lost += 1
 
     def _cedable_region(self, polity: Polity) -> Optional[Place]:
         """A piece of a country that can change hands: anything in the
@@ -4215,13 +4388,20 @@ class World:
                 a.fortune = max(-FORTUNE_CAP, a.fortune - KARMA_FORTUNE_DRIFT)
 
     def _drift_prosperity(self):
-        """Left alone, a settlement returns to its land's temper. What drags
-        it away from baseline is the rule style of whoever holds it."""
+        """Left alone, a settlement returns to its land's temper — fast when
+        it is far from it, slowly once it is close. What drags it away from
+        baseline is the rule style of whoever holds it, and where the two
+        balance is what the map shows."""
         for p in self.settlements():
-            if p.prosperity < p.baseline:
-                p.prosperity = min(p.baseline, p.prosperity + PROSPERITY_DRIFT)
-            elif p.prosperity > p.baseline:
-                p.prosperity = max(p.baseline, p.prosperity - PROSPERITY_DRIFT)
+            gap = p.baseline - p.prosperity
+            if abs(gap) < PROSPERITY_DRIFT_MIN:
+                p.prosperity = p.baseline
+                continue
+            step = gap * (PROSPERITY_RECOVERY if gap > 0
+                          else PROSPERITY_SETTLING)
+            if abs(step) < PROSPERITY_DRIFT_MIN:
+                step = PROSPERITY_DRIFT_MIN if gap > 0 else -PROSPERITY_DRIFT_MIN
+            p.prosperity = max(0.0, min(10.0, p.prosperity + step))
 
     def _try_breakthrough(self, a: Agent):
         r = self.rng
@@ -4365,8 +4545,9 @@ class World:
                       and o.rels[a.aid].kind in HOSTILE_KINDS][:3]
         if a.is_ruler():
             reign = self.reign_length(a)
+            came = f", {a.reign_came}" if a.reign_came else ""
             parts = [f"OBITUARY: {self.ruler_ref(a)}, dead at {a.age} after "
-                     f"{self.years_phrase(reign)} on the seat; "
+                     f"{self.years_phrase(reign)} on the seat{came}; "
                      f"{a.death_cause}."]
         else:
             of_sect = f" of {a.sect}" if a.sect else ""
@@ -4374,10 +4555,21 @@ class World:
                      f"({a.realm_name}); {a.death_cause}."]
         if a.defended:
             parts.append(f"Died in defence of {a.defended}.")
-        for name, domain, title, start, end, how in a.past_reigns:
+        for name, domain, title, start, end, how, came in a.past_reigns:
+            got = f"{came}, and " if came else "and "
             parts.append(f"Was {title} of {domain} for "
-                         f"{self.years_phrase(end - start)}, and "
+                         f"{self.years_phrase(end - start)}, {got}"
                          f"{how} the seat in Y{end}.")
+        if a.revolts_survived:
+            parts.append("Put down a rising." if a.revolts_survived == 1
+                         else f"Put down {a.revolts_survived} risings.")
+        if a.wars_won or a.wars_lost:
+            won = f"won {a.wars_won}" if a.wars_won else ""
+            lost = f"lost {a.wars_lost}" if a.wars_lost else ""
+            tally = " and ".join(p for p in (won, lost) if p)
+            parts.append(f"Of the wars fought from that seat, {tally}.")
+        if TYRANT_BREAKER in a.epithets:
+            parts.append("Threw down a throne, and the country remembers it.")
         if a.thrones_refused:
             parts.append("Refused a throne." if a.thrones_refused == 1
                          else f"Refused {a.thrones_refused} thrones.")
@@ -4604,12 +4796,17 @@ class World:
         if polity is not None:
             lines.append(
                 f"  reign: seated Y{a.reign_start} "
-                f"({self.years_phrase(self.reign_length(a))}), "
+                f"({self.years_phrase(self.reign_length(a))}, "
+                f"{a.reign_came}), "
                 f"{polity.style} rule, unrest {polity.unrest}, "
                 f"{polity.domain} is {polity.word()} — no qi while it lasts")
-        for name, domain, title, start, end, how in a.past_reigns:
+        for name, domain, title, start, end, how, came in a.past_reigns:
             lines.append(f"  past reign: {title} of {domain} ({name}), "
-                         f"Y{start}-Y{end} ({how} the seat)")
+                         f"Y{start}-Y{end} ({came}; {how} the seat)")
+        if a.revolts_survived or a.wars_won or a.wars_lost:
+            lines.append(f"  from the seat: risings put down "
+                         f"{a.revolts_survived}, wars won {a.wars_won}, "
+                         f"wars lost {a.wars_lost}")
         if a.thrones_refused:
             lines.append(f"  thrones refused: {a.thrones_refused}")
         return "\n".join(lines)
@@ -4685,16 +4882,31 @@ class World:
                 f"{polity.style:<24} unrest {polity.unrest:<3} "
                 f"{polity.word()}")
 
+    def land_sovereigns(self, land: Place) -> list:
+        """A land's independent courts, the one holding its capital first.
+
+        Ordinarily there is exactly one. A vassal that won its independence
+        in a war (§9) is a second sovereign standing inside somebody else's
+        land, and the displays say so rather than pretending it is a crown.
+        """
+        capital = self._capital(land)
+        out = [p for p in self.sovereigns() if p.land is land]
+        out.sort(key=lambda p: (capital not in p.territory, p.pid))
+        return out
+
     def courts(self) -> str:
         """Every ruler: their polity, its type, this year's style, unrest."""
         lines = [f"THE COURTS — year {self.year}"]
-        for sov in sorted(self.sovereigns(),
-                          key=lambda p: (not p.land.is_center(), p.land.name)):
-            lines.append(self._court_line(sov))
-            for pid in sov.vassals:
-                vassal = self.polities.get(pid)
-                if vassal is not None:
-                    lines.append(self._court_line(vassal, indent="      "))
+        lands = sorted(self.lands.values(),
+                       key=lambda l: (not l.is_center(), l.name))
+        for land in lands:
+            for i, sov in enumerate(self.land_sovereigns(land)):
+                mark = "" if i == 0 else "  (independent)"
+                lines.append(self._court_line(sov) + mark)
+                for pid in sov.vassals:
+                    vassal = self.polities.get(pid)
+                    if vassal is not None:
+                        lines.append(self._court_line(vassal, indent="      "))
         seats = []
         for polity in self.polities.values():
             if polity.kind != "sect":
@@ -4749,6 +4961,103 @@ class World:
                          f"{', '.join(seats)}")
         return "\n".join(lines)
 
+    # -- the state of the nine lands (§12) -----------------------------------
+
+    @staticmethod
+    def unrest_word(unrest: int) -> str:
+        for limit, word in UNREST_WORDS:
+            if unrest < limit:
+                return word
+        return UNREST_WORDS[-1][1]
+
+    def _polity_state(self, polity: Polity, indent: str, aside="") -> list:
+        """One court, in chronicle house style: who holds it, how they hold
+        it, and what standing rules the country lives under."""
+        leader = self.leader_of(polity)
+        held = polity.word()
+        quiet = self.unrest_word(polity.unrest)
+        under = aside
+        liege = self.polities.get(polity.liege) if polity.liege else None
+        if liege is not None:
+            under = f", which owes tribute to the {liege.name},"
+        if leader is None or not leader.alive:
+            return [f"{indent}The {polity.name}{under} has no one on its "
+                    f"seat; the villages under it are {held}, the country "
+                    f"{quiet}."]
+        style = "governing quietly" if polity.style == STYLE_QUIET \
+            else f"ruling {polity.style}"
+        path = f", {leader.realm_name} of {leader.sect}," if leader.sect \
+            else ""
+        reign = self.reign_length(leader)
+        span = ("in the first year of the reign" if reign < 1
+                else f"for {self.years_phrase(reign)}")
+        lines = [f"{indent}{polity.title(leader.sex)} {leader.display()}"
+                 f"{path} has held the {polity.name}{under} {span}, "
+                 f"{style}; the villages under that seat are {held}, the "
+                 f"country {quiet}."]
+        if polity.edicts:
+            clauses = "; ".join(f"{e.label} — {e.clause}"
+                                for e in polity.edicts)
+            lines.append(f"{indent}  By standing edict there: {clauses}.")
+        return lines
+
+    def state_of_the_lands(self) -> str:
+        """§12: the nine lands as the world would tell them — prosperity in
+        words, who sits on what, the edicts still in force, and what each
+        land has not finished talking about."""
+        lines = [f"THE STATE OF THE NINE LANDS — YEAR {self.year}"]
+        memory = {}
+        for year, land_name, clause in self.upheavals:
+            if self.year - year <= UPHEAVAL_MEMORY:
+                memory.setdefault(land_name, []).append((year, clause))
+        for row in range(3):
+            for col in range(3):
+                land = self.grid[row][col]
+                seat = "the seat of the four sects, " if land.is_center() \
+                    else ""
+                lines.append("")
+                lines.append(f"  {land.name.upper()} — {seat}"
+                             f"{land.reach()} land, {land.word()}.")
+                # Every secular court whose territory lies in this land —
+                # sovereigns first (the one holding the capital ahead of any
+                # ex-vassal that won its independence), then the vassals,
+                # whose lieges may well sit in a different land entirely.
+                sovereigns = self.land_sovereigns(land)
+                shown = set()
+                for i, sov in enumerate(sovereigns):
+                    aside = "" if i == 0 else \
+                        ", sovereign now and not always so,"
+                    lines += self._polity_state(sov, "    ", aside)
+                    shown.add(sov.pid)
+                # A land whose own crown was vassalised abroad has no
+                # sovereign of its own; its courts are not indented under
+                # one that is not there.
+                indent = "      " if sovereigns else "    "
+                for polity in sorted(
+                        (p for p in self.polities.values()
+                         if p.land is land and p.kind != "sect"
+                         and p.pid not in shown), key=lambda p: p.pid):
+                    lines += self._polity_state(polity, indent)
+                for year, clause in memory.get(land.name,
+                                               [])[-UPHEAVAL_SHOWN:]:
+                    lines.append(f"    Within living memory: in Y{year}, "
+                                 f"{clause}.")
+        wars = []
+        for war in self.wars:
+            att = self.polities.get(war.attacker)
+            dfn = self.polities.get(war.defender)
+            if att is None or dfn is None:
+                continue
+            wars.append(f"the {att.name} is {self.years_phrase(war.fought)} "
+                        f"into a war on {dfn.domain}")
+        lines.append("")
+        lines.append("    " + ("As the chronicle closes, "
+                               + "; and ".join(wars) + "."
+                               if wars else
+                               "As the chronicle closes, no army is in the "
+                               "field anywhere in the nine lands."))
+        return "\n".join(lines)
+
     def roster(self) -> str:
         lines = [f"ROSTER — year {self.year}, "
                  f"{len(self.living())} living cultivators"]
@@ -4790,7 +5099,8 @@ class World:
 
     def final_report(self) -> str:
         lines = ["", "=" * 72, f"FINAL REPORT — YEAR {self.year}", "=" * 72,
-                 self.famous_list(), "", self.roster(), ""]
+                 self.state_of_the_lands(), "", self.famous_list(), "",
+                 self.roster(), ""]
         if self.pc is not None:
             lines += ["=" * 72, "THE MAIN CHARACTER'S LIFE", "=" * 72,
                       self.sheet(self.pc), "", self.personal_log(self.pc)]
