@@ -1321,13 +1321,14 @@ AGENDA_SEASON = {
     "expedition": None,
     "feud": None,
     "grudge": None,             # somebody's grudge against the PC ripens
+    "incursion": "summer",      # §7: the year the Waste comes over
 }
 # Resolution order INSIDE a season — the old event phase's order, kept so
 # that stamping events across the calendar changes when they happen and not
 # what happens.
-AGENDA_ORDER = ("politics", "campaign", "war", "muster", "revolt",
-                "assassination", "usurpation", "sect", "answer", "petition",
-                "tournament", "expedition", "feud", "grudge")
+AGENDA_ORDER = ("politics", "campaign", "war", "muster", "incursion",
+                "revolt", "assassination", "usurpation", "sect", "answer",
+                "petition", "tournament", "expedition", "feud", "grudge")
 # What the season prompt says is coming. {season} and the item's own fields.
 AGENDA_NOTICES = {
     "campaign": "the armies of {att} are in the field against {dfn} this "
@@ -1339,10 +1340,12 @@ AGENDA_NOTICES = {
     "feud": "{s1} and {s2} are one insult from open war",
     "answer": "{sect} has asked you to ride for {where} in {season}",
     "grudge": "{foe} has been asking after you",
+    "incursion": "the {edge} marches will not hold through {season}; the "
+                 "Waste is coming over into {land}",
 }
 # Notices everyone can see coming, whether or not they are the player's
 # business; the rest are shown only when they are a HARD interrupt for the PC.
-AGENDA_PUBLIC = ("tournament", "expedition", "feud")
+AGENDA_PUBLIC = ("tournament", "expedition", "feud", "incursion")
 
 # --- THE PLAYABLE LAYER: THE SEASON ACTIVITIES (VII §3) --------------------
 # NO THROUGHPUT EDGE: a season pays a QUARTER of the matching yearly action,
@@ -1734,6 +1737,194 @@ NPC_PAUSE_WINNING = [("Cruel", "humiliating"), ("Proud", "showy"),
 NPC_ESCAPE_TRAITS = ("Cautious", "Broken")     # who tries the door ...
 NPC_ESCAPE_CHANCE = 0.5                        # ... and how often
 
+# --- THE DEMON FRONT (VII §7) ----------------------------------------------
+# DEMONS ARE A FIELD, NOT AGENTS. Like the common people (VI §10), the host
+# on the far side of the marches is a NUMBER and a set of scene tables: one
+# threat level, no roster, no court, no tribute, nothing that can be
+# negotiated with. Named demon lords as real agents are a later session,
+# deliberately out of scope.
+#
+# At worldgen one outer EDGE of the 3x3 grid borders the DEMON WASTE; the
+# two or three lands along it are MARCH-LANDS, and the front is a fact of
+# their geography, like weather.
+DEMON_WASTE_EDGES = ("north", "south", "west", "east")
+MARCH_SHELTERED_CHANCE = 0.45   # one corner of that edge the Waste never
+                                # reaches — which is what makes the marches
+                                # two lands as often as three
+WASTE_EDGE_WORDS = {"north": "northern", "south": "southern",
+                    "west": "western", "east": "eastern"}
+# THE POT. Threat is a float 0-10 and starts at 3. §7's drift is +0.15 and
+# its sink is -0.1 per cultivator-SEASON served; the drift is read at that
+# same resolution (per season — 0.6 a year), because it is the only reading
+# on which §12's cadence comes out: an incursion every 8-15 years, off a 2-4
+# reset and a 35% roll once the pot is over 7. At §7's literal +0.15 a YEAR
+# the climb alone is twenty-six years and the front never boils.
+DEMON_THREAT_START = 3.0
+DEMON_THREAT_DRIFT = 0.15       # per season; the pot boils on its own
+DEMON_THREAT_MAX = 10.0
+DEMON_THREAT_PER_SEASON = 0.1   # what one cultivator-season on the line buys
+DEMON_RELIEF_CAP = 0.20         # ... and all the relief one year can hold.
+                                # The line is long: past a handful of swords
+                                # the Waste does not notice. Without the cap
+                                # the cadence would be a reading of how many
+                                # Righteous the last intake happened to roll.
+DEMON_THREAT_WORDS = [(2.0, "quiet"), (4.0, "stirring"), (6.0, "restless"),
+                      (8.0, "boiling"), (99.0, "at the gates")]
+# THE DRAG: the marches live under raids that never stop, and settle one to
+# two points under the temper the rest of their land would have had. What
+# they are worth ON PAPER is higher than any other land's — a country that
+# keeps an army fed keeps a market, and the cores off the Waste are worth
+# silver — and the drag is what the front takes back out of it. Both halves
+# are needed: without the bonus the marches are simply the worst-off lands
+# on the map, and VI §13's count of badly-RULED countries stops meaning
+# anything.
+MARCH_BASELINE = 1.3            # what the front economy is worth on paper
+MARCH_DRAG_PER_THREAT = 0.024   # prosperity a year, per point of threat
+MARCH_DRAG_CAP = 0.30
+
+# THE FRONT ACTIVITY (VII §3, §7): a season of deadly fighting, on a risk
+# table roughly twice as lethal as the harsh road, paying insight, standing,
+# materials and the front's own epithets. There is nothing here to duel —
+# the Waste is a number, not an agent — so it is resolved with the
+# expedition's kind of roll and never through `_bout`.
+FRONT_MIN_REALM = 2             # the marches do not take Qi Condensation
+FRONT_MIN_AGE = 18              # ... nor children
+FRONT_POWER = (18.0, 30.0)      # what a season on the line throws at you
+FRONT_POWER_PER_REALM = 11.0    # the deeper in they send the strong ...
+FRONT_POWER_PER_THREAT = 2.6    # ... and the hotter the pot is
+FRONT_ODDS = (0.10, 0.88)
+FRONT_SPOILS = (2, 6)           # cores, black iron, hides off the Waste
+FRONT_INSIGHT = 2               # a season of it teaches whatever happens
+FRONT_STANDING_CHANCE = 0.35
+FRONT_KARMA = 1                 # per year of standing between people and it
+FRONT_DEATH = 0.22              # of a season that goes wrong
+FRONT_MAUL = 0.45               # ... and of the rest, the ones carried back
+FRONT_MAUL_INSIGHT = 4
+FRONT_MAUL_EPITHET = 0.30
+FRONT_DRIVEN_INSIGHT = 2
+FRONT_EPITHETS = ("Demon-Scarred", "Ash-Marked", "Gate-Held")
+FRONT_VETERAN_EPITHET = "Wastewalker"
+FRONT_VETERAN_SEASONS = 8       # seasons on the line that earn it
+FRONT_VETERAN_YEARS = 3         # §3: a front served on within three years is
+                                # still yours, and wakes a timeskip
+FRONT_VOLUNTEER_TRAITS = {"Righteous": 3.0, "Bloodthirsty": 3.0,
+                          "Reckless": 1.5, "Loyal": 1.0}
+FRONT_VOLUNTEER_NATIVE = 1.0    # blood in that land ...
+FRONT_VOLUNTEER_NATIVE_MULT = 2.0   # ... and march-land natives, doubled
+FRONT_VOLUNTEER_FULL = 6.0      # weight at which someone is certain to go
+FRONT_CHANCE = 0.03             # an eager cultivator's year, given to it
+FRONT_CHANCE_PER_THREAT = 0.006     # a boiling front calls louder
+FRONT_RETURN = 3.0              # ... and a soldier goes back. This is what
+                                # makes a veteran's log read like a war
+                                # record instead of a hobby: service comes
+                                # in stretches, and the stretches are what
+                                # the front kills people in the middle of.
+FRONT_LINES = {
+    "held": [
+        "{who} stood a season on the {edge} line beyond {where} and came "
+        "back off it with the sect's share of the cores.",
+        "{who} held a stretch of the {edge} marches above {where}; the "
+        "things that came over it in the dark did not get past (+silver).",
+        "{who} spent the season burning what crossed into {land}, and was "
+        "paid in black iron for it.",
+    ],
+    "quiet": [
+        "{who} watched an empty stretch of the {edge} marches; nothing came "
+        "over it that season.",
+        "{who} stood the line above {where} through a quiet season of rain "
+        "and rumour.",
+    ],
+    "driven": [
+        "{who} was driven off the line above {where} and gave up a mile of "
+        "{land} before the wall held (+insight).",
+        "{who} lost the stretch they were given on the {edge} marches, and "
+        "walked back through what was left of the villages (+insight).",
+    ],
+    "maul": [
+        "{who} was carried off the {edge} marches half-dead, and the thing "
+        "that did it went back over the line alive (+insight).",
+        "{who} was broken on the line above {where} and lived; the Waste "
+        "keeps what it takes off a body (+insight).",
+        "{who} came back from the {edge} front with the marks of it and "
+        "little else (+insight).",
+    ],
+    "death": [
+        "was pulled down on the {edge} marches above {where}",
+        "did not come back off the line in {land}",
+        "was lost in the dark beyond {where}, on the {edge} front",
+    ],
+}
+FRONT_DEFENDED = "the villages behind the {edge} marches"
+
+# INCURSION (§7): while the pot is over the line, the year the Waste comes
+# over. A one-year event and the front's only world-scale one: the marches
+# pay in prosperity and conscripts, the defenders are drawn like an
+# expedition, and the whole thing is resolved as one contest against the
+# threat number. Defeat is rare and permanent — a settlement is SWALLOWED.
+INCURSION_AT = 7.0              # threat at or over which it can happen
+INCURSION_CHANCE = 0.35         # ... and the yearly roll once it can
+INCURSION_DEFENDERS = (5, 10)
+INCURSION_VETERAN_WEIGHT = 2.0  # the ones who know that ground
+INCURSION_NATIVE_WEIGHT = 2.5   # ... and the ones whose ground it is
+INCURSION_BASE_WEIGHT = 0.6     # everyone else the sects can reach
+INCURSION_WALL_BASE = 45.0      # the marches' own walls, forts and watch:
+                                # everything holding that line which is not
+                                # an agent, and never was one
+INCURSION_THREAT_SCORE = 4.0    # what a point of threat is worth against it
+INCURSION_ARMY_SCORE = 0.45     # ... against the march polities' levies
+INCURSION_CULTIVATOR_SCORE = 0.35   # ... and a cultivator's power, as in war
+INCURSION_NOISE = 0.25
+INCURSION_ODDS = (0.35, 0.97)   # the line usually holds
+INCURSION_DEATH = 0.10          # of the drawn, when it does
+INCURSION_DEATH_LOST = 0.30     # ... and when it does not
+INCURSION_INSIGHT = 4
+INCURSION_STANDING = 2
+INCURSION_KARMA = KARMA_RESCUE  # §7: standing in front of other people
+INCURSION_RESET = (2.0, 4.0)    # what a thrown-back host leaves behind
+INCURSION_LOST_THREAT = 0.5     # ... and what a broken line adds to it
+INCURSION_PROSPERITY = -1.5     # the land it came over
+INCURSION_PROSPERITY_OTHER = -0.5   # ... and the rest of the marches
+INCURSION_UNREST = 1
+INCURSION_DEAD = (600, 15000)   # conscripts and villagers: chronicle colour
+INCURSION_OPEN = [
+    "The Waste came over the {edge} marches into {land} in force; the "
+    "levies of {domain} were called out and {dead} of them and the villages "
+    "behind them died in the first month.",
+    "The {edge} front broke open into {land}: {dead} conscripts and "
+    "villagers were dead before the sects had riders on the road.",
+]
+INCURSION_HELD = [
+    "The line above {where} held; the host was broken on it and went back "
+    "over into the Waste.",
+    "{land} threw the incursion back at {where} and burned what was left of "
+    "it on the field.",
+]
+INCURSION_LOST = [
+    "The line above {where} broke. {where} is gone — the Waste holds the "
+    "ground it stood on, and nothing has come back out of it.",
+    "Nothing held in front of {where}. The village and everyone still in it "
+    "were swallowed, and the {edge} front is a mile deeper into {land} than "
+    "it was.",
+]
+# The front's own pleas: a march-land village below PETITION_AT begs the
+# sects for relief through the ordinary petition machinery (§7 — no new
+# diplomacy anywhere). The opposition is the Waste, not a magistrate, so
+# answering one makes no enemy of the court and earns no grudge.
+FRONT_PETITION_MISSIONS = [
+    ("to send a sword to the wall above {where}",
+     "stood the wall above {where} until the season turned and the raids "
+     "stopped",
+     "the wall"),
+    ("to clear the things nesting in the fields of {where}",
+     "burned out what had been nesting in the fields of {where}",
+     "the nests"),
+    ("to bring the people of {where} back through the line",
+     "brought what was left of {where} back through the line alive",
+     "the road out"),
+]
+FRONT_PETITION_OPPOSITION = 10.0    # the wall, before the pot is counted
+FRONT_PETITION_PER_THREAT = 4.0     # ... and per point of the pot
+
 # --- THE PLAYABLE LAYER: THE PLAYED CHARACTER (VII §2) ---------------------
 PLAYER_AID_NOTE = "agent 65"    # the player joins the watched intake
 # Deeds drive the played character's mutation: the world writes on the
@@ -1766,6 +1957,8 @@ PLAYER_ACTIVITIES = [
      "standing, friends, rivals, and old scores"),
     ("muster", "Join the muster",
      "a captain's pay, and whatever the war does with you"),
+    ("front", "The demon front",
+     "the deadliest season there is: cores, standing, and the Waste"),
 ]
 PLAYER_ACTIVITY_KEYS = [k for k, _, _ in PLAYER_ACTIVITIES]
 
@@ -1810,11 +2003,19 @@ class Place:
     grid: Optional[tuple] = None                # (row, col) — lands only
     pool: Optional[str] = None                  # NAME_LANDS key; None = melting pot
     polity: Optional[int] = None                # set on the roots of a territory
+    swallowed: bool = False                     # VII §7: the Waste holds it
 
     def settlements(self) -> list:
-        """Every settlement at or beneath this place (sect seats excluded)."""
+        """Every settlement at or beneath this place (sect seats excluded).
+
+        A SWALLOWED settlement (VII §7) is not one of them: the Waste holds
+        that ground, and it is not the country's any more — nobody is born
+        there, nothing is grown there, and it is not counted in what the
+        land is worth. What is left of it is the scar line in
+        `state_of_the_lands`.
+        """
         if self.kind in SETTLEMENT_KINDS:
-            return [self]
+            return [] if self.swallowed else [self]
         out = []
         for c in self.children:
             out.extend(c.settlements())
@@ -1923,6 +2124,8 @@ class Petition:
     plea: str = ""                  # "to open the sealed granary of {where}"
     done: str = ""                  # what the answer looks like, in past tense
     task: str = ""                  # "the sealed granary" — named on failure
+    front: bool = False             # VII §7: a march-land begging for relief
+                                    # from the Waste, not from its own court
 
 
 # ---------------------------------------------------------------------------
@@ -2042,6 +2245,9 @@ class Agent:
     history: list = field(default_factory=list)  # private log: (year, text)
     fortune: int = 0                  # streaky luck, clamped small
     stipend_years: int = 0            # years the family at home has sent silver
+    front_seasons: int = 0            # VII §7: seasons stood on the marches
+    front_last: Optional[int] = None  # ... and the last year they stood one
+    front_stands: int = 0             # incursions they were on the line for
     deeds: list = field(default_factory=list)    # VII §2: (year, kind) — the
                                       # record the played character mutates off
     play: Optional[PlayerState] = None   # set only on a PLAYED character
@@ -2126,6 +2332,14 @@ class World:
         self.round_combat = True
         self.narrate: Optional[Callable] = None
         self._exchange_cache: dict = {}
+        # VII §7: THE DEMON FRONT. One edge of the grid borders the Waste,
+        # the lands along it are the marches, and `demon_threat` is the pot.
+        # Demons are a field, not agents: this is the whole roster.
+        self.demon_threat = DEMON_THREAT_START
+        self.waste_edge = ""
+        self.march_lands: list = []                # the 2-3 lands on that edge
+        self.swallowed: list = []                  # (year, Place) — permanent
+        self._front_relief = 0.0                   # relief spent this year
         # Geography (built first, in _setup).
         self.places: dict[int, Place] = {}
         self.lands: dict[str, Place] = {}          # land name -> land Place
@@ -2218,12 +2432,38 @@ class World:
             if len(pair) == 2:
                 self.sibling_lands.append(pair)
 
+        self._build_marches()
         for land in self.lands.values():
             self._build_land_tree(land)
+
+    def _build_marches(self):
+        """VII §7: which outer edge of the grid the DEMON WASTE lies beyond.
+
+        A seeded roll, once, at worldgen. The three lands along that edge are
+        the marches — except that one of its corners is often sheltered, and
+        then there are two. Nothing else about the Waste is ever generated:
+        it holds no court, takes no tribute and signs nothing.
+        """
+        r = self.rng
+        self.waste_edge = r.choice(DEMON_WASTE_EDGES)
+        if self.waste_edge == "north":
+            slots = [(0, 0), (0, 1), (0, 2)]
+        elif self.waste_edge == "south":
+            slots = [(2, 0), (2, 1), (2, 2)]
+        elif self.waste_edge == "west":
+            slots = [(0, 0), (1, 0), (2, 0)]
+        else:
+            slots = [(0, 2), (1, 2), (2, 2)]
+        lands = [self.grid[row][col] for row, col in slots]
+        if r.random() < MARCH_SHELTERED_CHANCE:
+            lands.pop(r.choice([0, 2]))     # a sheltered corner of that edge
+        self.march_lands = lands
 
     def _build_land_tree(self, land: Place):
         r = self.rng
         land.baseline = r.uniform(*PROSPERITY_BASELINE)
+        if self.is_march(land):
+            land.baseline = min(10.0, land.baseline + MARCH_BASELINE)
         land.prosperity = land.baseline
         if land.is_center():
             n_regions, sizes = MIDDLE_PLAIN_REGIONS, MIDDLE_PLAIN_REGION_SIZES
@@ -2248,7 +2488,8 @@ class World:
         return p
 
     def settlements(self) -> list:
-        return [p for p in self.places.values() if p.kind in SETTLEMENT_KINDS]
+        return [p for p in self.places.values()
+                if p.kind in SETTLEMENT_KINDS and not p.swallowed]
 
     def neighbors(self, land: Place, strong=None) -> list:
         """Lands touching this one. strong=True: shares an edge (war, trade,
@@ -2475,6 +2716,8 @@ class World:
 
     def _pick_home(self, land: Place) -> Place:
         homes = land.settlements()
+        if not homes:
+            return land     # a land the Waste has taken whole (VII §7)
         weights = [SETTLEMENT_POP_WEIGHT[p.kind] for p in homes]
         return self.rng.choices(homes, weights=weights)[0]
 
@@ -2759,6 +3002,7 @@ class World:
         self._fresh_lines = []
         self.year += 1
         self.season = None
+        self._front_relief = 0.0        # §7: what the pot will hear this year
         self._plan_year()
 
     def run_season(self, season: str) -> None:
@@ -2845,6 +3089,10 @@ class World:
             # only takes the ones who were looking for one.
             if (self.wars or a.has_trait("Bloodthirsty")) \
                     and self._take_service(a):
+                continue
+            # §7: and the marches take whoever the marches take. The front
+            # burns through NPC lives on the same table the player fights on.
+            if self._take_front(a):
                 continue
             act = self._pick_action(a)
             getattr(self, f"_act_{act}")(a)
@@ -3280,6 +3528,342 @@ class World:
                    for l in lands]
         land = r.choices(lands, weights)[0]
         self._act_adventure(a, share=share, dest=self._pick_home(land))
+
+    # -- the demon front (VII §7) -------------------------------------------
+    #
+    # DEMONS ARE A FIELD, NOT AGENTS. Everything below fights a NUMBER: the
+    # threat is the whole host, the scene tables are the whole roster, and
+    # no part of it ever reaches `_bout`, which wants two agents and a
+    # stance each. What the front is FOR is that a permanent war gives the
+    # world a source of deathly fighting that never runs dry — for the
+    # player and for the NPCs alike.
+
+    def is_march(self, place: Optional[Place]) -> bool:
+        """Does this place lie in one of the march-lands?"""
+        if place is None or not self.march_lands:
+            return False
+        land = place if place.kind == "land" else place.land
+        return any(land is m for m in self.march_lands)
+
+    def threat_word(self) -> str:
+        """The pot, in words. The reader never sees the number."""
+        for ceiling, word in DEMON_THREAT_WORDS:
+            if self.demon_threat < ceiling:
+                return word
+        return DEMON_THREAT_WORDS[-1][1]
+
+    def waste_word(self) -> str:
+        return WASTE_EDGE_WORDS.get(self.waste_edge, self.waste_edge)
+
+    def _front_land(self, a: Optional[Agent] = None) -> Optional[Place]:
+        """Which stretch of the marches somebody goes to: their own country
+        if they were born on it, otherwise wherever the sects send them."""
+        if not self.march_lands:
+            return None
+        if a is not None and a.home is not None and self.is_march(a.home):
+            return a.home.land
+        return self.rng.choice(self.march_lands)
+
+    def front_volunteer_weight(self, a: Agent) -> float:
+        """§7: how badly a cultivator wants a season on the line.
+
+        The war-volunteer machinery's shape, with the front's own skew: the
+        Righteous who think somebody has to, the Bloodthirsty who want the
+        fighting, and march-land natives — whose own country it is —
+        doubled.
+        """
+        w = sum(m for t, m in FRONT_VOLUNTEER_TRAITS.items() if a.has_trait(t))
+        if self.is_march(a.home):
+            w = (w + FRONT_VOLUNTEER_NATIVE) * FRONT_VOLUNTEER_NATIVE_MULT
+        return w
+
+    def _take_front(self, a: Agent, forced=False, share=1.0) -> bool:
+        """Does this cultivator give the year to the marches?
+
+        Rolls nothing at all for anybody the front has no hold on, which is
+        why the batch stream only moves for the ones who would go.
+        """
+        if not self.march_lands or a.realm < FRONT_MIN_REALM \
+                or a.age < FRONT_MIN_AGE:
+            return False
+        if not forced:
+            eager = min(1.0, self.front_volunteer_weight(a)
+                        / FRONT_VOLUNTEER_FULL)
+            if eager <= 0:
+                return False
+            chance = eager * (FRONT_CHANCE
+                              + FRONT_CHANCE_PER_THREAT * self.demon_threat)
+            if a.front_last is not None and self.year - a.front_last <= 1:
+                chance *= FRONT_RETURN
+            if self.rng.random() >= chance:
+                return False
+        self._act_front(a, share=share)
+        return True
+
+    def _front_served(self, a: Agent, share: float):
+        """§7: what standing on the line does to the pot.
+
+        -0.1 a cultivator-season, and DEMON_RELIEF_CAP is all of it a single
+        year can hold: the line is long, and the tenth sword on it buys the
+        Waste's attention, not its absence.
+        """
+        seasons = max(1, int(round(share * len(SEASONS))))
+        a.front_seasons += seasons
+        a.front_last = self.year
+        room = max(0.0, DEMON_RELIEF_CAP - self._front_relief)
+        relief = min(room, seasons * DEMON_THREAT_PER_SEASON)
+        self._front_relief += relief
+        self.demon_threat = max(0.0, self.demon_threat - relief)
+
+    def _front_drift(self):
+        """CLOSE: the pot boils. §7's drift, read per season (see the tables)
+        and paid once a year, after everything that stirred it."""
+        if not self.march_lands:
+            return
+        self.demon_threat = min(
+            DEMON_THREAT_MAX,
+            self.demon_threat + DEMON_THREAT_DRIFT * len(SEASONS))
+
+    def _front_wound(self, a: Agent, level: int):
+        """The front's real cost, for whoever is played: hp lives only inside
+        a fight, and there is no fight here — but a body carried off the line
+        is carried off it the same way."""
+        if a.play is None or level <= a.play.wound or not a.alive:
+            return
+        a.play.wound = level
+        self.log(WOUND_LINES[level].format(who=a.display()), [a])
+
+    def _front_epithet(self, a: Agent, pool=FRONT_EPITHETS) -> str:
+        free = [e for e in pool if e not in a.epithets]
+        if not free or len(a.epithets) >= 3:
+            return ""
+        ep = self.rng.choice(free)
+        a.epithets.append(ep)
+        return f" [epithet: {ep}]"
+
+    def _act_front(self, a: Agent, share=1.0):
+        """A season on the marches: the deadliest lane there is (§7).
+
+        A contest against the pot, on the expedition's kind of roll — there
+        is no one to duel. Roughly twice as lethal as the harsh road at
+        either resolution, because a season pays a quarter of the year's
+        risk exactly as it pays a quarter of the year's gains.
+        """
+        r = self.rng
+        land = self._front_land(a)
+        if land is None:
+            return
+        where = self._pick_home(land)
+        edge = self.waste_word()
+        foe = (r.uniform(*FRONT_POWER)
+               + FRONT_POWER_PER_REALM * (a.realm - 1)
+               + FRONT_POWER_PER_THREAT * self.demon_threat)
+        power = a.power()
+        odds = max(FRONT_ODDS[0], min(FRONT_ODDS[1], power / (power + foe)))
+        self._front_served(a, share)
+        fields = dict(who=a.display(), land=land.name, where=where.name,
+                      edge=edge)
+
+        def line(key) -> str:
+            return r.choice(FRONT_LINES[key]).format(**fields)
+
+        if r.random() < odds:
+            a.resources += self._share_int(r.randint(*FRONT_SPOILS)
+                                           + self._vice_spoils(a), share)
+            a.insight += FRONT_INSIGHT * share
+            a.karma += self._share_int(FRONT_KARMA, share)
+            if r.random() < FRONT_STANDING_CHANCE * share:
+                a.standing += 1
+            mark = ""
+            if a.front_seasons >= FRONT_VETERAN_SEASONS \
+                    and FRONT_VETERAN_EPITHET not in a.epithets:
+                mark = self._front_epithet(a, (FRONT_VETERAN_EPITHET,))
+            text = line("held") + mark
+            if mark:
+                self.log(text, [a], place=where)
+            else:
+                a.history.append((self.year, text))
+            return
+        if not self._fires(share):
+            a.history.append((self.year, line("quiet")))
+            return
+        roll = r.random()
+        if roll < FRONT_DEATH:
+            # §7 prices this the way it prices any death in front of other
+            # people: it buys the dead nothing but the obituary.
+            self._fell_defending(a, FRONT_DEFENDED.format(edge=edge))
+            self.kill(a, line("death"))
+            return
+        if roll < FRONT_DEATH + FRONT_MAUL:
+            a.insight += FRONT_MAUL_INSIGHT
+            a.burden += 1
+            a.fortune = max(-FORTUNE_CAP, a.fortune - 1)
+            text = line("maul") + self._front_epithet(a)
+            self.log(text, [a], dramatic=True, place=where)
+            self._front_wound(a, 2)     # ... and then what walks off the line
+            self._mutate(a, "near_death")
+            return
+        a.insight += FRONT_DRIVEN_INSIGHT * share
+        self._front_wound(a, 1)
+        a.history.append((self.year, line("driven")))
+
+    # -- the incursion (§7): the year the Waste comes over ------------------
+
+    def _plan_incursion(self) -> Optional[dict]:
+        """Rolled with the rest of the year, so that a timeskip can stop on
+        its eve for the people it is coming for."""
+        r = self.rng
+        if not self.march_lands or self.demon_threat < INCURSION_AT:
+            return None
+        if r.random() >= INCURSION_CHANCE:
+            return None
+        land = r.choice(self.march_lands)
+        pool, weights = [], []
+        for a in self.cultivators():
+            if a.realm < FRONT_MIN_REALM or a.age < FRONT_MIN_AGE:
+                continue
+            w = INCURSION_BASE_WEIGHT + self.front_volunteer_weight(a)
+            if a.home is not None and a.home.land is land:
+                w += INCURSION_NATIVE_WEIGHT
+            if a.front_last is not None \
+                    and self.year - a.front_last <= FRONT_VETERAN_YEARS:
+                w += INCURSION_VETERAN_WEIGHT
+            pool.append(a)
+            weights.append(w)
+        drawn, seen = [], set()
+        if pool:
+            k = min(len(pool), r.randint(*INCURSION_DEFENDERS))
+            while len(drawn) < k:
+                a = r.choices(pool, weights)[0]
+                if a.aid not in seen:
+                    seen.add(a.aid)
+                    drawn.append(a)
+        return {"land": land.pid, "defenders": [a.aid for a in drawn]}
+
+    def _run_incursion(self, land: Place, defenders: list):
+        """One year of it, resolved as one contest against the pot.
+
+        The marches pay first and in full — prosperity, levies, villages —
+        and then the line either holds or does not. Both endings are filed
+        with `_remember`; only the second one is permanent.
+        """
+        r = self.rng
+        edge = self.waste_word()
+        polities = [p for p in self.polities.values()
+                    if p.land is land and p.kind != "sect"]
+        armies = sum(p.army for p in polities)
+        domain = polities[0].domain if polities else land.name
+        dead = r.randint(*INCURSION_DEAD)
+        seat = self._capital(land)
+        self.log(r.choice(INCURSION_OPEN).format(
+            edge=edge, land=land.name, domain=domain, dead=f"{dead:,}"),
+            defenders, world_event=True, place=seat)
+        for p in land.settlements():
+            p.prosperity = max(0.0, p.prosperity + INCURSION_PROSPERITY)
+        for other in self.march_lands:
+            if other is land:
+                continue
+            for p in other.settlements():
+                p.prosperity = max(0.0, p.prosperity
+                                   + INCURSION_PROSPERITY_OTHER)
+        for p in polities:
+            p.unrest = min(UNREST_MAX, p.unrest + INCURSION_UNREST)
+
+        # VII §2: the kernel does not decide for a played character whether
+        # they stand in it.
+        standing = []
+        for a in defenders:
+            if not a.alive or a.is_ruler():
+                continue
+            if self.playing and a is self.pc:
+                if self.ask_player(
+                        "incursion",
+                        f"The Waste is over the {edge} marches into "
+                        f"{land.name}; the sects are calling out everyone "
+                        f"who can stand on a wall.",
+                        ["ride", "stay"], "ride") != "ride":
+                    self.log(f"{a.display()} was called to the {edge} line "
+                             f"when the Waste came over, and did not go.",
+                             [a], place=seat)
+                    continue
+            standing.append(a)
+        for a in standing:
+            a.front_stands += 1
+            self._front_served(a, 1.0)
+
+        score = (INCURSION_WALL_BASE
+                 + sum(INCURSION_CULTIVATOR_SCORE * a.power()
+                       for a in standing)
+                 + INCURSION_ARMY_SCORE * armies)
+        score *= r.uniform(1.0 - INCURSION_NOISE, 1.0 + INCURSION_NOISE)
+        wall = self.demon_threat * INCURSION_THREAT_SCORE
+        odds = max(INCURSION_ODDS[0],
+                   min(INCURSION_ODDS[1], score / (score + wall)))
+        held = r.random() < odds
+        killed = [a for a in standing
+                  if r.random() < (INCURSION_DEATH if held
+                                   else INCURSION_DEATH_LOST)]
+        for a in killed:
+            self._fell_defending(a, FRONT_DEFENDED.format(edge=edge))
+            self.kill(a, f"killed on the {edge} line when the Waste came "
+                         f"over into {land.name}")
+        survivors = [a for a in standing if a.alive]
+        for a in survivors:
+            a.insight += INCURSION_INSIGHT + len(killed)
+            a.standing += INCURSION_STANDING
+            a.karma += INCURSION_KARMA
+            self._record_deed(a, "mercy")
+
+        if held:
+            where = self._pick_home(land)
+            self.demon_threat = r.uniform(*INCURSION_RESET)
+            self.log(r.choice(INCURSION_HELD).format(
+                land=land.name, where=where.name, edge=edge),
+                survivors, world_event=True, place=where)
+            self._remember(land, f"the Waste came over the {edge} marches "
+                                 f"and was thrown back at {where.name}")
+        else:
+            where = self._swallow(land)
+            self.demon_threat = min(DEMON_THREAT_MAX,
+                                    self.demon_threat + INCURSION_LOST_THREAT)
+            if where is None:
+                # Everything on that stretch is already gone; there was
+                # nothing left out there for the host to take.
+                self.log(f"The {edge} line broke again into {land.name}, and "
+                         f"there was nothing left on that stretch of it for "
+                         f"the Waste to take.", survivors, world_event=True,
+                         place=self._capital(land))
+                self._remember(land, f"the {edge} line broke a second time "
+                                     f"over ground already given up")
+            else:
+                self.log(r.choice(INCURSION_LOST).format(
+                    land=land.name, where=where.name, edge=edge),
+                    survivors, world_event=True, dramatic=True, place=where)
+                self._remember(land, f"{where.name} was swallowed by the "
+                                     f"Waste, and the {edge} front came a "
+                                     f"mile inland")
+        if killed:
+            names = ", ".join(k.display() for k in killed)
+            self.log(f"The {edge} line cost {len(killed)} of the sects' own: "
+                     f"{names}.", survivors, world_event=True)
+
+    def _swallow(self, land: Place) -> Optional[Place]:
+        """A settlement the Waste keeps. Floored, and left floored: the
+        baseline goes with it and it is off the map, so nothing ever drifts
+        back. A capital is never taken — a country whose last town went
+        under would be a country the sim can no longer talk about."""
+        seats = {p.seat.pid for p in self.polities.values()
+                 if p.seat is not None}
+        options = [p for p in land.settlements()
+                   if p.kind != "city" and p.pid not in seats]
+        if not options:
+            return None
+        place = min(options, key=lambda p: p.prosperity)
+        place.prosperity = 0.0
+        place.baseline = 0.0
+        place.swallowed = True
+        self.swallowed.append((self.year, place))
+        return place
 
     # -- contests -----------------------------------------------------------
 
@@ -4209,6 +4793,13 @@ class World:
                            "champion": champion.aid if champion else None},
                 {"domain": polity.domain, "ruler": self.ruler_ref(leader)})
 
+        incursion = self._plan_incursion()
+        if incursion is not None:
+            land = self.places.get(incursion["land"])
+            add("incursion", incursion,
+                {"edge": self.waste_word(),
+                 "land": land.name if land else "the marches"})
+
         add("assassination")
         add("usurpation")
         add("sect")             # §11: the head's character on the sect
@@ -4266,6 +4857,13 @@ class World:
                 self._declare_war(att, dfn, p["kind"])
         elif kind == "muster":
             return          # a standing offer to the player, not an event
+        elif kind == "incursion":
+            land = self.places.get(p["land"])
+            drawn = [self.agents[aid] for aid in p["defenders"]
+                     if self.agents[aid].alive
+                     and not self.agents[aid].is_ruler()]
+            if land is not None and self.demon_threat >= INCURSION_AT:
+                self._run_incursion(land, drawn)
         elif kind == "revolt":
             polity = self.polities.get(p["polity"])
             leader = self.agents.get(p["leader"])
@@ -4356,6 +4954,13 @@ class World:
         if kind == "revolt":
             return (p.get("champion") == pc.aid
                     or self._pc_touched(self.polities.get(p.get("polity"))))
+        if kind == "incursion":
+            # §3: march-landers and anyone who stood that line inside three
+            # years. Everyone else reads about it in the digest.
+            return (pc.aid in p.get("defenders", ())
+                    or self.is_march(pc.home)
+                    or (pc.front_last is not None
+                        and self.year - pc.front_last <= FRONT_VETERAN_YEARS))
         return False
 
     def pc_watch(self) -> dict:
@@ -5965,16 +6570,23 @@ class World:
             return
         place = r.choice(candidates)
         polity = self.polity_at(place)
-        plea, done, task = r.choice(PETITION_MISSIONS)
+        # §7: a march-land below the line begs for relief from the WASTE,
+        # through this same machinery. No new diplomacy anywhere — the Waste
+        # holds no court to send the riders to.
+        front = self.is_march(place)
+        plea, done, task = r.choice(FRONT_PETITION_MISSIONS if front
+                                    else PETITION_MISSIONS)
         sect = self._petition_sect(place.land)
         self.petitions.append(Petition(
             place=place, sect=sect, year=self.year,
             polity=polity.pid if polity else None, plea=plea, done=done,
-            task=task))
+            task=task, front=front))
         self._petition_seen[place.pid] = self.year
         ruler = self.leader_of(polity) if polity else None
         under = (f" under {self.ruler_ref(ruler)}"
                  if ruler is not None and ruler.alive else "")
+        if front:
+            under = f" and a night's ride from the {self.waste_word()} Waste"
         self.log(f"The elders of {place.name} in the {place.land.name}, "
                  f"{place.word()}{under}, sent riders to {sect} begging them "
                  f"{plea.format(where=place.name)}.", [], place=place)
@@ -6022,6 +6634,8 @@ class World:
         ruler = self.leader_of(polity) if polity else None
         if ruler is not None and not ruler.alive:
             ruler = None
+        if petition.front:
+            ruler = None    # §7: the Waste holds no court to make an enemy of
         # VII §2: the sect assigns; a played character is asked. A refusal
         # leaves the plea on the table for somebody else, or for the years
         # to run out on it.
@@ -6042,15 +6656,22 @@ class World:
 
         # A contest, under the ordinary rules: the magistrate's men, and
         # whatever realm sits above them.
-        opposition = PETITION_OPPOSITION
-        if ruler is not None:
-            opposition += PETITION_OPPOSITION_PER_REALM * (ruler.realm - 1)
-        if polity is not None:
-            opposition += PETITION_OPPOSITION_PER_ARMY * polity.army
+        if petition.front:
+            opposition = (FRONT_PETITION_OPPOSITION
+                          + FRONT_PETITION_PER_THREAT * self.demon_threat)
+            self._front_served(hero, 1.0)
+        else:
+            opposition = PETITION_OPPOSITION
+            if ruler is not None:
+                opposition += PETITION_OPPOSITION_PER_REALM * (ruler.realm - 1)
+            if polity is not None:
+                opposition += PETITION_OPPOSITION_PER_ARMY * polity.army
         power = hero.power()
         chance = max(PETITION_ODDS[0],
                      min(PETITION_ODDS[1], power / (power + opposition)))
         domain = polity.domain if polity is not None else place.land.name
+        broke = (f"what came over the line at {where}" if petition.front
+                 else f"the men of {domain}")
 
         if r.random() < chance:
             was = place.word()
@@ -6089,7 +6710,7 @@ class World:
             self._add_grudge(hero, ruler, 2)
         lethal = r.random() < PETITION_DEATH_CHANCE
         text = (f"{hero.display()} went to {where} for {petition.task} and "
-                f"was broken by the men of {domain}")
+                f"was broken by {broke}")
         if lethal:
             # §7: dying in defence of others. It buys the dead nothing.
             self._fell_defending(hero, f"the villagers of {where}")
@@ -6097,8 +6718,8 @@ class World:
                             f"worse than it was.",
                      [hero] + ([ruler] if ruler is not None else []),
                      dramatic=True, place=place)
-            self.kill(hero, f"killed by the men of {domain} answering the "
-                            f"plea of {where}")
+            self.kill(hero, f"killed by {broke} answering the plea of "
+                            f"{where}")
             return
         self.log(text + f"; they walked out alive and hunted (+insight), and "
                         f"{where} paid for the asking.",
@@ -6319,6 +6940,7 @@ class World:
     # -- resolution phase ---------------------------------------------------
 
     def _resolution_phase(self):
+        self._front_drift()
         self._drift_prosperity()
         self._stipends()
         self._karma_luck()
@@ -6349,7 +6971,13 @@ class World:
         it is far from it, slowly once it is close. What drags it away from
         baseline is the rule style of whoever holds it, and where the two
         balance is what the map shows."""
+        # §7: the marches live under raids that never stop, and settle one
+        # to two points under the temper the rest of their land would have.
+        march = {m.pid for m in self.march_lands}
+        drag = min(MARCH_DRAG_CAP, MARCH_DRAG_PER_THREAT * self.demon_threat)
         for p in self.settlements():
+            if march and p.land is not None and p.land.pid in march:
+                p.prosperity = max(0.0, p.prosperity - drag)
             gap = p.baseline - p.prosperity
             if abs(gap) < PROSPERITY_DRIFT_MIN:
                 p.prosperity = p.baseline
@@ -6534,6 +7162,14 @@ class World:
             lost = f"lost {a.wars_lost}" if a.wars_lost else ""
             tally = " and ".join(p for p in (won, lost) if p)
             parts.append(f"Of the wars fought from that seat, {tally}.")
+        if a.front_seasons:
+            stands = ("" if not a.front_stands else
+                      (" and stood in the breaking of the line once."
+                       if a.front_stands == 1 else
+                       f" and stood in {a.front_stands} breakings of the "
+                       f"line."))
+            parts.append(f"Served {a.front_seasons} seasons on the "
+                         f"{self.waste_word()} marches{stands or '.'}")
         if TYRANT_BREAKER in a.epithets:
             parts.append("Threw down a throne, and the country remembers it.")
         if a.thrones_refused:
@@ -6777,6 +7413,12 @@ class World:
             self._act_trade(a, share)
         elif activity == "socialize":
             self._act_socialize(a, share)
+        elif activity == "front":
+            if not self._take_front(a, forced=True, share=share):
+                self.log(f"{a.display()} went looking for a place on the "
+                         f"line and was turned back off the road; the "
+                         f"marches take neither children nor "
+                         f"{REALM_NAMES[1]} disciples.", [a])
         elif activity == "muster":
             if not self._take_service(a, forced=True, share=share):
                 self.log(f"{a.display()} went looking for a muster to join; "
@@ -6836,6 +7478,9 @@ class World:
             lines.append(f"  {rels}")
         if a.home is not None:
             lines.append(f"  home: {a.home.name}, {a.home.word()}")
+        if self.march_lands and (self.is_march(a.home) or a.front_seasons):
+            lines.append(f"  the {self.waste_word()} marches: the Waste is "
+                         f"{self.threat_word()}")
         for notice in self.agenda_notices(season):
             lines.append(f"  * {notice}")
         return "\n".join(lines)
@@ -6866,6 +7511,9 @@ class World:
                 for k, v in sorted(st.stances.items())))
         lines.append(f"  body: {self.max_hp(a):.0f} of {ROUND_HP:.0f} "
                      f"({WOUND_WORD[st.wound]})")
+        if a.front_seasons:
+            lines.append(f"  the marches: {a.front_seasons} seasons on the "
+                         f"line, {a.front_stands} incursions stood")
         orders = self.orders_of(a)
         lines.append(f"  orders: {orders['edge']} / {orders['manner']}, "
                      f"yield at {float(orders['yield']) * 100:.0f}%, "
@@ -6984,6 +7632,11 @@ class World:
                          f"wars lost {a.wars_lost}")
         if a.thrones_refused:
             lines.append(f"  thrones refused: {a.thrones_refused}")
+        if a.front_seasons:
+            stands = (f", and stood on the line through {a.front_stands} "
+                      f"incursions" if a.front_stands else "")
+            lines.append(f"  the marches: {a.front_seasons} seasons served "
+                         f"(last Y{a.front_last}){stands}")
         return "\n".join(lines)
 
     def personal_log(self, a: Agent) -> str:
@@ -7032,6 +7685,11 @@ class World:
         for a, b in self.sibling_lands:
             lines.append(f"  {a.name} and {b.name} are sibling nations, "
                          f"one tongue between them.")
+        if self.march_lands:
+            names = ", ".join(m.name for m in self.march_lands)
+            lines.append(f"  The Waste lies beyond the {self.waste_edge} "
+                         f"edge: {names} are the march-lands, and the front "
+                         f"there is {self.threat_word()}.")
         lines.append("  Lands sharing an edge are close neighbours; corner "
                      "contact is distant.")
         lines.append("  The Middle Plain touches all eight, holds the four "
@@ -7104,6 +7762,11 @@ class World:
         tongue = f"{land.pool} tongue" if land.pool else "a melting pot"
         lines = [f"THE {land.name.upper()} — {land.reach()} land, {tongue} — "
                  f"{land.word()} (year {self.year})"]
+        if self.is_march(land):
+            eaten = [pl.name for _, pl in self.swallowed if pl.land is land]
+            held = f"; the Waste holds {', '.join(eaten)}" if eaten else ""
+            lines.append(f"  A march of the {self.waste_word()} Waste, "
+                         f"which is {self.threat_word()}{held}.")
         polities = [p for p in self.polities.values()
                     if p.land is land and p.kind != "sect"]
         polities.sort(key=lambda p: (p.liege is not None, p.pid))
@@ -7190,8 +7853,10 @@ class World:
                 land = self.grid[row][col]
                 seat = "the seat of the four sects, " if land.is_center() \
                     else ""
+                march = (f"march of the {self.waste_word()} Waste, "
+                         if self.is_march(land) else "")
                 lines.append("")
-                lines.append(f"  {land.name.upper()} — {seat}"
+                lines.append(f"  {land.name.upper()} — {seat}{march}"
                              f"{land.reach()} land, {land.word()}.")
                 # Every secular court whose territory lies in this land —
                 # sovereigns first (the one holding the capital ahead of any
@@ -7217,6 +7882,15 @@ class World:
                                                [])[-UPHEAVAL_SHOWN:]:
                     lines.append(f"    Within living memory: in Y{year}, "
                                  f"{clause}.")
+                # §7: the scars. A swallowed settlement is never given back
+                # and never drifts back, so it is named for as long as the
+                # chronicle runs.
+                eaten = [(y, pl) for y, pl in self.swallowed
+                         if pl.land is land]
+                if eaten:
+                    named = ", ".join(f"{pl.name} (Y{y})" for y, pl in eaten)
+                    lines.append(f"    The Waste holds {named}; nothing has "
+                                 f"come back out of them.")
         wars = []
         for war in self.wars:
             att = self.polities.get(war.attacker)
@@ -7226,6 +7900,11 @@ class World:
             wars.append(f"the {att.name} is {self.years_phrase(war.fought)} "
                         f"into a war on {dfn.domain}")
         lines.append("")
+        if self.march_lands:
+            names = ", ".join(m.name for m in self.march_lands)
+            lines.append(f"    Beyond the {self.waste_word()} marches — "
+                         f"{names} — lies the Waste, {self.threat_word()} "
+                         f"this year.")
         lines.append("    " + ("As the chronicle closes, "
                                + "; and ".join(wars) + "."
                                if wars else
@@ -7545,9 +8224,20 @@ class Play:
         return "\n".join(lines)
 
     def _available(self, key: str) -> bool:
-        if key != "muster":
-            return True
-        return any(i.kind == "muster" for i in self.world.agenda)
+        w = self.world
+        if key == "muster":
+            return any(i.kind == "muster" for i in w.agenda)
+        if key == "front":
+            pc = w.pc
+            return bool(w.march_lands) and pc is not None \
+                and pc.realm >= FRONT_MIN_REALM and pc.age >= FRONT_MIN_AGE
+        return True
+
+    def _refusal(self, key: str) -> str:
+        if key == "front":
+            return ("The marches take neither children nor "
+                    f"{REALM_NAMES[1]} disciples.")
+        return "There is no muster to join this year."
 
     def match_activity(self, text: str) -> Optional[str]:
         text = text.strip().lower()
@@ -7589,7 +8279,7 @@ class Play:
             act = self.match_activity(cmd)
             if act is not None:
                 if not self._available(act):
-                    print("There is no muster to join this year.")
+                    print(self._refusal(act))
                     continue
                 return act
             print("Unknown command; 'help' for the list.")
@@ -7657,7 +8347,7 @@ class Play:
                 return False
             activity = match
         if not self._available(activity):
-            print("There is no muster to join this year.")
+            print(self._refusal(activity))
             return False
         count = max(1, min(TIMESKIP_CAP, count))
         self.skip_left = count

@@ -25,7 +25,7 @@ python3 cultivation_sim.py --play          # PLAY agent 65, one season at a time
 python3 cultivation_sim.py --test-combat   # VII §5's combat harness (exit 1 = FAIL)
 ```
 
-Play-mode commands: Enter (repeat last season's activity), `1`-`7` or the
+Play-mode commands: Enter (repeat last season's activity), `1`-`8` or the
 activity's name, `menu`, `skip N doing X` (timeskip, cap 12 seasons),
 `agenda`, `bag`, `orders` (the standing-orders card; `orders KEY VALUE`
 sets one), plus every observer command
@@ -224,6 +224,32 @@ polities, rulers, edicts, prosperity), `roster`, `famous`, `obits`, `help`,
   ask at all. A bout that never has to ask prints as ONE line, like anybody
   else's fight. `World.tell` is the fight camera the UI hangs on the kernel
   — narration only, never the chronicle, and the kernel still never prints.
+- **The demon front** (§7, P4) — at worldgen a seeded roll puts the DEMON
+  WASTE beyond one outer EDGE of the grid; the 2-3 lands along it are
+  MARCH-LANDS (`world.march_lands`, `is_march`), and the front is a fact of
+  their geography. `world.demon_threat` is a float 0-10 that BOILS
+  (`DEMON_THREAT_DRIFT` a season) and is only ever cooled by people standing
+  on the line (`DEMON_THREAT_PER_SEASON`, capped per year by
+  `DEMON_RELIEF_CAP`). DEMONS ARE A FIELD, NOT AGENTS: the threat number and
+  the scene tables are the whole roster, so the front never reaches `_bout`
+  (which wants two agents and a stance each) — a front season (`_act_front`)
+  is the expedition's kind of roll against the pot, about twice as lethal as
+  the harsh road, paying materials, insight, standing and the front epithets
+  (Wastewalker at `FRONT_VETERAN_SEASONS`, Demon-Scarred and the rest off a
+  mauling). NPCs volunteer through the war-volunteer machinery
+  (`front_volunteer_weight` / `_take_front`, Righteous and Bloodthirsty skew,
+  march natives doubled, and `FRONT_RETURN` because a soldier goes back), so
+  the front burns NPC lives on the player's own table. At threat >=
+  `INCURSION_AT` an INCURSION is rolled onto the agenda (`_plan_incursion`),
+  which is what lets a timeskip stop on its eve for march-landers and front
+  veterans; `_run_incursion` costs the marches prosperity and conscripts,
+  draws defenders like an expedition, and resolves one contest against the
+  threat. Won, the pot resets to 2-4 and the dead are named; lost — rarely —
+  a settlement is SWALLOWED (`_swallow`: floored, `Place.swallowed`, off the
+  map for good) and leaves a scar line in `state_of_the_lands`. March-lands
+  under `PETITION_AT` beg through the EXISTING petition machinery
+  (`Petition.front`, `FRONT_PETITION_MISSIONS`): the Waste holds no court,
+  so answering one makes no enemy and signs nothing.
 - **The question hook** — `World.ask_player` is called wherever the kernel
   would otherwise roll FOR the played character: leaving the path, a throne
   claimed or offered, a rising asking for a champion, a plea assigned. With
@@ -313,6 +339,21 @@ all of these currently hold at, are in parentheses.
   tuned against this harness, not guessed. NPC fights stay one roll, so a
   change here must leave every number above untouched — after P3 a batch
   run is still BIT-IDENTICAL to P2's.
+- **Front cadence** (VII §12, P4 — measured with a scratch instrument over
+  16-32 seeds x 200 years): an incursion every 8-15 years (9.8 / 10.2 on two
+  independent seed blocks), settlements swallowed ~3 per 200 years (defeat
+  is rare), the front the deadliest lane per season (~2x the harsh road, and
+  ~110 NPC deaths a run against a secret realm's ~28), and march-lands
+  running 1-2 under their own baseline temper (mean ~1.1, and the spread is
+  wide because one land's rule style moves it further than the Waste does).
+  Knobs: `FRONT_CHANCE` / `FRONT_CHANCE_PER_THREAT` / `FRONT_RETURN` for the
+  volume, `FRONT_DEATH` / `FRONT_MAUL` for the lethality,
+  `DEMON_THREAT_DRIFT` and `DEMON_RELIEF_CAP` for the cadence,
+  `INCURSION_WALL_BASE` / `INCURSION_THREAT_SCORE` for how often the line
+  breaks, and `MARCH_BASELINE` / `MARCH_DRAG_PER_THREAT` for the marches'
+  standard of living. NOTE that `_remember` files incursions too, so a
+  cadence instrument must separate them from revolts and wars or it will
+  read one upheaval per five years and look broken.
 - **Distinguishability**: pick five agents — including one ruler and one
   revolt champion — read `log NAME` for each; every life should be
   describable in one sentence, `log <ruler>` should read like a reign, and
@@ -340,16 +381,16 @@ The test for any change: does `log <agent>` still read like a life?
   elder-tempo opportunity injection (dying elders seeking heirs, purges).
 - AI DM as renderer over the logs (chronicles, "state of the world" digests).
 - World-generation mode (run 200 years, freeze, survivors become the setting).
-- The rest of the player layer (**Part VII**, sessions P4-P7): the demon
-  front (P3 left `_bout` as the place a front fight would route through);
-  masters and proficiencies, which is where stance ranks are earned and
-  where `player_power`'s +4 cap starts carrying anything; professions with
+- The rest of the player layer (**Part VII**, sessions P5-P7): masters and
+  proficiencies, which is where stance ranks are earned and where
+  `player_power`'s +4 cap starts carrying anything; professions with
   toxicity (`heal_wound` is the healer's and the healing pill's seam);
   techniques (`_movement_rank` is the escape table's); and the played
   throne (P1 offers only hold-or-abdicate). Sessions P1 — two clocks,
   `--play`, the season menu, the timeskip — P2 — stances in the kernel —
-  and P3 — round combat, wounds, standing orders, `--test-combat` — are
-  built.
+  P3 — round combat, wounds, standing orders, `--test-combat` — and P4 —
+  the demon front — are built. Named demon lords as real agents stay out of
+  scope by decision, not omission (VII's up-front block).
 
 ## Known deviations from the spec (deliberate, from tuning)
 
@@ -360,6 +401,18 @@ The test for any change: does `log <agent>` still read like a life?
   the second pause inside one exchange of the yield, so neither would ever
   be a choice; §5 asks for 3-8 round fights and pauses that fire, and these
   are what `--test-combat` says delivers both.
+- **The demon front's pot** (VII §7 vs §12). §7 says the threat drifts
+  +0.15 a year and a cultivator-season on the line buys -0.1; §12 asks for
+  an incursion every 8-15 years off a 2-4 reset and a 35% roll at 7. Those
+  cannot both be true: at +0.15 a YEAR the climb alone is twenty-six years.
+  The drift is therefore read at the layer's own resolution — +0.15 a
+  SEASON, the same unit the sink beside it is written in — and
+  `DEMON_RELIEF_CAP` bounds a year's total relief, so the cadence is a
+  property of the front and not of how many Righteous the last intake
+  happened to roll. `MARCH_BASELINE` is not in the spec at all: the marches
+  are worth more on paper than any other land and the drag takes it back
+  out, because without it they are simply the poorest lands on the map and
+  VI §13's count of badly-RULED countries stops meaning anything.
 - **Prosperity drift** is proportional and asymmetric, not §2's flat
   0.2/year. A flat step made the field bang-bang (every country pinned at
   baseline or run to zero) and the map came out starving-or-golden with
