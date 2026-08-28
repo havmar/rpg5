@@ -8,7 +8,7 @@ outcomes, epithets, tournaments, expeditions, feuds, successions,
 breakthroughs with real failure states, voluntary exits, and generations
 via 8-year intakes.
 
-Plus the first three courses of the politics layer (Part VI, sessions 1-3):
+Plus the first four courses of the politics layer (Part VI, sessions 1-4):
 the nine lands on a 3x3 grid, a nested tree of places carrying prosperity,
 recruitment reach measured in geography, and — above the places — polities
 with mortal rulers whose characters become policy. Rule style is scored
@@ -23,6 +23,21 @@ and a grudge against the man who did it; a rich one hands out silver); a
 family keeps sending silver, or news of a brother taken for the levies;
 every adventure now goes to a named land whose prosperity reshapes the risk
 table; and a starving settlement can petition a sect for a hero.
+
+Session 4 makes the throne a real exit from the path. Ruling LOCKS
+cultivation: a ruler's action phase is one RULE action, qi gain is zero, and
+the only insight a seat earns is bought with governance adversity — a raid
+the court could not punish, a vassal who kept the tribute, an attempt on the
+seat survived. Realm still counts in full, which is what keeps a Core
+Formation king on a mortal seat for a century. Cultivators reach thrones
+three ways — a claim on a vacant seat, an invitation from a court in
+disarray (which they may refuse, and the obituary remembers it), or
+usurpation, settled by the tyranny of realms — and leave them three ways:
+death, deposition, and abdication, after which a cultivator walks back up
+the mountain with their qi exactly where the throne found it. Power
+corrupts: every ruling year is a chance to slip one step down the ladder
+Greedy -> Power-Hungry -> Cruel. The PC camera keeps rolling through a
+reign; enthronement is not an ending.
 
 Logging policy (the product):
   * Every consequential event is appended to the PRIVATE history of every
@@ -100,6 +115,12 @@ TRAIT_ACTION = {
     "Cold":      {"seclude": 1.4, "socialize": 0.6},
     "Broken":    {"seclude": 1.7, "adventure": 0.5},
 }
+
+# Every trait an agent can actually be carrying today: the rolled pool plus
+# the ones only mutation hands out. The corruption ladder of §4 reaches past
+# this set into session 5's vice traits and simply stops at the last rung
+# that exists.
+ACQUIRABLE_TRAITS = set(TRAIT_POOL) | set(TRAIT_ACTION)
 
 # Names come from six language pools, each borrowing a real-world language so
 # agents stay pronounceable and easy to tell apart. A pool supplies one or
@@ -384,8 +405,12 @@ STYLE_WORDS = {"BENEVOLENT": "benevolent", "EXTRACTIVE": "extractive",
                "CONSCRIPTION": "conscripting"}
 STYLE_QUIET = "quiet"
 MAX_FACETS_PER_YEAR = 2         # a reign has at most two moods at once
-NEGLECT_AGE = 70                # a ruler past this age governs by absence
-NEGLECT_AGE_SCORE = 2
+NEGLECT_AGE = 70                # a MORTAL ruler past this age governs by
+NEGLECT_AGE_SCORE = 2           # absence (§5) — and a cultivator-king only
+                                # in the same last eighth of their own, far
+                                # longer, life. A Core Formation king of 90
+                                # is not a dotard.
+NEGLECT_AGE_FRACTION = NEGLECT_AGE / BASE_LIFESPAN
 CRACKDOWN_UNREST = 5            # a frightened throne reaches for the headsman,
 CRACKDOWN_SCORE = 1             # but only one already willing to use it
 POOR_TREASURY = 2               # an empty treasury tempts the tax collector
@@ -470,6 +495,152 @@ EDICT_PROSPERITY = -0.2         # per active edict per year
 EDICT_UNREST = 1                # per active edict per year
 EDICT_REPEAL_CHANCE = 0.30      # a non-Stubborn ruler, after a good year
 MANDATE_CHANCE = 0.5            # a liege's edict reaching each vassal
+
+# --- THE THRONE AS AN EXIT (§4, §9) ----------------------------------------
+# RULING LOCKS CULTIVATION. A ruler's action phase is replaced by a single
+# RULE action: no cultivate, no seclude, no adventure, no teach, and no qi at
+# all. Their realm still counts in full — that is exactly what keeps a Core
+# Formation king on his seat for a century. The only insight a throne earns is
+# bought with governance adversity.
+RULE_MILESTONE = 10             # a reign is remarked on every ten years
+RULE_LINE_CHANCE = 0.10         # ... and otherwise only now and then
+RULE_YEAR_LINES = [
+    "{ruler} held the assize at {seat} and gave judgement on the quarrels "
+    "of {domain}.",
+    "{ruler} spent the year on the roads of {domain}, court and baggage "
+    "train behind.",
+    "{ruler} received the envoys of a neighbouring land at {seat}.",
+    "{ruler} named an heir out of the household at {seat}; the court took "
+    "note of it.",
+    "{ruler} kept the granary accounts of {domain} in person all year.",
+    "{ruler} put down a quarrel between two houses of {domain} before it "
+    "could become a blood feud.",
+]
+# The cultivation lock, said out loud once a decade: a cultivator on a throne
+# is a cultivator standing still.
+RULE_LOCK_LINES = [
+    "{ruler} has not sat in meditation for {years}; a throne gives no qi, "
+    "and none has come.",
+    "{ruler} let another decade of the path go by unwalked — {years} on the "
+    "seat, and not a year of it spent cultivating.",
+    "The disciples who entered {sect} with {ruler} are elders now; {years} "
+    "of governing has left that foundation exactly where it stood.",
+    "{ruler} kept the seal of {domain} another ten years, and the sword in "
+    "its wrappings; {years} on the seat and counting.",
+]
+RULE_MORTAL_LINES = [
+    "{ruler} has held the seat of the {polity} for {years}.",
+    "{ruler} completed {years} on the seat; {domain} has known no other "
+    "hand for a generation.",
+]
+# Insight bought with governance adversity, by kind. (Session 6 adds the two
+# largest: a revolt survived, and a war lost.)
+GOVERNANCE_INSIGHT = {"petition": 2, "betrayal": 3, "usurpation": 5,
+                      "deposition": 6}
+
+# POWER CORRUPTS: each ruling year, a small chance the seat walks its holder
+# one step down the ladder. Steps into traits that do not exist yet simply do
+# not happen — session 5 adds Power-Hungry and Cruel to the trait pool and the
+# rest of the ladder lights up on its own.
+CORRUPTION_LADDER = [None, "Greedy", "Power-Hungry", "Cruel"]
+CORRUPTION_CHANCE = 0.008           # per ruling year
+CORRUPTION_PER_EXTRACTION = 0.0015   # ... raised by years of taking
+CORRUPTION_EXTRACTION_CAP = 0.02
+CORRUPTION_VIRTUE_MULT = 0.25       # Righteous/Humble/Loyal hold the line
+CORRUPTION_VIRTUES = ("Righteous", "Humble", "Loyal")
+
+# CLAIMS (§9, secular succession). A vacant seat is a door. The stalled, the
+# aging, the greedy and the ambitious walk through it; the Righteous only when
+# the land under it is visibly suffering (the idealist takeover). A stranger
+# has no claim at all: it takes blood in that land, or a grudge against that
+# court.
+CLAIM_MIN_REALM = 2
+CLAIM_MIN_AGE = 20
+CLAIM_TRAIT_WEIGHTS = {"Power-Hungry": 4.0, "Greedy": 2.0}
+CLAIM_STALLED = 2.5             # the door out of a path that has stopped
+CLAIM_AGING_AT = 0.55           # fraction of lifespan: the path is behind them
+CLAIM_AGING = 2.0
+CLAIM_NATIVE = 2.0
+CLAIM_GRUDGE = 2.0
+CLAIM_RIGHTEOUS = 3.5
+CLAIM_SUFFERING_AT = 4.0        # prosperity at or under which a land suffers
+CLAIM_SUFFERING_UNREST = 6      # ... or unrest at or over which it does
+CLAIM_REALM_DAMP = 0.40         # per realm above the second: the higher a
+                                # cultivator has climbed, the less a mortal
+                                # seat is worth stepping off the path for
+CLAIM_CHANCE_PER_POINT = 0.20
+CLAIM_CHANCE_MAX = 0.8
+CLAIM_CONTEST_CHANCE = 0.35     # two claims pressed at once
+CLAIM_CONTEST_STANDING = 2
+CLAIM_CONTEST_NOISE = 6.0
+
+# INVITATION AND REFUSAL. A court left in disarray looks outside for a ruler
+# and offers the seat to a famous or native cultivator — who is entirely free
+# to refuse it, and often does. Refusals are remembered in the obituary.
+INVITE_CHANCE = 0.18            # a heirless court looks outside at all
+INVITE_UNREST = 4               # an unquiet one looks harder
+INVITE_UNREST_BONUS = 0.18
+INVITE_MIN_REALM = 2
+INVITE_MIN_STANDING = 8
+INVITE_NATIVE = 2.5
+INVITE_FAMOUS = 2.0
+INVITE_STANDING_WEIGHT = 0.4
+INVITE_REFUSE_BASE = 0.45
+INVITE_REFUSE_TRAITS = {"Ascetic": 0.35, "Scholarly": 0.15, "Cold": 0.15,
+                        "Humble": 0.15, "Reckless": 0.10}
+INVITE_ACCEPT_TRAITS = {"Power-Hungry": 0.40, "Greedy": 0.25, "Proud": 0.20,
+                        "Charming": 0.15, "Righteous": 0.10}
+INVITE_REFUSE_PER_REALM = 0.14  # a Nascent Soul does not sit on a mortal chair
+
+# USURPATION: the path onto a throne that does not wait for a funeral. Rare,
+# and settled by the tyranny of realms — a mortal king cannot hold his seat
+# against a Core Formation cultivator, and a cultivator-king can.
+USURP_CHANCE = 0.06             # yearly, across all nine lands
+USURP_MIN_REALM = 3
+USURP_TRAIT_WEIGHTS = {"Power-Hungry": 4.0, "Ruthless": 2.0, "Vengeful": 2.0,
+                       "Greedy": 1.5, "Proud": 1.0}
+USURP_GRUDGE_WEIGHT = 1.5       # per point of grudge against that court
+USURP_NATIVE = 1.5
+USURP_OUTMATCHED = 0.25         # few storm a seat they cannot take
+USURP_GAP_CERTAIN = 2           # two realms above the throne: not a fight
+USURP_GAP_ODDS = 0.85           # one realm above: the household guard dies
+USURP_GUARD = 20.0              # what a seat is worth in its own defence
+USURP_GUARD_PER_ARMY = 0.5
+USURP_ODDS = (0.10, 0.90)
+USURP_KILL_CHANCE = 0.5         # a taken seat does not always keep its holder
+USURP_KILL_RUTHLESS = 0.85
+USURP_KILL_RIGHTEOUS = 0.15
+USURP_SPARE_KARMA = 1           # §7: sparing a beaten foe
+USURP_KARMA = -2                # ... and taking a seat by force
+USURP_FAIL_INSIGHT = 5
+USURP_FAIL_DEATH = 0.35
+
+# DEFIANCE: a vassal keeps the tribute. This is the betrayal §4 names as one
+# of the adversities a throne can actually learn from. (Session 6 turns a
+# standing defiance into a war.)
+DEFIANCE_CHANCE = 0.025
+DEFIANCE_TRAITS = ("Proud", "Power-Hungry", "Ruthless", "Stubborn")
+DEFIANCE_GRUDGE_WEIGHT = 0.5
+DEFIANCE_UNREST = 2
+
+# ABDICATION: the way off a throne that nobody forces. An Ascetic or Broken
+# ruler, or one grown old and weary, lays the seat down — and a cultivator
+# walks back up the mountain with their qi exactly where they left it and a
+# world that has moved on without them.
+ABDICATE_MIN_REIGN = 6
+ABDICATE_TRAIT_CHANCE = 0.004    # an Ascetic or Broken ruler
+ABDICATE_TRAITS = ("Ascetic", "Broken")
+ABDICATE_WEARY_AT = 0.80        # fraction of lifespan: old and weary
+ABDICATE_WEARY_CHANCE = 0.014
+ABDICATE_LONG_REIGN = 30
+ABDICATE_LONG_CHANCE = 0.003
+ABDICATE_CULTIVATOR_CHANCE = 0.002  # the mountain never stops calling
+ABDICATE_MORTAL_MULT = 0.4      # a mortal notable has nowhere to go but
+                                # exile, and knows it; the mountain is only
+                                # waiting for the cultivator
+ABDICATE_HOLD_TRAITS = ("Proud", "Stubborn", "Greedy")
+ABDICATE_HOLD_MULT = 0.35
+RETURN_INSIGHT = 3              # what the years on the seat were worth
 
 # --- THE CONTACT SURFACE: where the common people reach the sim (§§9-10) ---
 # Commoners never become agents. Their lives touch the simulation at exactly
@@ -881,6 +1052,9 @@ class Agent:
     standing: int = 1
     ruling: Optional[int] = None      # pid of the polity they rule, or None
     reign_start: Optional[int] = None
+    past_reigns: list = field(default_factory=list)  # seats held and laid down
+    thrones_refused: int = 0          # §4: offers turned down, for the obituary
+    extraction_years: int = 0         # years of taking — the corruption clock
     karma: int = 0                    # §7: tracked from session 2, coupled in 5
     rels: dict = field(default_factory=dict)     # aid -> Rel
     epithets: list = field(default_factory=list)
@@ -1164,6 +1338,14 @@ class World:
         if polity is None:
             return a.display()
         return f"{polity.title(a.sex)} {a.display()} of {polity.domain}"
+
+    def ruler_short(self, a: Agent) -> str:
+        """A ruler named without their domain — for lines that have already
+        said which seat is being talked about."""
+        polity = self.polities.get(a.ruling) if a.ruling is not None else None
+        if polity is None:
+            return a.display()
+        return f"{polity.title(a.sex)} {a.display()}"
 
     def _court_traits(self) -> list:
         """Traits for a ruler: the full pool, skewed toward the court."""
@@ -1553,12 +1735,69 @@ class World:
             if a.age < 14 or not a.alive:
                 continue
             if a.is_ruler():
-                # Ruling replaces the action phase; the throne's year is
-                # resolved by the rule-style engine. (Session 4 turns this
-                # into a real RULE action with a cultivation lock.)
+                self._act_rule(a)       # §4: ruling replaces the action phase
                 continue
             act = self._pick_action(a)
             getattr(self, f"_act_{act}")(a)
+
+    def _act_rule(self, a: Agent):
+        """§4: the RULE action, and the cultivation lock.
+
+        A throne has no other action — no cultivate, no seclude, no road, no
+        teaching — and NO QI AT ALL: nothing in this method touches it, which
+        is the lock. The polity's own year (policy, edicts, tribute) is
+        resolved by the rule-style engine in the event phase; this is the
+        ruler's private year, and the ladder the seat walks them down.
+
+        A reign is not news every year: the decade marks are written down,
+        and the rest of the time only the occasional court year.
+        """
+        polity = self.polities.get(a.ruling)
+        if polity is None:
+            return
+        self._maybe_corrupt(a, polity)
+        reign = self.reign_length(a)
+        fields = dict(ruler=self.ruler_ref(a), polity=polity.name,
+                      domain=polity.domain, sect=a.sect or "the court",
+                      seat=polity.seat.name if polity.seat else polity.domain,
+                      years=self.years_phrase(reign))
+        if reign and reign % RULE_MILESTONE == 0:
+            # A cultivator standing still for a decade is the land's business
+            # (place= puts it in front of the reader whose land it is); a
+            # mortal notable growing old on a seat is the court's alone.
+            lines = RULE_LOCK_LINES if a.sect else RULE_MORTAL_LINES
+            self.log(self.rng.choice(lines).format(**fields), [a],
+                     place=polity.seat if a.sect else None)
+        elif self.rng.random() < RULE_LINE_CHANCE:
+            self.log(self.rng.choice(RULE_YEAR_LINES).format(**fields), [a])
+
+    def _maybe_corrupt(self, a: Agent, polity: Polity):
+        """POWER CORRUPTS (§4): the seat walks its holder one step down the
+        ladder Greedy -> Power-Hungry -> Cruel, suppressed by virtue and
+        raised by years of extraction. Routed through the ordinary mutation
+        machinery so the chronicle shows the change."""
+        chance = CORRUPTION_CHANCE + min(
+            CORRUPTION_EXTRACTION_CAP,
+            CORRUPTION_PER_EXTRACTION * a.extraction_years)
+        if any(a.has_trait(t) for t in CORRUPTION_VIRTUES):
+            chance *= CORRUPTION_VIRTUE_MULT
+        if self.rng.random() < chance:
+            self._mutate(a, "power", sure=True)
+
+    def _corruption_step(self, a: Agent) -> Optional[tuple]:
+        """Where a ruler stands on the ladder, and the next rung down — or
+        None if they are at the bottom of it, or the next rung is a trait
+        this build does not have yet."""
+        rung = 0
+        for i, t in enumerate(CORRUPTION_LADDER):
+            if t is not None and a.has_trait(t):
+                rung = i
+        if rung + 1 >= len(CORRUPTION_LADDER):
+            return None
+        nxt = CORRUPTION_LADDER[rung + 1]
+        if nxt not in ACQUIRABLE_TRAITS:
+            return None     # session 5 adds the rest of the ladder
+        return CORRUPTION_LADDER[rung], nxt
 
     def _act_cultivate(self, a: Agent):
         a.qi = min(100, a.qi + (3 + a.talent * 0.9) * self.sects[a.sect])
@@ -1670,7 +1909,7 @@ class World:
                 self._duel(a, t, lethal=True, context="a long-nursed grudge")
                 return
         if a.has_trait("Proud") and r.random() < 0.25:
-            peers = [o for o in self.living() if o.sect == a.sect
+            peers = [o for o in self.cultivators() if o.sect == a.sect
                      and o.realm == a.realm and o.aid != a.aid]
             if peers:
                 self._duel(a, r.choice(peers), lethal=False,
@@ -1768,6 +2007,7 @@ class World:
 
     def _event_phase(self):
         self._politics_phase()
+        self._maybe_usurp()
         self._petition_phase()
         if self.year % TOURNAMENT_PERIOD == 0:
             self._tournament()
@@ -1797,7 +2037,7 @@ class World:
             table = RULE_FACET_TRAITS[facet]
             scores[facet] = sum(w for t, w in table.items()
                                 if leader.has_trait(t))
-        if leader.age >= NEGLECT_AGE:
+        if leader.age >= NEGLECT_AGE_FRACTION * leader.lifespan:
             scores["NEGLECTFUL"] += NEGLECT_AGE_SCORE
         # An angry country hardens a ruler who was already hard; a decent one
         # answers it with bread, not the headsman. (Until session 6's revolts
@@ -1839,6 +2079,9 @@ class World:
                 leader.resources += r.randint(*eff["resources"])
             if "army" in eff:
                 polity.army += r.randint(*eff["army"])
+            if facet in ("EXTRACTIVE", "CRUEL"):
+                # The corruption clock: a throne that takes, takes more.
+                leader.extraction_years += 1
             if facet == "CRUEL":
                 self._cruel_grudges(polity, leader)
             # News is a change of course, not a repetition of it.
@@ -1955,9 +2198,39 @@ class World:
             if not (vassal_lord and liege_lord
                     and vassal_lord.alive and liege_lord.alive):
                 continue
+            if self._maybe_defy(polity, liege, vassal_lord, liege_lord):
+                continue
             paid = min(TRIBUTE, vassal_lord.resources)
             vassal_lord.resources -= paid
             liege_lord.resources += paid
+
+    def _maybe_defy(self, vassal: Polity, liege: Polity, lord: Agent,
+                    liege_lord: Agent) -> bool:
+        """A vassal keeps the tribute and sends no explanation with it.
+
+        This is the betrayal §4 names as one of the few adversities a throne
+        can actually learn from — and the seam session 6 grows a war out of.
+        """
+        r = self.rng
+        rel = lord.rels.get(liege_lord.aid)
+        grudge = (rel.intensity if rel is not None
+                  and rel.kind in HOSTILE_KINDS else 0)
+        w = grudge * DEFIANCE_GRUDGE_WEIGHT
+        if any(lord.has_trait(t) for t in DEFIANCE_TRAITS):
+            w += 1.0
+        if lord.realm > liege_lord.realm:
+            w += 1.0        # the tyranny of realms, pointed upward
+        if w <= 0 or r.random() >= DEFIANCE_CHANCE * w:
+            return False
+        liege.unrest = min(UNREST_MAX, liege.unrest + DEFIANCE_UNREST)
+        self._add_grudge(liege_lord, lord, 2)
+        self._governance_insight(liege_lord, "betrayal")
+        self.log(f"{self.ruler_ref(lord)} sent no tribute to the "
+                 f"{liege.name} this year, and no explanation with it; "
+                 f"{self.ruler_ref(liege_lord)} learned what a vassal's word "
+                 f"is worth (+insight).", [lord, liege_lord],
+                 place=vassal.seat)
+        return True
 
     def reign_length(self, a: Agent) -> int:
         start = a.reign_start if a.reign_start is not None else self.year
@@ -1968,10 +2241,20 @@ class World:
     def years_phrase(n: int) -> str:
         return "a single year" if n == 1 else f"{n} years"
 
-    def _polity_succession(self, polity: Polity, dead: Agent):
-        """A seat falls vacant and a courtier takes it. (Session 4: ambitious
-        cultivators press their claims here.)"""
-        reign = self.reign_length(dead)
+    def _polity_succession(self, polity: Polity, outgoing: Agent,
+                           cause: str = "death"):
+        """A seat falls vacant and is filled.
+
+        The default heir is a courtier out of the household — but a vacant
+        throne is a door, and §9's ambitious cultivators walk through it: the
+        stalled, the aging, the greedy, and the Righteous when (and only when)
+        the land under it is visibly suffering. Failing a claim, a court left
+        in disarray may look outside and invite a famous or native cultivator,
+        who is free to refuse.
+        """
+        r = self.rng
+        reign = self.reign_length(outgoing)
+        ref = self.ruler_short(outgoing)    # the seat is named right after
         lapsed = len(polity.edicts)
         polity.edicts = []
         # A new face on the seat buys a honeymoon; the country remembers the
@@ -1979,16 +2262,379 @@ class World:
         # things that spend unrest.)
         polity.unrest = max(0, polity.unrest // 2 - SUCCESSION_UNREST_RELIEF)
         polity.last_facets = ()
-        heir = self._install_ruler(polity, age=self.rng.randint(*HEIR_AGE))
-        text = (f"{self.ruler_ref(heir)} took the seat of the {polity.name} "
-                f"after the death of {self.ruler_ref(dead)}, who ruled "
-                f"{self.years_phrase(reign)}.")
+        polity.leader = None
+        if cause == "abdication":
+            vacancy = (f"after {ref} laid it down, having ruled "
+                       f"{self.years_phrase(reign)}")
+        else:
+            vacancy = (f"after the death of {ref}, who ruled "
+                       f"{self.years_phrase(reign)}")
+        tail = ""
         if lapsed:
-            text += (f" The {lapsed} standing edict"
-                     f"{'s' if lapsed > 1 else ''} of the old court lapsed "
-                     f"unenforced.")
-        self.log(text, [heir], place=polity.seat,
+            tail = (f" The {lapsed} standing edict"
+                    f"{'s' if lapsed > 1 else ''} of the old court lapsed "
+                    f"unenforced.")
+
+        if self._throne_claim(polity, outgoing, vacancy, tail):
+            return
+        if self._throne_invitation(polity, vacancy, tail):
+            return
+        heir = self._install_ruler(polity, age=r.randint(*HEIR_AGE))
+        self.log(f"{self.ruler_ref(heir)} took the seat of the "
+                 f"{polity.name} {vacancy}.{tail}", [heir],
+                 place=polity.seat, world_event=polity.is_sovereign())
+
+    # -- the throne as an exit: claims, invitations, usurpation, abdication --
+
+    def _seat(self, polity: Polity, a: Agent):
+        """Put a living agent on a throne.
+
+        Everything else in the sim already routes around rulers — the action
+        phase hands them the RULE action, and cultivators() keeps them out of
+        tournaments, expeditions, petitions and the sect's own life — so this
+        plus polity.leader is the whole transition.
+        """
+        a.ruling = polity.pid
+        a.reign_start = self.year
+        polity.leader = a.aid
+        polity.last_facets = ()
+        polity.style = STYLE_QUIET
+        self._update_sect_heads()   # the sect finds someone else to lead
+
+    def _step_down(self, a: Agent, how: str):
+        """Take a living agent off a throne and file the reign away, so the
+        obituary can still name it thirty years later."""
+        polity = self.polities.get(a.ruling) if a.ruling is not None else None
+        if polity is not None:
+            a.past_reigns.append((polity.name, polity.domain,
+                                  polity.title(a.sex), a.reign_start,
+                                  self.year, how))
+        a.ruling = None
+        a.reign_start = None
+
+    def _after_the_throne(self, a: Agent, how: str, polity: Polity):
+        """Off the seat and still breathing.
+
+        A cultivator walks back up the mountain with their qi exactly where
+        the throne found it and a world that has moved on without them — the
+        deposed king returning to the sect is a life the sim gets for free. A
+        mortal notable has nowhere to go but exile.
+        """
+        years = self.years_phrase(
+            self.year - (a.past_reigns[-1][3] if a.past_reigns else self.year))
+        if a.sect:
+            # A homecoming is a private thing: the coronation and the fall
+            # were the world's business, this is the agent's own.
+            a.insight += RETURN_INSIGHT
+            self.log(f"{a.display()} came back to {a.sect} {how} the "
+                     f"{polity.name}; {years} of the world had gone by "
+                     f"without them, and their qi stood where they left it "
+                     f"(+insight).", [a])
+            self._update_sect_heads()
+            return
+        a.alive = False
+        a.exited = True
+        a.death_year = self.year
+        a.death_cause = f"went into exile {how} the {polity.name}"
+        self.log(f"{a.display()} left {polity.domain} for good {how} the "
+                 f"{polity.name}, after {years} on the seat.", [a],
+                 place=polity.seat, world_event=polity.is_sovereign())
+
+    def _governance_insight(self, a: Optional[Agent], kind: str):
+        """§4: the only insight a throne earns. A raid it could not punish, a
+        vassal's word broken, an attempt on the seat survived, the seat lost.
+        The event that caused it writes its own line; this only banks what the
+        ruler learned. (Session 6 adds the two largest: a revolt survived and
+        a war lost.)"""
+        if a is None or not a.alive:
+            return
+        a.insight += GOVERNANCE_INSIGHT.get(kind, 0)
+
+    def _claim_weight(self, a: Agent, polity: Polity,
+                      outgoing: Agent) -> float:
+        """How badly a cultivator wants a particular vacant seat. A stranger
+        wants it not at all: it takes blood in that land, or a grudge against
+        that court."""
+        native = a.home is not None and a.home.land is polity.land
+        rel = a.rels.get(outgoing.aid)
+        grudge = rel is not None and rel.kind in HOSTILE_KINDS
+        if not (native or grudge):
+            return 0.0
+        w = sum(m for t, m in CLAIM_TRAIT_WEIGHTS.items() if a.has_trait(t))
+        if a.stalled():
+            w += CLAIM_STALLED      # the door out of a path that has stopped
+        if a.age >= CLAIM_AGING_AT * a.lifespan:
+            w += CLAIM_AGING
+        if native:
+            w += CLAIM_NATIVE
+        if grudge:
+            w += CLAIM_GRUDGE
+        # The idealist takeover: a Righteous cultivator wants no throne at all
+        # until the country under it is visibly suffering.
+        if a.has_trait("Righteous") and (
+                polity.wealth() <= CLAIM_SUFFERING_AT
+                or polity.unrest >= CLAIM_SUFFERING_UNREST):
+            w += CLAIM_RIGHTEOUS
+        # A Nascent Soul elder does not come down off the mountain to collect
+        # a hearth tax. Thrones are claimed by the middle of the path — which
+        # is also what keeps the sects' teachers on the mountain.
+        return w * CLAIM_REALM_DAMP ** max(0, a.realm - CLAIM_MIN_REALM)
+
+    def _throne_claim(self, polity: Polity, outgoing: Agent,
+                      vacancy: str, tail: str) -> bool:
+        """§9: an ambitious cultivator claims a vacant seat."""
+        r = self.rng
+        pool, weights = [], []
+        for a in self.cultivators():
+            if a.age < CLAIM_MIN_AGE or a.realm < CLAIM_MIN_REALM:
+                continue
+            w = self._claim_weight(a, polity, outgoing)
+            if w <= 0:
+                continue
+            pool.append(a)
+            weights.append(w)
+        if not pool:
+            return False
+        if r.random() >= min(CLAIM_CHANCE_MAX,
+                             CLAIM_CHANCE_PER_POINT * max(weights)):
+            return False
+        claimant = r.choices(pool, weights)[0]
+
+        rivals = [(a, w) for a, w in zip(pool, weights) if a is not claimant]
+        if rivals and r.random() < CLAIM_CONTEST_CHANCE:
+            other = r.choices([a for a, _ in rivals], [w for _, w in rivals])[0]
+
+            def clout(x):
+                return (x.realm * 8 + x.standing * CLAIM_CONTEST_STANDING
+                        + r.uniform(0, CLAIM_CONTEST_NOISE)
+                        + (4 if x.has_trait("Charming") else 0))
+
+            winner, loser = ((claimant, other) if clout(claimant) >= clout(other)
+                             else (other, claimant))
+            self._seat(polity, winner)
+            self._add_grudge(loser, winner, 3)
+            self.log(f"{winner.display()} of {winner.sect}, "
+                     f"{winner.realm_name}, took the seat of the "
+                     f"{polity.name} {vacancy}; the claim of "
+                     f"{loser.display()} was set aside before the assembled "
+                     f"notables, who withdrew nursing a grudge.{tail}",
+                     [winner, loser], dramatic=True, place=polity.seat,
+                     world_event=polity.is_sovereign())
+            # A claim lost in the audience hall is what a coup or a war of
+            # succession grows out of — session 6 escalates it; for now the
+            # grudge is the whole consequence.
+            self._mutate(loser, "humiliated")
+            return True
+
+        self._seat(polity, claimant)
+        self.log(f"{claimant.display()} of {claimant.sect}, "
+                 f"{claimant.realm_name}, claimed the seat of the "
+                 f"{polity.name} {vacancy}; a cultivator sits where a "
+                 f"mortal sat.{tail}",
+                 [claimant], dramatic=True, place=polity.seat,
                  world_event=polity.is_sovereign())
+        return True
+
+    def _throne_invitation(self, polity: Polity, vacancy: str,
+                           tail: str) -> bool:
+        """§4/§9: a court with no heir it trusts sends for a cultivator.
+
+        The offer is genuine and so is the refusal — a Nascent Soul does not
+        sit on a mortal chair, and an Ascetic wants nothing to do with a
+        treasury. Refusals are counted; the obituary remembers them.
+        """
+        r = self.rng
+        chance = INVITE_CHANCE
+        if polity.unrest >= INVITE_UNREST:
+            chance += INVITE_UNREST_BONUS
+        if r.random() >= chance:
+            return False
+        pool, weights = [], []
+        for a in self.cultivators():
+            if a.age < CLAIM_MIN_AGE or a.realm < INVITE_MIN_REALM:
+                continue
+            native = a.home is not None and a.home.land is polity.land
+            if not native and a.standing < INVITE_MIN_STANDING:
+                continue
+            w = a.standing * INVITE_STANDING_WEIGHT
+            if native:
+                w += INVITE_NATIVE
+            if a.realm >= FAME_REALM:
+                w += INVITE_FAMOUS
+            if w <= 0:
+                continue
+            pool.append(a)
+            weights.append(w)
+        if not pool:
+            return False
+        guest = r.choices(pool, weights)[0]
+
+        refuse = INVITE_REFUSE_BASE
+        refuse += sum(v for t, v in INVITE_REFUSE_TRAITS.items()
+                      if guest.has_trait(t))
+        refuse -= sum(v for t, v in INVITE_ACCEPT_TRAITS.items()
+                      if guest.has_trait(t))
+        refuse += INVITE_REFUSE_PER_REALM * (guest.realm - INVITE_MIN_REALM)
+        if r.random() < max(0.05, min(0.95, refuse)):
+            guest.thrones_refused += 1
+            self.log(f"The notables of {polity.domain} offered the seat of "
+                     f"the {polity.name} to {guest.display()} of "
+                     f"{guest.sect}, who refused it and went back to the "
+                     f"mountain.", [guest], dramatic=True, place=polity.seat)
+            return False
+        self._seat(polity, guest)
+        self.log(f"The notables of {polity.domain} offered the seat of the "
+                 f"{polity.name} to {guest.display()} of {guest.sect}, "
+                 f"{guest.realm_name}, {vacancy} — and the offer was "
+                 f"taken.{tail}", [guest], dramatic=True, place=polity.seat,
+                 world_event=polity.is_sovereign())
+        return True
+
+    def _maybe_usurp(self):
+        """§4: the path onto a throne that does not wait for a funeral.
+
+        Settled by the tyranny of realms — a mortal king cannot hold his seat
+        against a Core Formation cultivator, and a cultivator-king can. Rare:
+        one roll a year across all nine lands.
+        """
+        r = self.rng
+        if r.random() >= USURP_CHANCE:
+            return
+        options, weights = [], []
+        for a in self.cultivators():
+            if a.realm < USURP_MIN_REALM or a.age < CLAIM_MIN_AGE:
+                continue
+            ambition = sum(m for t, m in USURP_TRAIT_WEIGHTS.items()
+                           if a.has_trait(t))
+            for polity in self.ruling_polities():
+                leader = self.leader_of(polity)
+                if leader is None or not leader.alive:
+                    continue
+                w = ambition
+                rel = a.rels.get(leader.aid)
+                if rel is not None and rel.kind in HOSTILE_KINDS:
+                    w += USURP_GRUDGE_WEIGHT * rel.intensity
+                if a.home is not None and a.home.land is polity.land:
+                    w += USURP_NATIVE
+                if a.realm <= leader.realm:
+                    w *= USURP_OUTMATCHED   # few storm what they cannot take
+                if w <= 0:
+                    continue
+                options.append((a, polity, leader))
+                weights.append(w)
+        if not options:
+            return
+        usurper, polity, leader = r.choices(options, weights)[0]
+        ref = self.ruler_ref(leader)
+        gap = usurper.realm - leader.realm
+        if gap >= USURP_GAP_CERTAIN:
+            chance = 1.0
+        elif gap == 1:
+            chance = USURP_GAP_ODDS
+        else:
+            opposition = (USURP_GUARD
+                          + PETITION_OPPOSITION_PER_REALM * (leader.realm - 1)
+                          + USURP_GUARD_PER_ARMY * polity.army)
+            p = usurper.power()
+            chance = max(USURP_ODDS[0],
+                         min(USURP_ODDS[1], p / (p + opposition)))
+
+        if r.random() >= chance:
+            # The seat holds. Whoever sits on it has learned something about
+            # holding it — governance adversity, the throne's only teacher.
+            usurper.insight += USURP_FAIL_INSIGHT
+            usurper.burden += 1
+            self._add_grudge(usurper, leader, 3)
+            self._add_grudge(leader, usurper, 3)
+            self._governance_insight(leader, "usurpation")
+            if r.random() < USURP_FAIL_DEATH:
+                self.log(f"{usurper.display()}, {usurper.realm_name}, came "
+                         f"for the seat of the {polity.name} and was cut "
+                         f"down on its steps by the household of {ref}.",
+                         [usurper, leader], dramatic=True, place=polity.seat,
+                         world_event=polity.is_sovereign())
+                self.kill(usurper, f"killed storming the seat of the "
+                                   f"{polity.name}", killer=leader)
+                return
+            self.log(f"{usurper.display()}, {usurper.realm_name}, came for "
+                     f"the seat of the {polity.name} and was driven off it "
+                     f"by {ref}; both live, and neither forgets (+insight).",
+                     [usurper, leader], dramatic=True, place=polity.seat,
+                     world_event=polity.is_sovereign())
+            self._mutate(usurper, "humiliated")
+            return
+
+        # The seat falls. Seat the usurper FIRST so the old ruler's death is a
+        # death and not a second succession.
+        usurper.karma += USURP_KARMA
+        self._step_down(leader, "was cast down from")
+        self._seat(polity, usurper)
+        # §6: edicts stand only until the ruler changes, and a new face on a
+        # seat buys the same honeymoon a funeral would.
+        polity.edicts = []
+        polity.unrest = max(0, polity.unrest // 2 - SUCCESSION_UNREST_RELIEF)
+        kill_chance = USURP_KILL_CHANCE
+        if usurper.has_trait("Ruthless"):
+            kill_chance = USURP_KILL_RUTHLESS
+        if usurper.has_trait("Righteous"):
+            kill_chance = USURP_KILL_RIGHTEOUS
+        if r.random() < kill_chance:
+            self.log(f"{usurper.display()} of {usurper.sect}, "
+                     f"{usurper.realm_name}, took the seat of the "
+                     f"{polity.name} by force; {ref} did not live out the "
+                     f"night.", [usurper, leader], dramatic=True,
+                     place=polity.seat, world_event=polity.is_sovereign())
+            self.kill(leader, f"cut down by {usurper.display()} in the taking "
+                              f"of the {polity.name}", killer=usurper)
+            return
+        usurper.karma += USURP_SPARE_KARMA      # §7: sparing a beaten foe
+        self.log(f"{usurper.display()} of {usurper.sect}, "
+                 f"{usurper.realm_name}, took the seat of the {polity.name} "
+                 f"by force and let {ref} walk out of the hall alive.",
+                 [usurper, leader], dramatic=True, place=polity.seat,
+                 world_event=polity.is_sovereign())
+        self._governance_insight(leader, "deposition")
+        self._after_the_throne(leader, "cast down from", polity)
+
+    def _maybe_abdicate(self, a: Agent):
+        """§4: the way off a throne that nobody forces."""
+        r = self.rng
+        polity = self.polities.get(a.ruling)
+        if polity is None:
+            return
+        reign = self.reign_length(a)
+        if reign < ABDICATE_MIN_REIGN:
+            return
+        chance = 0.0
+        if any(a.has_trait(t) for t in ABDICATE_TRAITS):
+            chance += ABDICATE_TRAIT_CHANCE
+        if a.age >= ABDICATE_WEARY_AT * a.lifespan:
+            chance += ABDICATE_WEARY_CHANCE
+        if reign >= ABDICATE_LONG_REIGN:
+            chance += ABDICATE_LONG_CHANCE
+        if a.sect:
+            chance += ABDICATE_CULTIVATOR_CHANCE    # the mountain still calls
+        if not a.sect:
+            chance *= ABDICATE_MORTAL_MULT
+        if any(a.has_trait(t) for t in ABDICATE_HOLD_TRAITS):
+            chance *= ABDICATE_HOLD_MULT
+        if r.random() >= chance:
+            return
+        reason = r.choice([
+            "laid the seat down and named no successor",
+            "put off the seal and walked out of the hall",
+            "abdicated, saying the country had had the best of them",
+        ]) if not a.sect else r.choice([
+            "laid the seat down for the path they had set aside",
+            "put off the seal, saying a throne was a long detour",
+            "abdicated with the mountain still unfinished",
+        ])
+        self.log(f"After {self.years_phrase(reign)} on the seat, "
+                 f"{self.ruler_ref(a)} {reason}.", [a], dramatic=True,
+                 place=polity.seat, world_event=polity.is_sovereign())
+        self._polity_succession(polity, a, cause="abdication")
+        self._step_down(a, "laid down")
+        self._after_the_throne(a, "having laid down", polity)
 
     # -- petitions: the sect/polity interface (§9) ---------------------------
 
@@ -2116,6 +2762,9 @@ class World:
             if ruler is not None:
                 self._add_grudge(ruler, hero, 2)
                 self._add_grudge(hero, ruler, 1)
+                # A raid the court could not punish is the smallest of the
+                # governance adversities, and the commonest (§4).
+                self._governance_insight(ruler, "petition")
                 if polity is not None:
                     polity.unrest = min(UNREST_MAX,
                                         polity.unrest + PETITION_UNREST)
@@ -2256,8 +2905,9 @@ class World:
             self.feud_cooldown = FEUD_COOLDOWN
             self.log(f"Accumulated grudges ignite a feud between {s1} "
                      f"and {s2}.", [], world_event=True)
-            side1 = [a for a in self.living() if a.sect == s1]
-            side2 = [a for a in self.living() if a.sect == s2]
+            # A crowned disciple does not answer the sect's muster.
+            side1 = [a for a in self.cultivators() if a.sect == s1]
+            side2 = [a for a in self.cultivators() if a.sect == s2]
             losses = {s1: 0, s2: 0}
             for _ in range(3):
                 if not side1 or not side2:
@@ -2328,7 +2978,9 @@ class World:
             a.insight -= req
             a.standing += 2
             a.burden = max(0, a.burden - 1)
-            self.log(f"{a.display()} broke through to {a.realm_name} "
+            # A cultivator-king can still break through on the seat: qi is
+            # frozen, but governance adversity keeps handing them insight.
+            self.log(f"{self.ruler_ref(a)} broke through to {a.realm_name} "
                      f"(age {a.age}).", [a], dramatic=(a.realm >= 3))
             if a.realm >= FAME_REALM and "Ascendant" not in a.epithets:
                 a.epithets.append("Ascendant")
@@ -2358,7 +3010,9 @@ class World:
     def _maybe_voluntary_exit(self, a: Agent):
         r = self.rng
         if a.is_ruler():
-            return          # abdication is session 4's exit
+            # A throne has its own exit, and it is not this one.
+            self._maybe_abdicate(a)
+            return
         chance = 0.0
         if a.realm == 1 and a.age > 30 and a.talent <= 4:
             chance = 0.04
@@ -2434,8 +3088,16 @@ class World:
                      f"{self.years_phrase(reign)} on the seat; "
                      f"{a.death_cause}."]
         else:
-            parts = [f"OBITUARY: {a.display()} of {a.sect}, dead at {a.age} "
+            of_sect = f" of {a.sect}" if a.sect else ""
+            parts = [f"OBITUARY: {a.display()}{of_sect}, dead at {a.age} "
                      f"({a.realm_name}); {a.death_cause}."]
+        for name, domain, title, start, end, how in a.past_reigns:
+            parts.append(f"Was {title} of {domain} for "
+                         f"{self.years_phrase(end - start)}, and "
+                         f"{how} the seat in Y{end}.")
+        if a.thrones_refused:
+            parts.append("Refused a throne." if a.thrones_refused == 1
+                         else f"Refused {a.thrones_refused} thrones.")
         if grievers:
             parts.append(f"Grieved by {', '.join(grievers)}.")
         if celebrants:
@@ -2445,8 +3107,10 @@ class World:
     # -- sect politics ------------------------------------------------------
 
     def _update_sect_heads(self):
+        # A disciple who took a throne is not the sect's head: the seat is a
+        # different clock, and cultivators() is where the sect's life happens.
         for sect in self.sects:
-            members = [a for a in self.living() if a.sect == sect]
+            members = [a for a in self.cultivators() if a.sect == sect]
             if members:
                 head = max(members, key=lambda x: (x.realm, x.standing))
                 self.sect_heads[sect] = head.aid
@@ -2454,7 +3118,7 @@ class World:
 
     def _succession(self, sect: str, dead_head: Agent):
         r = self.rng
-        members = [a for a in self.living() if a.sect == sect]
+        members = [a for a in self.cultivators() if a.sect == sect]
         if len(members) < 2:
             self._update_sect_heads()
             return
@@ -2473,12 +3137,25 @@ class World:
 
     # -- trait mutation (JOB 3) ---------------------------------------------
 
-    def _mutate(self, a: Agent, trigger: str):
+    def _mutate(self, a: Agent, trigger: str, sure=False):
+        """`sure` skips the usual gate: the caller has already rolled for it
+        (POWER CORRUPTS carries its own, slower clock)."""
         r = self.rng
-        if not a.alive or r.random() > 0.35:
+        if not a.alive or (not sure and r.random() > 0.35):
             return
         swap = None
-        if trigger == "humiliated" and a.has_trait("Proud"):
+        if trigger == "power":
+            step = self._corruption_step(a)
+            if step is None:
+                return              # the bottom of the ladder, or of the build
+            frm, to = step
+            if frm is None:
+                a.traits.append(to)
+                self.log(f"{self.ruler_ref(a)} is changed by the seat: "
+                         f"gained trait {to}.", [a])
+                return
+            swap = (frm, to)
+        elif trigger == "humiliated" and a.has_trait("Proud"):
             swap = ("Proud", r.choice(["Humble", "Vengeful", "Broken"]))
         elif trigger == "betrayed" and a.has_trait("Loyal"):
             swap = ("Loyal", "Vengeful")
@@ -2493,12 +3170,15 @@ class World:
         if swap and swap[1] not in a.traits:
             a.traits.remove(swap[0])
             a.traits.append(swap[1])
-            self.log(f"{a.display()} is changed: {swap[0]} -> {swap[1]}.",
-                     [a])
+            self.log(f"{self.ruler_ref(a)} is changed: "
+                     f"{swap[0]} -> {swap[1]}.", [a])
 
     # -- PC handling --------------------------------------------------------
 
     def _succeed_pc(self):
+        """The camera moves on when the protagonist DIES — never when they
+        take a throne. A PC who is crowned is still the PC (§4: the agent
+        stays fully simulated), and the chronicle follows the reign."""
         old = self.pc
         # Dump the fallen protagonist's full life into the chronicle record.
         candidates = [a for a in self.cultivators() if a.age <= 30]
@@ -2561,12 +3241,14 @@ class World:
         alive = ("alive" if a.alive else
                  ("left the path" if a.exited else
                   f"dead Y{a.death_year}: {a.death_cause}"))
+        polity = self.polities.get(a.ruling) if a.is_ruler() else None
         if a.is_ruler():
-            polity = self.polities.get(a.ruling)
             affil = f"{polity.title(a.sex)} of the {polity.name}" \
                 if polity else "a throne"
+            if a.sect:
+                affil += f", once of {a.sect}"
         else:
-            affil = a.sect
+            affil = a.sect or "no sect"
         lines = [
             f"{a.display()} — {affil} [{alive}]",
             f"  home: {self.origin_line(a)}"
@@ -2580,6 +3262,17 @@ class World:
             f"  epithets: {', '.join(a.epithets) if a.epithets else '-'}",
             f"  relationships: {self.describe_rels(a) or '-'}",
         ]
+        if polity is not None:
+            lines.append(
+                f"  reign: seated Y{a.reign_start} "
+                f"({self.years_phrase(self.reign_length(a))}), "
+                f"{polity.style} rule, unrest {polity.unrest}, "
+                f"{polity.domain} is {polity.word()} — no qi while it lasts")
+        for name, domain, title, start, end, how in a.past_reigns:
+            lines.append(f"  past reign: {title} of {domain} ({name}), "
+                         f"Y{start}-Y{end} ({how} the seat)")
+        if a.thrones_refused:
+            lines.append(f"  thrones refused: {a.thrones_refused}")
         return "\n".join(lines)
 
     def personal_log(self, a: Agent) -> str:
@@ -2647,6 +3340,8 @@ class World:
         else:
             who = (f"{polity.title(leader.sex)} {leader.display()}, "
                    f"age {leader.age}")
+            if leader.realm > 1:
+                who += f", {leader.realm_name}"
         return (f"{indent}{polity.name:<34} {polity.kind:<8} {who:<44} "
                 f"{polity.style:<24} unrest {polity.unrest:<3} "
                 f"{polity.word()}")
@@ -2692,8 +3387,10 @@ class World:
             lines.append(f"  {polity.name}{mark} — {polity.word()}, "
                          f"unrest {polity.unrest}, style {polity.style}")
             if leader is not None and leader.alive:
+                path = (f", {leader.realm_name} of {leader.sect}"
+                        if leader.sect else "")
                 lines.append(f"    {polity.title(leader.sex)} "
-                             f"{leader.display()}, age {leader.age}, "
+                             f"{leader.display()}, age {leader.age}{path}, "
                              f"{'/'.join(leader.traits)}, karma "
                              f"{leader.karma:+d}, seated Y{leader.reign_start}")
             else:
@@ -2732,7 +3429,9 @@ class World:
 
     def life_report(self, a: Agent) -> str:
         """One character's whole life: how it ended, their sheet, their log."""
-        if a.realm >= MAX_REALM:
+        if a.alive and a.is_ruler():
+            outcome = f"ON THE THRONE — {self.ruler_ref(a)}"
+        elif a.realm >= MAX_REALM:
             outcome = f"REACHED THE PEAK — {REALM_NAMES[MAX_REALM]}"
         elif a.exited:
             outcome = "LEFT THE PATH"
@@ -2797,8 +3496,23 @@ def run_years(world: World, n: int, echo=True):
                 print(line)
 
 
+def pc_story_over(hero: Agent) -> bool:
+    """Has this life finished being a story?
+
+    Death and leaving the path end it, and so does the peak — but NOT a
+    throne. Enthronement is not an ending (§4: the agent stays fully
+    simulated), so the camera keeps rolling through the whole reign, and a
+    monarch who reaches the peak on the seat is still mid-story until they
+    die, abdicate or are cast down.
+    """
+    if not hero.alive:
+        return True
+    return hero.realm >= MAX_REALM and not hero.is_ruler()
+
+
 def run_until_pc_resolved(world: World, cap_year: int, echo=True):
-    """Step until the current protagonist reaches the peak, dies or quits.
+    """Step until the current protagonist reaches the peak, dies or quits —
+    or, if they take a throne, until the reign ends.
 
     Returns the agent that was followed (the world may pick a successor PC
     on their death; this is the one whose story just ended).
@@ -2806,7 +3520,7 @@ def run_until_pc_resolved(world: World, cap_year: int, echo=True):
     hero = world.pc
     if hero is None:
         return None
-    while hero.alive and hero.realm < MAX_REALM and world.year < cap_year:
+    while not pc_story_over(hero) and world.year < cap_year:
         for line in world.step():
             if echo:
                 print(line)
